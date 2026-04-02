@@ -1,3 +1,0 @@
-module github.com/pullai/pullai
-
-go 1.22
