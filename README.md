@@ -56,17 +56,17 @@
 
 ## 🚀 Install
 
-### Via `uv` (cross-platform)
+### Via `uv` (cross-platform, recommended)
 
 ```bash
-uv tool install vortelio
+uv tool install "git+https://github.com/metiu1/Vortelio#subdirectory=vortelio-pip"
 vortelio gui
 ```
 
 ### Via `pip`
 
 ```bash
-pip install vortelio
+pip install "vortelio @ git+https://github.com/metiu1/Vortelio#subdirectory=vortelio-pip"
 ```
 
 ### Windows installer
