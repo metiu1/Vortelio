@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
       - run: uv build
         working-directory: vortelio-pip
       - run: uv tool install --reinstall ./vortelio-pip/dist/*.whl
