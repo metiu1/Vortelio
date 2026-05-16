@@ -58,10 +58,20 @@ func handleAgentDetail(entry agent.CatalogEntry) error {
 			actions = append(actions, "▶  Start agent")
 			actions = append(actions, "🗑  Uninstall agent")
 		} else {
-			if state.NodeFound {
+			canInstall := false
+			var missingMsg string
+			switch entry.InstallMethod {
+			case agent.MethodPip:
+				canInstall = state.PipFound
+				missingMsg = "⚠  Python/pip not found (install from python.org)"
+			default:
+				canInstall = state.NodeFound
+				missingMsg = "⚠  Node.js not found (install from nodejs.org)"
+			}
+			if canInstall {
 				actions = append(actions, "⬇  Install agent")
 			} else {
-				actions = append(actions, "⚠  Node.js not found (install from nodejs.org)")
+				actions = append(actions, missingMsg)
 			}
 		}
 		actions = append(actions, "← Back")
