@@ -22,20 +22,11 @@
 
 ---
 
-## 🩹 Problems Vortelio solves
+## 🔥 The problem
 
-| Pain | Today | With Vortelio |
-|------|-------|---------------|
-| 💸 **Cloud AI bills explode** — $20/mo ChatGPT × N seats, OpenAI API tokens add up | Pay per call, forever | Run unlimited on your own GPU. Zero per-token cost. |
-| 🔒 **Sensitive data leaves your machine** — medical, legal, financial, NDA | Sent to OpenAI/Anthropic/Google servers | 100% offline. Nothing leaves localhost. |
-| 🧩 **5 different apps for 5 modalities** — Ollama for text, A1111 for images, Whisper script for audio, ComfyUI for video, separate tool for 3D | Juggle Python envs, ports, configs | One binary. One UI. One API. All modalities. |
-| 🐍 **Python dependency hell** — CUDA / torch / diffusers / espeak conflicts | Hours of `pip install` debugging | `vortelio pull <model>` — deps auto-installed per model |
-| 🌐 **No internet, no AI** — flights, secure facilities, rural areas | App breaks without API | Works fully offline once models are pulled |
-| 🔁 **Locked into one provider** — rewriting code to switch from OpenAI to Claude | Vendor lock-in | OpenAI-compat + Ollama-compat API + 8 cloud providers proxied |
-| 🖥️ **"It works on my Mac" syndrome** | Different stack per OS | Same binary on Windows / Linux / macOS / WSL |
-| 🛡️ **Compliance / GDPR / HIPAA** | Cloud AI = data residency nightmare | Self-hosted, on-prem, air-gapped |
-| 🚀 **Slow first-token latency from cloud** | 500-2000ms TTFT over network | Sub-100ms local TTFT |
-| 🧪 **Hard to test multiple models** | Sign up + API key per provider | `vortelio pull`, run, compare in one UI |
+> **Cloud AI is expensive, leaks your data, and breaks without internet. Running it yourself means 5 different tools, Python dependency hell, and a weekend lost to setup.**
+>
+> **Vortelio fixes all of it — one binary, every modality, zero cloud.**
 
 ## Why Vortelio
 
