@@ -79,7 +79,7 @@ jobs:
         run: |
           mkdir -p vortelio-pip/src/vortelio_cli/bin
           cp bins/vortelio-* vortelio-pip/src/vortelio_cli/bin/
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
       - run: uv build
         working-directory: vortelio-pip
       - uses: pypa/gh-action-pypi-publish@release/v1
