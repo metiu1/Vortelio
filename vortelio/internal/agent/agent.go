@@ -145,13 +145,15 @@ var Catalog = []CatalogEntry{
 // ── State ─────────────────────────────────────────────────────────────────────
 
 type AgentState struct {
-	ID          string `json:"id"`
-	Installed   bool   `json:"installed"`
-	Running     bool   `json:"running"`
-	PID         int    `json:"pid,omitempty"`
-	Port        int    `json:"port"`
-	NodeFound   bool   `json:"node_found"`
-	Error       string `json:"error,omitempty"`
+	ID            string        `json:"id"`
+	Installed     bool          `json:"installed"`
+	Running       bool          `json:"running"`
+	PID           int           `json:"pid,omitempty"`
+	Port          int           `json:"port"`
+	NodeFound     bool          `json:"node_found"`
+	PipFound      bool          `json:"pip_found"`
+	InstallMethod InstallMethod `json:"install_method"`
+	Error         string        `json:"error,omitempty"`
 }
 
 var (
@@ -168,6 +170,15 @@ func nodeAvailable() bool {
 func npmAvailable() bool {
 	_, err := exec.LookPath("npm")
 	return err == nil
+}
+
+func pipAvailable() bool {
+	for _, bin := range []string{"pip3", "pip"} {
+		if _, err := exec.LookPath(bin); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // isBinInstalled checks if the agent binary is available.
@@ -232,12 +243,14 @@ func GetState(id string) AgentState {
 	}
 
 	return AgentState{
-		ID:        id,
-		Installed: installed,
-		Running:   running,
-		PID:       pid,
-		Port:      entry.DefaultPort,
-		NodeFound: nodeAvailable(),
+		ID:            id,
+		Installed:     installed,
+		Running:       running,
+		PID:           pid,
+		Port:          entry.DefaultPort,
+		NodeFound:     nodeAvailable(),
+		PipFound:      pipAvailable(),
+		InstallMethod: entry.InstallMethod,
 	}
 }
 

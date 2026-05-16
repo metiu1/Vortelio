@@ -4112,20 +4112,31 @@ function renderAgentCatalog() {
   const el = document.getElementById('agent-catalog');
   if (!el || !agentCatalog.length) return;
 
-  // Check if Node.js is available (from state of first agent)
   const nodeFound = agentCatalog.some(a => a.state?.node_found);
+  const pipFound  = agentCatalog.some(a => a.state?.pip_found);
 
-  let nodeWarning = '';
-  if (!nodeFound) {
-    nodeWarning = `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px;font-size:13px">
+  // Show warnings only if relevant agents exist that need the runtime
+  const hasNpmAgents = agentCatalog.some(a => a.install_method !== 'pip');
+  const hasPipAgents = agentCatalog.some(a => a.install_method === 'pip');
+  let warnings = '';
+  if (hasNpmAgents && !nodeFound) {
+    warnings += `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px;font-size:13px">
       <div style="font-weight:500;color:#c2410c;margin-bottom:4px">⚠️ ${t('nodeNotFound')}</div>
       <div style="color:#92400e;line-height:1.5">${t('nodeNotFoundDesc')}
         <a href="https://nodejs.org" target="_blank" style="color:var(--accent)">${t('nodeDownloadLink')}</a>${t('nodeRestartMsg')}
       </div>
     </div>`;
   }
+  if (hasPipAgents && !pipFound) {
+    warnings += `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px;font-size:13px">
+      <div style="font-weight:500;color:#c2410c;margin-bottom:4px">⚠️ Python/pip non trovato</div>
+      <div style="color:#92400e;line-height:1.5">Alcuni agenti richiedono Python 3.11+.
+        Installalo da <a href="https://python.org" target="_blank" style="color:var(--accent)">python.org</a> e riavvia Vortelio.
+      </div>
+    </div>`;
+  }
 
-  el.innerHTML = nodeWarning + agentCatalog.map(a => {
+  el.innerHTML = warnings + agentCatalog.map(a => {
     const st = a.state || {};
     let badgeClass, badgeText;
     if (st.running)        { badgeClass = 'running';       badgeText = t('agentRunning'); }
@@ -4133,7 +4144,9 @@ function renderAgentCatalog() {
     else                   { badgeClass = 'not-installed'; badgeText = t('agentNotInstalled'); }
 
     const tags = (a.tags || []).map(tag => `<span class="agent-tag">${esc(tag)}</span>`).join('');
-    const methodBadge = `<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 6px;border-radius:10px;border:1px solid var(--border)">npm</span>`;
+    const method = a.install_method || 'npm';
+    const methodColor = method === 'pip' ? '#3b82f6' : '#16a34a';
+    const methodBadge = `<span style="font-size:10px;font-family:var(--mono);color:#fff;background:${methodColor};padding:1px 7px;border-radius:10px">${esc(method)}</span>`;
 
     const apiHint = a.requires_api_key && a.api_key_hint
       ? `<div style="font-size:11px;color:#92400e;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:6px 10px;margin-top:6px">🔑 ${esc(a.api_key_hint)}</div>`
@@ -4160,7 +4173,10 @@ function renderAgentCatalog() {
         <button class="btn primary" onclick="agentStart('${a.id}')" style="font-size:12px">${t('agentStart')}</button>
         <button class="btn" onclick="agentUninstall('${a.id}')" style="font-size:12px;color:#dc2626;border-color:#fca5a5">${t('agentRemove')}</button>`;
     } else {
-      const disabled = !nodeFound ? `disabled title="${t('nodeNotFound')}"` : '';
+      const isPip = method === 'pip';
+      const runtimeOk = isPip ? pipFound : nodeFound;
+      const missingMsg = isPip ? 'Python/pip non trovato' : t('nodeNotFound');
+      const disabled = !runtimeOk ? `disabled title="${missingMsg}"` : '';
       footBtns = `<button class="btn primary" onclick="agentInstall('${a.id}',this)" style="font-size:12px" ${disabled}>${t('agentInstall')}</button>`;
     }
 
