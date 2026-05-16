@@ -179,6 +179,7 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/rag/ingest", ca(handleRAGIngest))
 	mux.HandleFunc("/api/rag/query", ca(handleRAGQuery))
 	mux.HandleFunc("/api/import/ollama", ca(handleImportOllama))
+	mux.HandleFunc("/api/config", ca(handleConfig))
 
 	// Public observability/spec (no auth — required for monitoring tools)
 	mux.HandleFunc("/metrics", withObservability(withCORS(handleMetrics)))

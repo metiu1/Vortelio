@@ -232,10 +232,17 @@ func handleAdvancedTools() error {
 			"📚 RAG — query a collection",
 			"🔍 GGUF Inspect",
 			"📋 Audit Log (last 20)",
+			"⚖  Compare models",
+			"{ } Structured output",
+			"📝 Summarize text",
+			"💡 Think API (chain-of-thought)",
+			"🗺  Model Router",
+			"🖥  Server status & loaded models",
+			"🛠  Server config",
 			"← Back",
 		})
 		switch sel {
-		case -1, 3:
+		case -1, 10:
 			return nil
 		case 0:
 			handleRAGQuery()
@@ -243,6 +250,20 @@ func handleAdvancedTools() error {
 			handleGGUFInspect()
 		case 2:
 			handleAuditLog()
+		case 3:
+			handleTUICompare()
+		case 4:
+			handleTUIStructured()
+		case 5:
+			handleTUISummarize()
+		case 6:
+			handleTUIThink()
+		case 7:
+			handleTUIRoute()
+		case 8:
+			handleTUIServerStatus()
+		case 9:
+			handleTUIServerConfig()
 		}
 	}
 }
@@ -390,6 +411,379 @@ func handleAuditLog() {
 		}
 	}
 	waitKey("")
+}
+
+func handleTUICompare() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  ⚖  Compare Models")
+	fmt.Println()
+	fmt.Print("  Models (comma-separated, e.g. llm/mistral:7b,llm/llama3:8b): ")
+	modelsRaw := strings.TrimSpace(readLineSimple())
+	if modelsRaw == "" {
+		return
+	}
+	models := strings.Split(modelsRaw, ",")
+	for i, m := range models {
+		models[i] = strings.TrimSpace(m)
+	}
+	fmt.Print("  System prompt (enter to skip): ")
+	system := strings.TrimSpace(readLineSimple())
+	fmt.Print("  Prompt: ")
+	prompt := strings.TrimSpace(readLineSimple())
+	if prompt == "" {
+		return
+	}
+	fmt.Println("\n  Running comparison…")
+	result, err := apiCall("POST", "/api/compare", map[string]interface{}{
+		"models": models, "prompt": prompt, "system": system,
+	})
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	if errMsg, ok := result["error"].(string); ok {
+		waitKey(fmt.Sprintf("  ❌  %s", errMsg))
+		return
+	}
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  ⚖  Comparison Results")
+	fmt.Println()
+	results, _ := result["results"].([]interface{})
+	for _, r := range results {
+		rm, ok := r.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		model, _ := rm["model"].(string)
+		resp, _ := rm["response"].(string)
+		durMS, _ := rm["duration_ms"].(float64)
+		errStr, _ := rm["error"].(string)
+		fmt.Printf("  ── %s  (%.0fms) ──\n", model, durMS)
+		if errStr != "" {
+			fmt.Printf("  ❌ %s\n\n", errStr)
+			continue
+		}
+		if len(resp) > 400 {
+			resp = resp[:397] + "…"
+		}
+		fmt.Printf("  %s\n\n", strings.ReplaceAll(resp, "\n", "\n  "))
+	}
+	waitKey("")
+}
+
+func handleTUIStructured() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  { } Structured Output")
+	fmt.Println()
+	fmt.Print("  Model (e.g. llm/mistral:7b): ")
+	model := strings.TrimSpace(readLineSimple())
+	if model == "" {
+		return
+	}
+	fmt.Print("  Prompt: ")
+	prompt := strings.TrimSpace(readLineSimple())
+	if prompt == "" {
+		return
+	}
+	fmt.Print("  JSON schema (enter to skip — free JSON): ")
+	schema := strings.TrimSpace(readLineSimple())
+
+	payload := map[string]interface{}{"model": model, "prompt": prompt}
+	if schema != "" {
+		payload["schema"] = json.RawMessage(schema)
+	}
+	fmt.Println("\n  Generating…")
+	result, err := apiCall("POST", "/api/structured", payload)
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	if errMsg, ok := result["error"].(string); ok {
+		waitKey(fmt.Sprintf("  ❌  %s", errMsg))
+		return
+	}
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  { } Structured Result")
+	fmt.Println()
+	raw, _ := result["raw"].(string)
+	if len(raw) > 2000 {
+		raw = raw[:1997] + "…"
+	}
+	fmt.Printf("  %s\n", strings.ReplaceAll(raw, "\n", "\n  "))
+	if pe, ok := result["parse_err"].(string); ok && pe != "" {
+		fmt.Printf("\n  ⚠  parse error: %s\n", pe)
+	}
+	waitKey("")
+}
+
+func handleTUISummarize() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  📝 Summarize")
+	fmt.Println()
+	fmt.Print("  Model (e.g. llm/mistral:7b): ")
+	model := strings.TrimSpace(readLineSimple())
+	if model == "" {
+		return
+	}
+	fmt.Println("  Style: [1] paragraph  [2] bullets  [3] tldr")
+	fmt.Print("  Choice [1]: ")
+	styleChoice := strings.TrimSpace(readLineSimple())
+	style := "paragraph"
+	switch styleChoice {
+	case "2":
+		style = "bullets"
+	case "3":
+		style = "tldr"
+	}
+	fmt.Print("  Paste text (end with a line containing only '---')\n  ")
+	var textLines []string
+	for {
+		line := readLineSimple()
+		if line == "---" {
+			break
+		}
+		textLines = append(textLines, line)
+		fmt.Print("  ")
+	}
+	text := strings.Join(textLines, "\n")
+	if text == "" {
+		return
+	}
+	fmt.Println("\n  Summarizing…")
+	result, err := apiCall("POST", "/api/summarize", map[string]interface{}{
+		"model": model, "text": text, "style": style,
+	})
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	if errMsg, ok := result["error"].(string); ok {
+		waitKey(fmt.Sprintf("  ❌  %s", errMsg))
+		return
+	}
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  📝 Summary")
+	fmt.Println()
+	summary, _ := result["summary"].(string)
+	chunks, _ := result["chunks"].(float64)
+	fmt.Printf("  Chunks processed: %.0f\n\n", chunks)
+	fmt.Printf("  %s\n", strings.ReplaceAll(summary, "\n", "\n  "))
+	waitKey("")
+}
+
+func handleTUIThink() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  💡 Think API (chain-of-thought)")
+	fmt.Println()
+	fmt.Print("  Model (e.g. llm/deepseek-r1:8b): ")
+	model := strings.TrimSpace(readLineSimple())
+	if model == "" {
+		return
+	}
+	fmt.Print("  System prompt (enter to skip): ")
+	system := strings.TrimSpace(readLineSimple())
+	fmt.Print("  Prompt: ")
+	prompt := strings.TrimSpace(readLineSimple())
+	if prompt == "" {
+		return
+	}
+	fmt.Println("\n  Thinking…")
+	result, err := apiCall("POST", "/api/think", map[string]interface{}{
+		"model": model, "prompt": prompt, "system": system,
+	})
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	if errMsg, ok := result["error"].(string); ok {
+		waitKey(fmt.Sprintf("  ❌  %s", errMsg))
+		return
+	}
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  💡 Think Result")
+	fmt.Println()
+	thinking, _ := result["thinking"].(string)
+	answer, _ := result["answer"].(string)
+	if thinking != "" {
+		if len(thinking) > 600 {
+			thinking = thinking[:597] + "…"
+		}
+		fmt.Println("  ── Reasoning ──")
+		fmt.Printf("  \033[2m%s\033[0m\n\n", strings.ReplaceAll(thinking, "\n", "\n  "))
+	}
+	fmt.Println("  ── Answer ──")
+	fmt.Printf("  %s\n", strings.ReplaceAll(answer, "\n", "\n  "))
+	waitKey("")
+}
+
+func handleTUIRoute() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  🗺  Model Router")
+	fmt.Println()
+	fmt.Println("  Task types: chat, code, embed, vision, image, audio, video, 3d")
+	fmt.Print("  Task [chat]: ")
+	task := strings.TrimSpace(readLineSimple())
+	if task == "" {
+		task = "chat"
+	}
+	fmt.Print("  Optional prompt for heuristic detect (enter to skip): ")
+	prompt := strings.TrimSpace(readLineSimple())
+
+	result, err := apiCall("POST", "/api/route", map[string]interface{}{
+		"task": task, "prompt": prompt,
+	})
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	if errMsg, ok := result["error"].(string); ok {
+		waitKey(fmt.Sprintf("  ❌  %s", errMsg))
+		return
+	}
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  🗺  Router Result")
+	fmt.Println()
+	model, _ := result["model"].(string)
+	size, _ := result["size"].(string)
+	if model == "" {
+		waitKey(fmt.Sprintf("  ⚠  No model found for task: %s", task))
+		return
+	}
+	fmt.Printf("  Task:   %s\n", task)
+	fmt.Printf("  Model:  %s\n", model)
+	if size != "" {
+		fmt.Printf("  Size:   %s\n", size)
+	}
+	if cands, ok := result["candidates"].([]interface{}); ok && len(cands) > 1 {
+		fmt.Printf("  Others: ")
+		for i, c := range cands {
+			if i > 0 {
+				fmt.Print(", ")
+			}
+			fmt.Print(c)
+		}
+		fmt.Println()
+	}
+	waitKey("")
+}
+
+func handleTUIServerStatus() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  🖥  Server Status")
+	fmt.Println()
+	status, err := apiCall("GET", "/api/status", nil)
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	name, _ := status["name"].(string)
+	ver, _ := status["version"].(string)
+	hw, _ := status["hardware"].(string)
+	cnt, _ := status["model_count"].(float64)
+	fmt.Printf("  Server:   %s %s\n", name, ver)
+	fmt.Printf("  Hardware: %s\n", hw)
+	fmt.Printf("  Models:   %.0f installed\n\n", cnt)
+
+	ps, err := apiCall("GET", "/api/ps", nil)
+	if err == nil {
+		models, _ := ps["models"].([]interface{})
+		if len(models) == 0 {
+			fmt.Println("  No models currently loaded in memory.")
+		} else {
+			fmt.Println("  Loaded in memory:")
+			for _, m := range models {
+				if mm, ok := m.(map[string]interface{}); ok {
+					name := mm["name"]
+					if name == nil {
+						name = mm["model"]
+					}
+					fmt.Printf("    • %v\n", name)
+				}
+			}
+		}
+	}
+	waitKey("")
+}
+
+func handleTUIServerConfig() {
+	result, err := apiCall("GET", "/api/config", nil)
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	fmt.Print("\033[H\033[2J")
+	fmt.Println("\n  🛠  Server Config")
+	fmt.Println()
+	port, _ := result["port"].(float64)
+	bind, _ := result["bind_addr"].(string)
+	apiKey, _ := result["api_key"].(string)
+	ollamaPort, _ := result["ollama_port"].(float64)
+	timeout, _ := result["cloud_timeout_sec"].(float64)
+	python, _ := result["python_bin"].(string)
+	fmt.Printf("  Port:             %.0f\n", port)
+	fmt.Printf("  Bind addr:        %s\n", bind)
+	fmt.Printf("  API key:          %s\n", func() string {
+		if apiKey == "" {
+			return "(none — no auth)"
+		}
+		return "(set)"
+	}())
+	fmt.Printf("  Ollama port:      %.0f\n", ollamaPort)
+	fmt.Printf("  Cloud timeout:    %.0fs\n", timeout)
+	fmt.Printf("  Python bin:       %s\n", func() string {
+		if python == "" {
+			return "(auto-detect)"
+		}
+		return python
+	}())
+	fmt.Println()
+	fmt.Println("  Edit config? [y/N]: ")
+	choice := strings.TrimSpace(readLineSimple())
+	if strings.ToLower(choice) != "y" {
+		return
+	}
+
+	patch := map[string]interface{}{}
+	fmt.Printf("  New port [%.0f]: ", port)
+	if v := strings.TrimSpace(readLineSimple()); v != "" {
+		var p int
+		fmt.Sscanf(v, "%d", &p)
+		if p > 0 {
+			patch["port"] = p
+		}
+	}
+	fmt.Printf("  New bind addr [%s]: ", bind)
+	if v := strings.TrimSpace(readLineSimple()); v != "" {
+		patch["bind_addr"] = v
+	}
+	fmt.Print("  New API key (enter to clear, '-' to keep): ")
+	if v := strings.TrimSpace(readLineSimple()); v != "-" {
+		patch["api_key"] = v
+	}
+	fmt.Printf("  New Python bin [%s]: ", func() string {
+		if python == "" {
+			return "auto"
+		}
+		return python
+	}())
+	if v := strings.TrimSpace(readLineSimple()); v != "" {
+		patch["python_bin"] = v
+	}
+
+	if len(patch) == 0 {
+		waitKey("  No changes.")
+		return
+	}
+	saveResult, err := apiCall("POST", "/api/config", patch)
+	if err != nil {
+		waitKey(fmt.Sprintf("  ❌  %s", err.Error()))
+		return
+	}
+	if errMsg, ok := saveResult["error"].(string); ok {
+		waitKey(fmt.Sprintf("  ❌  %s", errMsg))
+		return
+	}
+	waitKey("  ✅ Config saved. Restart Vortelio for port/bind changes to take effect.")
 }
 
 func readLineSimple() string {

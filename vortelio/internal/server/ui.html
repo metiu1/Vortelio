@@ -1270,6 +1270,8 @@ textarea.inp::placeholder { color: var(--text3); }
       <button class="tools-tab"    id="tab-import"     onclick="switchToolTab('import')">📥 Import Ollama</button>
       <button class="tools-tab"    id="tab-webhooks"   onclick="switchToolTab('webhooks')">🔗 Webhooks</button>
       <button class="tools-tab"    id="tab-audit"      onclick="switchToolTab('audit')">📋 Audit Log</button>
+      <button class="tools-tab"    id="tab-route"      onclick="switchToolTab('route')">🗺 Model Router</button>
+      <button class="tools-tab"    id="tab-ps"         onclick="switchToolTab('ps')">🖥 Loaded Models</button>
     </div>
     <div class="panel-inner" style="overflow-y:auto;flex:1">
 
@@ -1427,6 +1429,43 @@ textarea.inp::placeholder { color: var(--text3); }
         <div id="audit-list"></div>
       </div>
 
+      <!-- ── Model Router ── -->
+      <div id="tool-route" class="tool-tab-content" style="display:none">
+        <div class="panel-title">🗺 Model Router</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Automatically select the best installed model for a given task type.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+          <div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Task type</label>
+            <select id="route-task" class="tool-input" style="width:100%">
+              <option value="chat">💬 Chat</option>
+              <option value="code">💻 Code</option>
+              <option value="embed">🔢 Embed</option>
+              <option value="vision">👁 Vision</option>
+              <option value="image">🎨 Image generation</option>
+              <option value="audio">🔊 Audio</option>
+              <option value="video">🎬 Video</option>
+              <option value="3d">🧊 3D</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Auto-detect from prompt</label>
+            <input id="route-prompt" class="tool-input" placeholder="Optional prompt for heuristic detect" style="width:100%">
+          </div>
+        </div>
+        <button class="btn primary" onclick="toolRoute()" id="route-btn">🗺 Route</button>
+        <div id="route-result" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── Loaded Models (ps) ── -->
+      <div id="tool-ps" class="tool-tab-content" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="panel-title" style="margin:0">🖥 Loaded Models</div>
+          <button class="btn" onclick="loadPsModels()">🔄 Refresh</button>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Models currently loaded in memory (active llama-server processes).</div>
+        <div id="ps-list"></div>
+      </div>
+
     </div>
   </div>
 
@@ -1534,6 +1573,49 @@ textarea.inp::placeholder { color: var(--text3); }
       <div id="remote-status" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
     </div>
 
+    <!-- Server Config -->
+    <div class="settings-section">
+      <div class="settings-section-title">🛠 Server Configuration</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.5">
+        Edit local server settings. Changes are saved to <code>~/.vortelio/config.json</code> and take effect after restart (except API key which applies immediately).
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Port</label>
+          <input id="cfg-port" type="number" class="tool-input" placeholder="11500" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Bind address</label>
+          <input id="cfg-bind" class="tool-input" placeholder="127.0.0.1" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Ollama port (import/compat)</label>
+          <input id="cfg-ollama-port" type="number" class="tool-input" placeholder="11434" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Cloud timeout (sec)</label>
+          <input id="cfg-timeout" type="number" class="tool-input" placeholder="120" style="width:100%">
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">API Key (empty = no auth)</label>
+        <input id="cfg-apikey" type="password" class="tool-input" placeholder="Leave blank to disable auth" style="width:100%">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">CORS allow origins (comma-separated, * = all)</label>
+        <input id="cfg-origins" class="tool-input" placeholder="* or http://myapp.com,http://localhost:3000" style="width:100%">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Python binary (leave blank for auto-detect)</label>
+        <input id="cfg-python" class="tool-input" placeholder="/usr/bin/python3" style="width:100%">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" onclick="saveServerConfig()" style="flex:1">💾 Save config</button>
+        <button class="btn" onclick="loadServerConfig()" style="flex:1">↩ Reset</button>
+      </div>
+      <div id="cfg-status" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
+    </div>
+
     <!-- Info -->
     <div class="settings-section">
       <div class="settings-section-title" data-i18n="info2">Informazioni</div>
@@ -1548,6 +1630,15 @@ textarea.inp::placeholder { color: var(--text3); }
       <div class="info-row">
         <span class="info-label" data-i18n="installedCount">Modelli installati</span>
         <span class="info-value" id="settings-models">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Loaded in memory</span>
+        <span class="info-value" id="settings-ps">—</span>
+      </div>
+      <div style="margin-top:10px">
+        <a href="/metrics" target="_blank" style="font-size:12px;color:var(--accent)">📊 Prometheus metrics</a>
+        &nbsp;·&nbsp;
+        <a href="/openapi.json" target="_blank" style="font-size:12px;color:var(--accent)">📄 OpenAPI spec</a>
       </div>
     </div>
 
@@ -2131,6 +2222,13 @@ function openSettings() {
   document.getElementById('settings-models').textContent = installedModels.length + ' models';
   document.getElementById('theme-light').classList.toggle('active', currentTheme==='light');
   document.getElementById('theme-dark').classList.toggle('active', currentTheme==='dark');
+
+  // Load server config + ps
+  loadServerConfig();
+  fetch('/api/ps').then(r=>r.json()).then(d => {
+    const el = document.getElementById('settings-ps');
+    if (el) el.textContent = (d.models||[]).length + ' model(s) in memory';
+  }).catch(()=>{});
 
   // Pre-fill remote server inputs
   const remUrlIn = document.getElementById('remote-url-input');
@@ -4990,6 +5088,7 @@ function switchToolTab(tab) {
   if (content) content.style.display = '';
   if (tab === 'webhooks') loadWebhooks();
   if (tab === 'audit')    loadAuditLog();
+  if (tab === 'ps')       loadPsModels();
 }
 
 function populateToolModelSelects() {
@@ -5326,6 +5425,107 @@ async function loadAuditLog() {
       </div>
     `;
   } catch(e) { el.innerHTML = `<span style="color:#dc2626;font-size:12px">❌ ${esc(e.message)}</span>`; }
+}
+
+// ── Model Router ──────────────────────────────────────────────
+async function toolRoute() {
+  const btn = document.getElementById('route-btn');
+  const el  = document.getElementById('route-result');
+  const task   = document.getElementById('route-task').value;
+  const prompt = document.getElementById('route-prompt').value;
+  btn.disabled = true; btn.textContent = '…';
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px">Routing…</div>';
+  try {
+    const r = await fetch('/api/route', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ task, prompt }) });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    if (!d.model) {
+      el.innerHTML = '<div style="color:#ea580c;font-size:13px">⚠ No suitable model found for task: ' + esc(task) + '</div>';
+    } else {
+      el.innerHTML = `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">✅ Best model for <em>${esc(task)}</em>:</div>
+          <div style="font-family:var(--mono);font-size:14px;color:var(--accent);margin-bottom:8px">${esc(d.model)}</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:4px">Size: ${esc(d.size||'—')}</div>
+          ${d.candidates && d.candidates.length > 1 ? `<div style="font-size:12px;color:var(--text3)">Other candidates: ${d.candidates.map(esc).join(', ')}</div>` : ''}
+        </div>`;
+    }
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626;font-size:12px">❌ ${esc(e.message)}</span>`; }
+  finally { btn.disabled = false; btn.textContent = '🗺 Route'; }
+}
+
+// ── Loaded Models (ps) ────────────────────────────────────────
+async function loadPsModels() {
+  const el = document.getElementById('ps-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px">Loading…</div>';
+  try {
+    const r = await fetch('/api/ps');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const models = d.models || [];
+    if (!models.length) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px 0">No models currently loaded in memory.</div>';
+      return;
+    }
+    el.innerHTML = models.map(m => `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">${esc(m.name||m.model||'—')}</div>
+        <div style="font-size:12px;color:var(--text3);display:flex;gap:16px;flex-wrap:wrap">
+          ${m.size ? `<span>Size: ${esc(m.size)}</span>` : ''}
+          ${m.size_vram ? `<span>VRAM: ${esc(m.size_vram)}</span>` : ''}
+          ${m.expires_at ? `<span>Expires: ${esc(m.expires_at)}</span>` : ''}
+          ${m.digest ? `<span style="font-family:var(--mono)">Digest: ${esc(m.digest.slice(0,12))}…</span>` : ''}
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626;font-size:12px">❌ ${esc(e.message)}</span>`; }
+}
+
+// ── Server Config ─────────────────────────────────────────────
+async function loadServerConfig() {
+  try {
+    const r = await fetch('/api/config');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const s = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+    s('cfg-port', d.port);
+    s('cfg-bind', d.bind_addr);
+    s('cfg-apikey', d.api_key);
+    s('cfg-ollama-port', d.ollama_port);
+    s('cfg-timeout', d.cloud_timeout_sec);
+    s('cfg-python', d.python_bin);
+    s('cfg-origins', (d.allow_origins||[]).join(', '));
+    const st = document.getElementById('cfg-status');
+    if (st) st.textContent = '';
+  } catch(e) { const st = document.getElementById('cfg-status'); if (st) st.textContent = '❌ ' + e.message; }
+}
+
+async function saveServerConfig() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const port = parseInt(g('cfg-port')) || 0;
+  const ollamaPort = parseInt(g('cfg-ollama-port')) || 0;
+  const timeout = parseInt(g('cfg-timeout')) || 0;
+  const originsRaw = g('cfg-origins');
+  const origins = originsRaw ? originsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const payload = {};
+  if (port) payload.port = port;
+  if (g('cfg-bind')) payload.bind_addr = g('cfg-bind');
+  payload.api_key = g('cfg-apikey');
+  if (ollamaPort) payload.ollama_port = ollamaPort;
+  if (timeout) payload.cloud_timeout_sec = timeout;
+  if (g('cfg-python')) payload.python_bin = g('cfg-python');
+  if (origins.length) payload.allow_origins = origins;
+
+  const st = document.getElementById('cfg-status');
+  if (st) st.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    if (st) st.textContent = '✅ Saved. Restart Vortelio to apply port/bind changes.';
+    toast('✅ Config saved', 'ok');
+  } catch(e) { if (st) st.textContent = '❌ ' + e.message; toast('❌ ' + e.message); }
 }
 
 // ══════════════════════════════════════════════════════════════
