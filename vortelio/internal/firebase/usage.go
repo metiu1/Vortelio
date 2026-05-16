@@ -19,11 +19,12 @@ type MonthlyUsage struct {
 	LastUpdate time.Time `firestore:"last_update" json:"last_update"`
 }
 
-// Plan token limits per month (0 = unlimited).
+// Plan token limits per month (0 = no cloud access).
 var PlanLimits = map[string]int64{
-	"free":       0,       // no cloud access
-	"pro":        2000000, // 2M tokens/month
-	"enterprise": 10000000,// 10M tokens/month
+	"free":       0,          // no cloud access — local only
+	"pro":        2000000,    // €9.99/mese — 2M tokens
+	"business":   5000000,    // €20/mese   — 5M tokens
+	"enterprise": 15000000,   // €150/mese  — 15M tokens
 }
 
 // currentMonth returns "YYYY-MM".

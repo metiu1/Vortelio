@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -912,7 +912,7 @@ textarea.inp::placeholder { color: var(--text3); }
 
   <button class="new-chat-btn" onclick="showPanel('cloud')" style="margin-bottom:4px">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.5 9.5H3a2.5 2.5 0 010-5h.3A4 4 0 0111.5 9.5z"/></svg>
-    <span>☁️ Cloud API</span>
+    <span>☁️ Cloud Models</span>
   </button>
 
   <button class="new-chat-btn" onclick="showPanel('models')" style="margin-bottom:4px;font-size:13px" id="installed-btn-lbl-btn">
@@ -1209,45 +1209,110 @@ textarea.inp::placeholder { color: var(--text3); }
   <!-- ☁️ CLOUD API PANEL ──────────────────────────────────────── -->
   <div class="panel" id="ws-cloud">
     <div class="main-topbar">
-      <div class="topbar-left"><span class="topbar-title">☁️ Cloud API</span></div>
+      <div class="topbar-left"><span class="topbar-title">☁️ Cloud Models</span></div>
       <div class="topbar-right">
-        <button class="topbar-btn" id="cloud-save-btn" onclick="cloudSaveChat()" style="display:none">💾 Save</button>
         <button class="topbar-btn" id="cloud-newchat-btn" onclick="cloudNewChat()" style="display:none">+ New chat</button>
       </div>
     </div>
 
-    <!-- ── Provider selection screen ────────────────────────── -->
-    <div id="cloud-setup-screen">
-      <div class="panel-inner">
-        <div class="panel-title" style="margin-bottom:6px">Choose a Cloud Provider</div>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5">
-          Add your API key and start chatting — no download required.
+    <!-- ── Auth / upgrade gate ──────────────────────────────── -->
+    <div id="cloud-gate-screen">
+      <div class="panel-inner" style="max-width:680px;margin:0 auto">
+        <div class="panel-title" style="margin-bottom:6px;text-align:center">☁️ Cloud Models</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.5;text-align:center">
+          Access state-of-the-art AI models — no download, no local GPU required.<br>
+          Powered by <strong>Vortelio Cloud</strong> via OpenRouter.
         </p>
-        <div id="cloud-provider-cards" style="display:flex;flex-direction:column;gap:10px"></div>
+
+        <!-- Pricing cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px" id="cloud-pricing-grid">
+          <!-- Free -->
+          <div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--bg2);display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">Free</div>
+            <div style="font-size:22px;font-weight:700;color:var(--text)">€0</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">forever</div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+            <div style="font-size:12px;color:var(--text2);line-height:1.7">
+              ✓ Local Ollama models<br>
+              ✓ All local features<br>
+              ✗ Cloud models
+            </div>
+            <button class="btn" style="margin-top:auto;font-size:12px" onclick="cloudGateSignIn()">Sign in free</button>
+          </div>
+          <!-- Pro -->
+          <div style="border:2px solid #7c3aed;border-radius:10px;padding:16px;background:var(--bg2);display:flex;flex-direction:column;gap:6px;position:relative">
+            <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#7c3aed;color:#fff;font-size:10px;font-weight:600;padding:2px 10px;border-radius:20px;white-space:nowrap">MOST POPULAR</div>
+            <div style="font-size:13px;font-weight:600;color:#7c3aed">Pro</div>
+            <div style="font-size:22px;font-weight:700;color:var(--text)">€9.99</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">/ month</div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+            <div style="font-size:12px;color:var(--text2);line-height:1.7">
+              ✓ 2M tokens / month<br>
+              ✓ Claude Sonnet 4.5<br>
+              ✓ GPT-4o Mini<br>
+              ✓ Gemini 2.0 Flash<br>
+              ✓ Llama 70B, DeepSeek
+            </div>
+            <button class="btn primary" style="margin-top:auto;font-size:12px;background:#7c3aed;border-color:#7c3aed" onclick="cloudUpgrade('pro')">Upgrade to Pro</button>
+          </div>
+          <!-- Business -->
+          <div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--bg2);display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">Business</div>
+            <div style="font-size:22px;font-weight:700;color:var(--text)">€20</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">/ month</div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+            <div style="font-size:12px;color:var(--text2);line-height:1.7">
+              ✓ 5M tokens / month<br>
+              ✓ GPT-4o<br>
+              ✓ Claude Haiku 3.5<br>
+              ✓ Gemini 2.5 Flash<br>
+              ✓ Mistral Large, Qwen, R1
+            </div>
+            <button class="btn primary" style="margin-top:auto;font-size:12px" onclick="cloudUpgrade('business')">Upgrade</button>
+          </div>
+          <!-- Enterprise -->
+          <div style="border:1px solid var(--border);border-radius:10px;padding:16px;background:var(--bg2);display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:13px;font-weight:600;color:#0891b2">Enterprise</div>
+            <div style="font-size:22px;font-weight:700;color:var(--text)">€150</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">/ month</div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+            <div style="font-size:12px;color:var(--text2);line-height:1.7">
+              ✓ 15M tokens / month<br>
+              ✓ Claude Opus 4.5<br>
+              ✓ OpenAI o3, o4-mini<br>
+              ✓ Gemini 2.5 Pro<br>
+              ✓ Grok 3, Sonnet 4.7
+            </div>
+            <button class="btn primary" style="margin-top:auto;font-size:12px;background:#0891b2;border-color:#0891b2" onclick="cloudUpgrade('enterprise')">Upgrade</button>
+          </div>
+        </div>
+
+        <p style="font-size:11px;color:var(--text3);text-align:center">
+          Payments processed securely by Stripe. Cancel anytime. Token limits reset on the 1st of each month.
+        </p>
       </div>
     </div>
 
-    <!-- ── Cloud chat screen ─────────────────────────────────── -->
+    <!-- ── Cloud chat screen (paid users) ───────────────────── -->
     <div id="cloud-chat-screen" style="display:none;flex-direction:column;flex:1;overflow:hidden;height:calc(100% - 49px)">
-      <!-- barra provider + modello -->
+      <!-- model selector bar -->
       <div style="border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap">
-        <button class="btn" style="font-size:12px;padding:4px 10px;flex-shrink:0" onclick="showCloudSetup()" data-i18n="cloudBack">← Provider</button>
-        <span style="font-size:13px;font-weight:500;flex-shrink:0" id="cloud-provider-badge">—</span>
-        <div style="flex:1"></div>
         <div class="dd-wrap">
           <button class="ctrl-btn" id="cloud-model-btn" onclick="toggleDD('cloud-model')" style="font-size:12px">
-            <span id="cloud-model-lbl" data-i18n="cloudSelectModel">Select model</span>
+            <span id="cloud-model-lbl">Select model</span>
             <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" style="width:10px;height:10px;flex-shrink:0"><path d="M1 1l4 4 4-4"/></svg>
           </button>
           <div class="dd-menu" id="cloud-model-dd" style="right:0;left:auto;min-width:240px;max-height:320px;overflow-y:auto"></div>
         </div>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:var(--text3)" id="cloud-usage-lbl"></span>
       </div>
-      <!-- messaggi -->
+      <!-- messages -->
       <div class="canvas" id="cloud-canvas" style="flex:1">
         <div class="welcome" id="cloud-welcome">
-          <div class="welcome-logo" style="background:#6366f1;font-size:20px" id="cloud-welcome-icon">☁️</div>
-          <div class="welcome-title" id="cloud-welcome-title">Ready</div>
-          <div class="welcome-sub" id="cloud-welcome-sub" data-i18n="cloudWelcomeSub">Select a model above and start typing.</div>
+          <div class="welcome-logo" style="background:#6366f1;font-size:20px">☁️</div>
+          <div class="welcome-title">Cloud Models</div>
+          <div class="welcome-sub">Select a model above and start typing.</div>
         </div>
         <div class="msgs" id="cloud-msgs" style="display:none"></div>
       </div>
@@ -1263,8 +1328,8 @@ textarea.inp::placeholder { color: var(--text3); }
             </button>
           </div>
           <div class="controls-row">
-            <span style="font-size:11px;color:var(--text3)" id="cloud-data-note" data-i18n="cloudDataNote">☁️ I dati vengono inviati al provider selezionato.</span>
-            <div style="margin-left:auto;font-size:12px;color:var(--text3)" id="cloud-hint" data-i18n="sendHintShort">↵ invia · Shift+↵ a capo</div>
+            <span style="font-size:11px;color:var(--text3)">☁️ Responses generated via Vortelio Cloud.</span>
+            <div style="margin-left:auto;font-size:12px;color:var(--text3)">↵ send · Shift+↵ newline</div>
           </div>
         </div>
       </div>
@@ -1799,7 +1864,8 @@ var _fbApp = null, _fbAuth = null, _fbUser = null, _fbIdToken = null, _fbProfile
         opts = Object.assign({}, opts, { headers });
       }
       // Inject Firebase ID token for auth-protected endpoints
-      if (_fbIdToken && (url.includes('/api/user') || url.includes('/api/chats'))) {
+      if (_fbIdToken && (url.includes('/api/user') || url.includes('/api/chats') ||
+          url.includes('/api/proxy') || url.includes('/api/stripe'))) {
         const headers = Object.assign({}, opts.headers || {});
         headers['X-Firebase-Token'] = _fbIdToken;
         opts = Object.assign({}, opts, { headers });
@@ -1918,14 +1984,7 @@ const LANGS = {
     agentNotInstalled: 'Non installato',
     agentOpenWeb: '🌐 Apri interfaccia web',
     // Cloud panel
-    cloudTitle: '☁️ Cloud API',
-    cloudChoose: 'Scegli un provider Cloud',
-    cloudDesc: 'Aggiungi la tua API key e inizia a chattare — nessun download richiesto.',
-    cloudReady: 'Pronto',
-    cloudSelectModel: 'Seleziona modello',
-    cloudSave: '💾 Salva',
-    cloudNewChat: '+ Nuova chat',
-    cloudBack: '← Provider',
+    cloudTitle: '☁️ Cloud Models',
     // Settings
     settingsModels: 'modelli',
     // Auth
@@ -2066,14 +2125,7 @@ const LANGS = {
     agentNotInstalled: 'Not installed',
     agentOpenWeb: '🌐 Open web interface',
     // Cloud panel
-    cloudTitle: '☁️ Cloud API',
-    cloudChoose: 'Choose a Cloud Provider',
-    cloudDesc: 'Add your API key and start chatting — no download needed.',
-    cloudReady: 'Ready',
-    cloudSelectModel: 'Select model',
-    cloudSave: '💾 Save',
-    cloudNewChat: '+ New chat',
-    cloudBack: '← Provider',
+    cloudTitle: '☁️ Cloud Models',
     // Settings
     settingsModels: 'models',
     // Auth
@@ -2189,12 +2241,7 @@ function applyLang() {
   document.getElementById('lang-it')?.classList.toggle('active', currentLang === 'it');
   document.getElementById('lang-en')?.classList.toggle('active', currentLang === 'en');
 
-  // Cloud panel
-  s('cloud-welcome-title', 'cloudReady');
-  const cloudSetupTitle = document.querySelector('#cloud-setup-screen .panel-title');
-  if (cloudSetupTitle) cloudSetupTitle.textContent = t('cloudChoose');
-  const cloudSetupDesc = document.querySelector('#cloud-setup-screen p');
-  if (cloudSetupDesc) cloudSetupDesc.textContent = t('cloudDesc');
+  // Cloud panel — no dynamic i18n needed (static HTML)
 
   // Agents panel topbar title + refresh button
   const agentsTitle = document.querySelector('#ws-agents .topbar-title');
@@ -2209,10 +2256,8 @@ function applyLang() {
   if (cloudTitle) cloudTitle.textContent = t('cloudTitle');
 
   // Cloud buttons
-  const cloudSaveBtn = document.getElementById('cloud-save-btn');
-  if (cloudSaveBtn) cloudSaveBtn.textContent = t('cloudSave');
   const cloudNewBtn = document.getElementById('cloud-newchat-btn');
-  if (cloudNewBtn) cloudNewBtn.textContent = t('cloudNewChat');
+  if (cloudNewBtn) cloudNewBtn.textContent = '+ New chat';
 
   // Settings models count
   const smEl = document.getElementById('settings-models');
@@ -3230,10 +3275,10 @@ function showPanel(name) {
   if (name === 'models')   loadModels();
   if (name === 'registry') renderReg(REG);
   if (name === 'agents')   refreshAgentCatalog();
-  if (name === 'cloud')    { renderCloudProviderCards(); showCloudSetup(); }
+  if (name === 'cloud')    { cloudPanelEnter(); }
   if (name === 'tools')    { populateToolModelSelects(); switchToolTab('rag'); }
   // Update topbar context
-  const titles = {chat:'Chat', models:'Installed models', registry:'Download models', agents:'AI Agents', agent:'Agent chat', cloud:'☁️ Cloud API', tools:'🔧 Advanced Tools'};
+  const titles = {chat:'Chat', models:'Installed models', registry:'Download models', agents:'AI Agents', agent:'Agent chat', cloud:'☁️ Cloud Models', tools:'🔧 Advanced Tools'};
   const ttEl = document.getElementById('topbar-title');
   if (ttEl) ttEl.textContent = titles[name] || 'Vortelio';
   // Save button only visible in chat panel when there are messages
@@ -3763,6 +3808,9 @@ function toast(msg, type='') {
   el.textContent = msg; el.className = 'toast show' + (type ? ' '+type : '');
   setTimeout(() => el.className = 'toast', 3000);
 }
+// apiFetch: alias for fetch that goes through the fetch interceptor (injects Firebase token)
+function apiFetch(url, opts) { return fetch(url, opts); }
+
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -4657,10 +4705,11 @@ async function sendAgentMsg() {
 // ══════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════
-// ☁️ CLOUD API PANEL
+// ☁️ CLOUD MODELS PANEL (Vortelio Cloud via OpenRouter)
 // ══════════════════════════════════════════════════════════════
 
-const CLOUD_PROVIDERS = [
+// Sentinel — replaced below. Old CLOUD_PROVIDERS kept for reference but unused.
+const _CLOUD_PROVIDERS_REMOVED = [
   // ── Ollama Cloud ─────────────────────────────────────────────
   // API: https://api.ollama.com  |  POST /api/chat  |  Authorization: Bearer <KEY>
   // Streaming: NDJSON ({"message":{"content":"..."},"done":false})
@@ -4764,133 +4813,99 @@ const CLOUD_PROVIDERS = [
 ];
 
 // ── State ─────────────────────────────────────────────────────
-let cloudCurrentProvider = null;
 let cloudSelectedModel   = '';
 let cloudHistory         = [];
 let cloudAbortCtrl       = null;
-let ollamaLiveModels     = null;
+let _cloudProxyModels    = [];
 
-// ── Config storage ────────────────────────────────────────────
-function cloudGetCfg(id) { try { return JSON.parse(localStorage.getItem('vortelio_cloud_'+id)||'null'); } catch { return null; } }
-function cloudSetCfg(id, cfg) { localStorage.setItem('vortelio_cloud_'+id, JSON.stringify(cfg)); }
-function cloudClearCfg(id) { localStorage.removeItem('vortelio_cloud_'+id); }
-function cloudIsConfigured(p) {
-  const cfg = cloudGetCfg(p.id);
-  if (!cfg) return false;
-  if (p.apiKeyRequired) return !!(cfg.apiKey);
-  return true; // local providers always "configured" when saved
+// ── Panel entry ───────────────────────────────────────────────
+async function cloudPanelEnter() {
+  const s = authGetSession();
+  if (!s || s.guest) { cloudShowGate(false); return; }
+  try {
+    const r = await apiFetch('/api/proxy/models');
+    const d = await r.json();
+    _cloudProxyModels = (d.models || []).filter(m => m.type === 'llm');
+    const hasPaid = _cloudProxyModels.some(m => m.available);
+    if (!hasPaid) { cloudShowGate(true, s.plan || 'free'); return; }
+    cloudShowChat(s.plan || 'free');
+  } catch(_) { cloudShowGate(false); }
 }
 
-// ── Render provider cards ─────────────────────────────────────
-function renderCloudProviderCards() {
-  const el = document.getElementById('cloud-provider-cards');
-  if (!el) return;
-  el.innerHTML = CLOUD_PROVIDERS.map(p => {
-    const cfg = cloudGetCfg(p.id);
-    const configured = cloudIsConfigured(p);
-    const inputType  = p.isLocal ? 'text' : 'password';
-    const inputVal   = p.isLocal ? (cfg?.url||'') : (cfg?.apiKey||'');
-    const hint = p.id === 'ollama_cloud'
-      ? `<div style="font-size:11px;color:var(--text3);margin-top:5px">Get your key at <a href="https://ollama.com/settings/keys" target="_blank" style="color:var(--accent)">ollama.com/settings/keys</a></div>`
-      : p.id === 'ollama_local'
-      ? `<div style="font-size:11px;color:var(--text3);margin-top:5px">Make sure Ollama is running on your PC.</div>`
-      : '';
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;background:var(--bg2)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-size:20px">${p.icon}</span>
-        <span style="font-weight:500;font-size:14px">${p.name}</span>
-        ${configured ? '<span style="font-size:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:1px 7px;border-radius:20px">✓ Configurato</span>' : ''}
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input type="${inputType}" id="cloud-key-${p.id}"
-          placeholder="${esc(p.keyLabel)}" value="${esc(inputVal)}"
-          style="flex:1;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--mono);background:var(--bg);color:var(--text);outline:none"
-          onkeydown="if(event.key==='Enter')cloudSaveKey('${p.id}')">
-        <button class="btn primary" style="font-size:12px;padding:5px 10px;white-space:nowrap" onclick="cloudSaveKey('${p.id}')">${p.isLocal&&!configured?'Connect':'Save'}</button>
-        ${configured ? `<button class="btn primary" style="font-size:12px;padding:5px 10px;white-space:nowrap;background:#6366f1;border-color:#6366f1" onclick="cloudOpenChat('${p.id}')">💬 Usa</button>` : ''}
-        ${configured ? `<button class="btn" style="font-size:12px;padding:5px 8px;color:#dc2626" onclick="cloudDeleteKey('${p.id}')">✕</button>` : ''}
-      </div>
-      ${hint}
-    </div>`;
-  }).join('');
+function cloudShowGate(loggedIn) {
+  document.getElementById('cloud-gate-screen').style.display = '';
+  document.getElementById('cloud-chat-screen').style.display = 'none';
+  document.getElementById('cloud-newchat-btn').style.display = 'none';
+  const signInBtn = document.querySelector('#cloud-pricing-grid button[onclick="cloudGateSignIn()"]');
+  if (signInBtn) { if (loggedIn) { signInBtn.textContent = 'Current plan'; signInBtn.disabled = true; } else { signInBtn.textContent = 'Sign in free'; signInBtn.disabled = false; } }
 }
 
-function cloudSaveKey(id) {
-  const p = CLOUD_PROVIDERS.find(x => x.id === id);
-  const val = document.getElementById('cloud-key-'+id)?.value?.trim() || '';
-  if (p.apiKeyRequired && !val) { toast('Please enter a valid API key', 'err'); return; }
-  const url = p.isLocal ? (val || p.baseURL) : p.baseURL;
-  cloudSetCfg(id, { apiKey: p.isLocal ? 'ollama' : val, url });
-  if (id === 'ollama_local' || id === 'ollama_cloud') ollamaLiveModels = null;
-  renderCloudProviderCards();
-  toast('✅ ' + p.name + ' configured', 'ok');
-}
+function cloudGateSignIn() { authShowOverlay(); }
 
-function cloudDeleteKey(id) {
-  cloudClearCfg(id);
-  renderCloudProviderCards();
-  toast('Configuration removed');
-}
-
-// ── Open chat for a provider ───────────────────────────────────
-async function cloudOpenChat(id) {
-  const p = CLOUD_PROVIDERS.find(x => x.id === id);
-  if (!p) return;
-  cloudCurrentProvider = p;
-  cloudHistory = [];
-
-  // Show chat screen
-  document.getElementById('cloud-setup-screen').style.display = 'none';
-  const chatScr = document.getElementById('cloud-chat-screen');
-  chatScr.style.display = 'flex';
+function cloudShowChat(plan) {
+  document.getElementById('cloud-gate-screen').style.display = 'none';
+  document.getElementById('cloud-chat-screen').style.display = 'flex';
   document.getElementById('cloud-newchat-btn').style.display = 'flex';
-  document.getElementById('cloud-provider-badge').textContent = p.icon + ' ' + p.name;
-  document.getElementById('cloud-welcome-icon').textContent = p.icon;
-  document.getElementById('cloud-welcome-title').textContent = 'Chat with ' + p.name;
-  document.getElementById('cloud-welcome').style.display = 'flex';
-  document.getElementById('cloud-msgs').style.display = 'none';
-  document.getElementById('cloud-msgs').innerHTML = '';
-
-  // Build model dropdown
-  let models = [...p.models];
-  // Ollama local: try fetching live model list
-  if (p.id === 'ollama_local') {
-    const cfg = cloudGetCfg(p.id);
-    const url = cfg?.url || p.baseURL;
-    if (!ollamaLiveModels) {
-      try {
-        const r = await fetch('/api/ollama/models?url=' + encodeURIComponent(url), {signal: AbortSignal.timeout(4000)});
-        const d = await r.json();
-        if (d.models?.length) { ollamaLiveModels = d.models; }
-      } catch(_) {}
-    }
-    if (ollamaLiveModels?.length) models = ollamaLiveModels;
-  }
-  const dd = document.getElementById('cloud-model-dd');
-  cloudSelectedModel = models[0]?.id || '';
-  document.getElementById('cloud-model-lbl').textContent = models[0]?.label || models[0]?.id || 'Model';
-  dd.innerHTML = models.map(m =>
-    `<div class="dd-item${m.id===cloudSelectedModel?' sel':''}" onclick="cloudSelectModel('${esc(m.id)}','${esc(m.label||m.id)}')">
-      <span style="font-size:13px">${esc(m.label||m.id)}</span>
-    </div>`
-  ).join('');
-
-  setTimeout(() => document.getElementById('cloud-inp').focus(), 80);
+  cloudBuildModelDD();
+  cloudLoadUsage();
 }
+
+function cloudBuildModelDD() {
+  const available = _cloudProxyModels.filter(m => m.available);
+  const locked    = _cloudProxyModels.filter(m => !m.available);
+  const dd = document.getElementById('cloud-model-dd');
+  let html = '';
+  if (available.length) {
+    html += `<div style="padding:4px 10px;font-size:10px;color:var(--text3);text-transform:uppercase">Available</div>`;
+    html += available.map(m => `<div class="dd-item${m.id===cloudSelectedModel?' sel':''}" onclick="cloudSelectModel('${esc(m.id)}','${esc(m.display_name)}')">${esc(m.display_name)}</div>`).join('');
+  }
+  if (locked.length) {
+    html += `<div style="padding:4px 10px;font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px">Requires upgrade</div>`;
+    html += locked.map(m => `<div class="dd-item" style="opacity:.4;cursor:default">${esc(m.display_name)} <span style="font-size:10px;color:var(--text3);margin-left:auto">${m.min_plan}</span></div>`).join('');
+  }
+  dd.innerHTML = html;
+  if (!cloudSelectedModel && available.length) cloudSelectModel(available[0].id, available[0].display_name);
+}
+
+async function cloudLoadUsage() {
+  try {
+    const r = await apiFetch('/api/proxy/usage');
+    const d = await r.json();
+    const lbl = document.getElementById('cloud-usage-lbl');
+    if (!lbl) return;
+    const used  = (d.usage?.tokens_in||0) + (d.usage?.tokens_out||0);
+    const limit = d.limit || 0;
+    if (limit > 0) lbl.textContent = `${(used/1000).toFixed(0)}k / ${(limit/1000).toFixed(0)}k tokens (${Math.min(100,Math.round(used/limit*100))}%)`;
+  } catch(_) {}
+}
+
+async function cloudUpgrade(plan) {
+  const s = authGetSession();
+  if (!s || s.guest) { authShowOverlay(); return; }
+  try {
+    const origin = location.origin;
+    const r = await apiFetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({plan, success_url: origin+'/?upgraded=1', cancel_url: origin+'/'}),
+    });
+    const d = await r.json();
+    if (d.url) { window.open(d.url, '_blank'); }
+    else toast('❌ ' + (d.error || 'Checkout error'), 'err');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+// ── Render provider cards (legacy stub) ──────────────────────
+function renderCloudProviderCards() { /* replaced by cloudPanelEnter */ }
+
+
+// cloudSaveKey / cloudDeleteKey removed — no longer needed (proxy model, no user API keys)
 
 function cloudSelectModel(id, label) {
   cloudSelectedModel = id;
   document.getElementById('cloud-model-lbl').textContent = label;
   document.querySelectorAll('#cloud-model-dd .dd-item').forEach(x => x.classList.remove('sel'));
   closeAllDD();
-}
-
-function showCloudSetup() {
-  document.getElementById('cloud-setup-screen').style.display = '';
-  document.getElementById('cloud-chat-screen').style.display = 'none';
-  document.getElementById('cloud-newchat-btn').style.display = 'none';
-  cloudCurrentProvider = null;
-  renderCloudProviderCards();
 }
 
 function cloudNewChat() {
@@ -4921,27 +4936,19 @@ function setCloudGenerating(on) {
   }
 }
 
-// ── Send message ──────────────────────────────────────────────
+// ── Send message (Vortelio Cloud proxy) ───────────────────────
 async function sendCloudMsg() {
-  if (!cloudCurrentProvider) return;
   const inp  = document.getElementById('cloud-inp');
   const text = inp.value.trim();
   if (!text) return;
   if (!cloudSelectedModel) { toast('Select a model first', 'err'); return; }
   inp.value = ''; autoSize(inp);
 
-  const p      = cloudCurrentProvider;
-  const cfg    = cloudGetCfg(p.id);
-  const apiKey = p.isLocal ? '' : (cfg?.apiKey || '');
-  const base   = (cfg?.url && cfg.url.startsWith('http')) ? cfg.url : p.baseURL;
-
   // Build UI bubbles
   document.getElementById('cloud-welcome').style.display = 'none';
   const msgs   = document.getElementById('cloud-msgs');
   const canvas = document.getElementById('cloud-canvas');
   msgs.style.display = 'block';
-  const _sb = document.getElementById('cloud-save-btn');
-  if (_sb) _sb.style.display = 'flex';
 
   const userDiv = document.createElement('div');
   userDiv.className = 'msg-group msg-user';
@@ -4953,7 +4960,7 @@ async function sendCloudMsg() {
   aiDiv.className = 'msg-group msg-ai';
   const inner   = document.createElement('div'); inner.className = 'msg-inner';
   const avatar  = document.createElement('div'); avatar.className = 'ai-avatar';
-  avatar.textContent = p.icon||'☁'; avatar.style.background = '#6366f1';
+  avatar.textContent = '☁️'; avatar.style.background = '#6366f1';
   const content = document.createElement('div'); content.className = 'content';
   const pulse   = document.createElement('div'); pulse.className = 'dot-pulse';
   pulse.innerHTML = '<span></span><span></span><span></span>';
@@ -4967,175 +4974,46 @@ async function sendCloudMsg() {
   let fullText = '';
 
   try {
-    const proto = p.protocol || 'openai';
-
     // ════════════════════════════════════════════════════════
-    // OLLAMA (locale o cloud) — NDJSON via /api/chat
+    // Vortelio Cloud proxy — SSE from /api/proxy/chat
     // ════════════════════════════════════════════════════════
-    if (proto === 'ollama') {
-      const msgs_payload = [...cloudHistory.slice(0,-1).map(m=>({role:m.role,content:m.content})),
-                           {role:'user',content:text}];
-      // Ollama: use Go proxy to avoid CORS issues with localhost
-      const r = await fetch('/api/agents/proxy', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          url: base, api_key: apiKey || 'ollama',
-          payload: {model:cloudSelectedModel, messages:msgs_payload, stream:true},
-          stream: true, endpoint: p.endpoint,
-        }),
-        signal: cloudAbortCtrl.signal,
-      });
-      if (!r.ok) { const d=await r.json().catch(()=>({})); throw new Error(d.error||'HTTP '+r.status); }
-      pulse.remove();
-      const thinkLabelOllama = document.createElement('div');
-      thinkLabelOllama.style.cssText = 'font-size:13px;color:var(--text2);padding:4px 0;font-style:italic';
-      thinkLabelOllama.textContent = '✦ Think...';
-      content.appendChild(thinkLabelOllama);
-      const tn = document.createElement('div'); tn.style.width='100%'; content.appendChild(tn);
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf='';
-      while (true) {
-        const {done,value} = await reader.read(); if (done) break;
-        buf += dec.decode(value,{stream:true});
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines) {
-          const t=line.trim(); if(!t) continue;
-          try { const ev=JSON.parse(t); const d=ev.message?.content||''; if(d){if(thinkLabelOllama.parentNode)thinkLabelOllama.remove();fullText+=d;tn.innerHTML=renderMessage(fullText);canvas.scrollTop=9999;} } catch(_){}
-        }
-      }
-
-    // ════════════════════════════════════════════════════════
-    // ANTHROPIC — POST /v1/messages  x-api-key + streaming SSE
-    // Events: content_block_delta → delta.type=text_delta → delta.text
-    // ════════════════════════════════════════════════════════
-    } else if (proto === 'anthropic') {
-      const body = JSON.stringify({
-        model: cloudSelectedModel,
-        max_tokens: 4096,
-        stream: true,
-        messages: [...cloudHistory.slice(0,-1).map(m=>({role:m.role,content:m.content})),{role:'user',content:text}],
-      });
-      const r = await fetch('/api/agents/proxy', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          url: base, api_key: apiKey, stream: true,
-          endpoint: p.endpoint, // /v1/messages
-          extra_headers: {'anthropic-version':'2023-06-01'},
-          payload: JSON.parse(body),
-        }),
-        signal: cloudAbortCtrl.signal,
-      });
-      if (!r.ok) { const d=await r.json().catch(()=>({})); throw new Error(d.error||'HTTP '+r.status); }
-      pulse.remove();
-      const thinkLabel = document.createElement('div');
-      thinkLabel.style.cssText = 'font-size:13px;color:var(--text2);padding:4px 0;font-style:italic';
-      thinkLabel.textContent = '✦ Think...';
-      content.appendChild(thinkLabel);
-      const tn = document.createElement('div'); tn.style.width='100%'; content.appendChild(tn);
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf='';
-      outer: while (true) {
-        const {done,value} = await reader.read(); if (done) break;
-        buf += dec.decode(value,{stream:true});
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw=line.slice(6).trim();
-          if (raw==='[DONE]') break outer;
-          try {
-            const ev=JSON.parse(raw);
-            // Anthropic streaming: type=content_block_delta, delta.type=text_delta
-            if (ev.type==='content_block_delta' && ev.delta?.type==='text_delta') {
-              const d=ev.delta.text||''; if(d){if(thinkLabel.parentNode)thinkLabel.remove();fullText+=d;tn.innerHTML=renderMessage(fullText);canvas.scrollTop=9999;}
-            }
-            if (ev.type==='message_stop') break outer;
-          } catch(_){}
-        }
-      }
-
-    // ════════════════════════════════════════════════════════
-    // GEMINI — POST /v1beta/models/{model}:streamGenerateContent?key={key}
-    // Body: {contents:[{role,parts:[{text}]}]}
-    // Response: NDJSON {candidates:[{content:{parts:[{text}]}}]}
-    // ════════════════════════════════════════════════════════
-    } else if (proto === 'gemini') {
-      const contents = [...cloudHistory.slice(0,-1).map(m=>({
-        role: m.role==='assistant'?'model':'user',
-        parts:[{text:m.content}]
-      })), {role:'user', parts:[{text:text}]}];
-      // Gemini: usa ?alt=sse per SSE streaming, x-goog-api-key come header
-      const geminiEndpoint = p.endpoint.replace('{model}', cloudSelectedModel);
-      const url = base.replace(/\/+$/,'') + geminiEndpoint + '?alt=sse&key=' + encodeURIComponent(apiKey);
-      const r = await fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'application/json', 'x-goog-api-key': apiKey},
-        body: JSON.stringify({contents}),
-        signal: cloudAbortCtrl.signal,
-      });
-      if (!r.ok) {
-        const d=await r.text();
-        let errMsg = 'HTTP '+r.status;
-        try { const ej=JSON.parse(d); errMsg = ej.error?.message || errMsg; } catch(_){}
-        throw new Error(errMsg);
-      }
-      pulse.remove();
-      const thinkLabelGemini = document.createElement('div');
-      thinkLabelGemini.style.cssText = 'font-size:13px;color:var(--text2);padding:4px 0;font-style:italic';
-      thinkLabelGemini.textContent = '✦ Think...';
-      content.appendChild(thinkLabelGemini);
-      const tn = document.createElement('div'); tn.style.width='100%'; content.appendChild(tn);
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf='';
-      // Gemini SSE format: data: {...JSON...}
-      while (true) {
-        const {done,value} = await reader.read(); if (done) break;
-        buf += dec.decode(value,{stream:true});
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines) {
-          const t = line.trim();
-          if (!t.startsWith('data: ')) continue;
-          const raw = t.slice(6).trim();
-          if (raw === '[DONE]') break;
-          try {
-            const ev = JSON.parse(raw);
-            const d = ev.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if(d){if(thinkLabelGemini.parentNode)thinkLabelGemini.remove();fullText+=d;tn.innerHTML=renderMessage(fullText);canvas.scrollTop=9999;}
-          } catch(_){}
-        }
-      }
-
-    // ════════════════════════════════════════════════════════
-    // OPENAI-COMPATIBLE (OpenAI, Groq, Mistral, OpenRouter, Ollama cloud)
-    // Ollama cloud: fetch diretto a ollama.com (no proxy = no buffering delay)
-    // ════════════════════════════════════════════════════════
-    } else {
-      const payload = {
-        model: cloudSelectedModel,
-        messages: [...cloudHistory.slice(0,-1).map(m=>({role:m.role,content:m.content})),{role:'user',content:text}],
-        stream: true,
-      };
-      const r = await fetch('/api/agents/proxy', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({url:base, api_key:apiKey, payload, stream:true, endpoint:p.endpoint}),
-        signal: cloudAbortCtrl.signal,
-      });
-      if (!r.ok) { const d=await r.json().catch(()=>({})); throw new Error(d.error||'HTTP '+r.status); }
-      pulse.remove();
-      const thinkLabelOAI = document.createElement('div');
-      thinkLabelOAI.style.cssText = 'font-size:13px;color:var(--text2);padding:4px 0;font-style:italic';
-      thinkLabelOAI.textContent = '✦ Think...';
-      content.appendChild(thinkLabelOAI);
-      const tn = document.createElement('div'); tn.style.width='100%'; content.appendChild(tn);
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf='';
-      outer: while (true) {
-        const {done,value} = await reader.read(); if (done) break;
-        buf += dec.decode(value,{stream:true});
-        const lines = buf.split('\n'); buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw=line.slice(6).trim();
-          if (raw==='[DONE]') break outer;
-          try { const ev=JSON.parse(raw); const d=ev.choices?.[0]?.delta?.content||''; if(d){if(thinkLabelOAI.parentNode)thinkLabelOAI.remove();fullText+=d;tn.textContent=fullText;canvas.scrollTop=9999;} } catch(_){}
-        }
+    const payload = {
+      model: cloudSelectedModel,
+      stream: true,
+      messages: [...cloudHistory.slice(0,-1), {role:'user', content:text}],
+    };
+    const r = await apiFetch('/api/proxy/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+      signal: cloudAbortCtrl.signal,
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(()=>({}));
+      throw new Error(d.error || 'HTTP ' + r.status);
+    }
+    pulse.remove();
+    const tn = document.createElement('div'); tn.style.width='100%'; content.appendChild(tn);
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
+    outer: while (true) {
+      const {done, value} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break outer;
+        try {
+          const ev = JSON.parse(raw);
+          const d = ev.choices?.[0]?.delta?.content || '';
+          if (d) { fullText += d; tn.innerHTML = renderMessage(fullText); canvas.scrollTop = 9999; }
+        } catch(_) {}
       }
     }
+    // Update usage label after response
+    cloudLoadUsage();
+
+
 
     cloudHistory.push({role:'assistant', content:fullText||'(empty response)'});
     if (!fullText && content.querySelector('.dot-pulse')) { pulse.remove(); content.textContent='(empty response)'; }
@@ -5153,40 +5031,9 @@ async function sendCloudMsg() {
   setCloudGenerating(false);
   canvas.scrollTop = 9999;
 }
-function cloudSaveChat() {
-  if (!cloudCurrentProvider || !cloudHistory.length) return;
-  const p  = cloudCurrentProvider;
-  const id = 'cloud_' + Date.now();
-  const name = p.name + ' · ' + (cloudSelectedModel || '?') + ' · ' + new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
-  const msgs = document.getElementById('cloud-msgs');
-  const chat = {
-    id, name, type: 'cloud',
-    provider: p.id, model: cloudSelectedModel,
-    messages: cloudHistory.slice(),
-    msgsHtml: msgs?.innerHTML || '',
-    savedAt: new Date().toISOString(),
-  };
-  try {
-    let chats = JSON.parse(localStorage.getItem('vortelio_cloud_chats') || '[]');
-    chats.unshift(chat);
-    if (chats.length > 50) chats = chats.slice(0,50);
-    localStorage.setItem('vortelio_cloud_chats', JSON.stringify(chats));
-    toast('💾 Cloud chat saved: ' + name, 'ok');
-  } catch(e) { toast('❌ Save failed: ' + e.message, 'err'); }
-}
-
-function cloudNewChat() {
-  cloudHistory = [];
-  document.getElementById('cloud-welcome').style.display = 'flex';
-  document.getElementById('cloud-msgs').style.display    = 'none';
-  document.getElementById('cloud-msgs').innerHTML = '';
-  const sb = document.getElementById('cloud-save-btn');
-  if (sb) sb.style.display = 'none';
-  toast('💬 New conversation');
-}
 
 // ══════════════════════════════════════════════════════════════
-// END CLOUD API PANEL
+// END CLOUD MODELS PANEL
 // ══════════════════════════════════════════════════════════════
 
 

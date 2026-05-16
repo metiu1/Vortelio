@@ -205,6 +205,10 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/proxy/chat", withObservability(withCORS(withRateLimit(generateLimiter, handleProxyChat))))
 	mux.HandleFunc("/api/proxy/usage", ca(handleProxyUsage))
 
+	// ── Stripe payments ───────────────────────────────────────────────────────
+	mux.HandleFunc("/api/stripe/checkout", ca(handleStripeCheckout))
+	mux.HandleFunc("/api/stripe/webhook", withObservability(withCORS(handleStripeWebhook)))
+
 	// Public observability/spec (no auth — required for monitoring tools)
 	mux.HandleFunc("/metrics", withObservability(withCORS(handleMetrics)))
 	mux.HandleFunc("/openapi.json", withObservability(withCORS(handleOpenAPI)))
