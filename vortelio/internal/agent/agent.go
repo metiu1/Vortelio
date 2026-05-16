@@ -26,6 +26,7 @@ type InstallMethod string
 
 const (
 	MethodNPM    InstallMethod = "npm"    // npm install -g <pkg>
+	MethodPip    InstallMethod = "pip"    // pip install <pkg>
 	MethodBinary InstallMethod = "binary" // direct exe download
 )
 
@@ -86,7 +87,7 @@ var Catalog = []CatalogEntry{
 		DefaultPort: 0, // TUI, no HTTP port
 		DefaultURL:  "",
 		InstallMethod: MethodNPM,
-		NPMPackage:  "@opencode/opencode",
+		NPMPackage:  "opencode-ai",
 		BinCommand:  "opencode",
 		StartArgs:   []string{},
 		EnvVars: []string{
@@ -101,14 +102,14 @@ var Catalog = []CatalogEntry{
 	{
 		ID:          "open-webui",
 		Name:        "Open WebUI",
-		Description: "Interfaccia web completa per chat con modelli locali. Compatibile Ollama.",
+		Description: "Interfaccia web completa per chat con modelli locali. Compatibile Ollama. Richiede Python 3.11+.",
 		Version:     "latest",
 		DefaultPort: 3000,
 		DefaultURL:  "http://localhost:3000",
-		InstallMethod: MethodNPM,
+		InstallMethod: MethodPip,
 		NPMPackage:  "open-webui",
 		BinCommand:  "open-webui",
-		StartArgs:   []string{"serve", "--port", "3000"},
+		StartArgs:   []string{"serve", "--host", "0.0.0.0", "--port", "3000"},
 		EnvVars: []string{
 			"OLLAMA_BASE_URL={{VORTELIO_URL}}",
 			"OPENAI_API_BASE_URL={{VORTELIO_URL}}/v1",
@@ -119,23 +120,24 @@ var Catalog = []CatalogEntry{
 		RequiresAPIKey: false,
 	},
 	{
-		ID:          "anythingllm",
-		Name:        "AnythingLLM",
-		Description: "RAG, agenti e chat con documenti. Connette i modelli locali ai tuoi file.",
+		ID:          "flowise",
+		Name:        "Flowise",
+		Description: "Visual AI flow builder: crea agenti, RAG e workflow con drag-and-drop. Porta 3002.",
 		Version:     "latest",
-		DefaultPort: 3001,
-		DefaultURL:  "http://localhost:3001",
+		DefaultPort: 3002,
+		DefaultURL:  "http://localhost:3002",
 		InstallMethod: MethodNPM,
-		NPMPackage:  "@mintplex-labs/anythingllm-desktop",
-		BinCommand:  "anythingllm",
-		StartArgs:   []string{"--port", "3001"},
+		NPMPackage:  "flowise",
+		BinCommand:  "flowise",
+		StartArgs:   []string{"start"},
 		EnvVars: []string{
-			"OLLAMA_BASE_PATH={{VORTELIO_URL}}",
-			"OPEN_AI_KEY=vortelio",
-			"OPEN_AI_BASE_PATH={{VORTELIO_URL}}/v1",
+			"PORT=3002",
+			"FLOWISE_PORT=3002",
+			"OPENAI_API_KEY=vortelio",
+			"OPENAI_API_BASE={{VORTELIO_URL}}/v1",
 		},
-		HealthPath:     "/api/ping",
-		Tags:           []string{"rag", "documenti", "chat", "agenti"},
+		HealthPath:     "/api/v1/ping",
+		Tags:           []string{"flow", "agenti", "rag", "visual"},
 		RequiresAPIKey: false,
 	},
 }
@@ -168,8 +170,19 @@ func npmAvailable() bool {
 	return err == nil
 }
 
-// isBinInstalled checks if the npm global binary is available.
+// isBinInstalled checks if the agent binary is available.
 func isBinInstalled(entry CatalogEntry) bool {
+	if entry.InstallMethod == MethodPip {
+		_, err := exec.LookPath(entry.BinCommand)
+		if err == nil {
+			return true
+		}
+		if runtime.GOOS == "windows" {
+			_, err = exec.LookPath(entry.BinCommand + ".exe")
+			return err == nil
+		}
+		return false
+	}
 	if entry.InstallMethod != MethodNPM {
 		return false
 	}
@@ -252,6 +265,8 @@ func Install(ctx context.Context, id string, progress func(line string)) error {
 	switch entry.InstallMethod {
 	case MethodNPM:
 		return installNPM(ctx, entry, progress)
+	case MethodPip:
+		return installPip(ctx, entry, progress)
 	case MethodBinary:
 		return fmt.Errorf("installazione binaria non supportata per questo agente")
 	default:
@@ -321,6 +336,69 @@ func installNPM(ctx context.Context, entry CatalogEntry, progress func(line stri
 
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("npm install fallito: %w\n\nSe il problema persiste, esegui manualmente:\n  npm install -g %s", err, entry.NPMPackage)
+	}
+	return nil
+}
+
+func installPip(ctx context.Context, entry CatalogEntry, progress func(line string)) error {
+	pipCmd := "pip"
+	if runtime.GOOS == "windows" {
+		if _, err := exec.LookPath("pip3"); err == nil {
+			pipCmd = "pip3"
+		}
+	} else {
+		if _, err := exec.LookPath("pip3"); err == nil {
+			pipCmd = "pip3"
+		}
+	}
+	if _, err := exec.LookPath(pipCmd); err != nil {
+		return fmt.Errorf(
+			"pip non trovato nel PATH.\n" +
+				"Installa Python 3.11+ da https://python.org,\n" +
+				"poi riavvia Vortelio e riprova.",
+		)
+	}
+
+	args := []string{"install", "--upgrade", entry.NPMPackage}
+	cmd := exec.CommandContext(ctx, pipCmd, args...)
+
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("impossibile avviare pip: %w", err)
+	}
+
+	done := make(chan struct{}, 2)
+	streamLines := func(r io.Reader) {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 4096)
+		var partial string
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				chunk := partial + string(buf[:n])
+				lines := strings.Split(chunk, "\n")
+				partial = lines[len(lines)-1]
+				for _, l := range lines[:len(lines)-1] {
+					l = strings.TrimSpace(l)
+					if l != "" && progress != nil {
+						progress(l)
+					}
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+	go streamLines(stdout)
+	go streamLines(stderr)
+	<-done
+	<-done
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("pip install fallito: %w\n\nSe il problema persiste, esegui manualmente:\n  pip install %s", err, entry.NPMPackage)
 	}
 	return nil
 }
@@ -411,16 +489,22 @@ func Uninstall(id string) error {
 	if !ok {
 		return fmt.Errorf("agente sconosciuto")
 	}
-	if entry.InstallMethod != MethodNPM {
+	switch entry.InstallMethod {
+	case MethodNPM:
+		npmCmd := "npm"
+		if runtime.GOOS == "windows" {
+			npmCmd = "npm.cmd"
+		}
+		return exec.Command(npmCmd, "uninstall", "-g", entry.NPMPackage).Run()
+	case MethodPip:
+		pipCmd := "pip"
+		if _, err := exec.LookPath("pip3"); err == nil {
+			pipCmd = "pip3"
+		}
+		return exec.Command(pipCmd, "uninstall", "-y", entry.NPMPackage).Run()
+	default:
 		return fmt.Errorf("rimozione non supportata per questo tipo di agente")
 	}
-
-	npmCmd := "npm"
-	if runtime.GOOS == "windows" {
-		npmCmd = "npm.cmd"
-	}
-	cmd := exec.Command(npmCmd, "uninstall", "-g", entry.NPMPackage)
-	return cmd.Run()
 }
 
 // Health checks if the agent HTTP server is responding.

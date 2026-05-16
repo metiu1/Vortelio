@@ -849,6 +849,28 @@ textarea.inp::placeholder { color: var(--text3); }
   -webkit-backdrop-filter: blur(4px);
 }
 
+/* ── Tools panel ──────────────────────────────────── */
+.tools-tab {
+  padding: 10px 15px; border: none; background: transparent;
+  cursor: pointer; font-size: 12px; color: var(--text2);
+  font-family: var(--sans); border-bottom: 2px solid transparent;
+  transition: all .14s; white-space: nowrap; flex-shrink: 0;
+}
+.tools-tab:hover { color: var(--text); background: var(--bg3); }
+.tools-tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.tool-input {
+  padding: 8px 10px; border: 1px solid var(--border2);
+  border-radius: var(--radius-xs); background: var(--bg);
+  color: var(--text); font-size: 13px; font-family: var(--sans);
+  outline: none; transition: border-color .14s; display: block;
+}
+.tool-input:focus { border-color: var(--accent); }
+.tool-tab-content { animation: msgIn .15s ease; }
+.dark .tool-input { background: var(--bg2) !important; color: var(--text) !important; border-color: var(--border2) !important; }
+.dark .tools-tab { color: var(--text2) !important; }
+.dark .tools-tab:hover { background: var(--bg3) !important; }
+.dark .tools-tab.on { color: var(--accent) !important; }
+
 </style>
 </head>
 <body>
@@ -880,6 +902,11 @@ textarea.inp::placeholder { color: var(--text3); }
   <button class="new-chat-btn" onclick="showPanel('models')" style="margin-bottom:4px;font-size:13px" id="installed-btn-lbl-btn">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10V4a2 2 0 012-2h6a2 2 0 012 2v4"/><path d="M1 12l2-2 2 2 2-2 2 2 2-2 2 2"/></svg>
     <span id="installed-btn-lbl">Modelli installati</span>
+  </button>
+
+  <button class="new-chat-btn" onclick="showPanel('tools')" style="margin-bottom:4px;font-size:13px">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5l4 4-5.5 5.5-4-4z"/><path d="M5.5 9.5L1 13"/><circle cx="11" cy="3" r="1"/></svg>
+    <span>🔧 Tools avanzati</span>
   </button>
 
   <div class="history-list" id="hist-list">
@@ -1224,6 +1251,182 @@ textarea.inp::placeholder { color: var(--text3); }
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- TOOLS PANEL -->
+  <div class="panel" id="ws-tools">
+    <div class="main-topbar">
+      <div class="topbar-left"><span class="topbar-title">🔧 Advanced Tools</span></div>
+    </div>
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg);flex-wrap:wrap;overflow-x:auto;flex-shrink:0">
+      <button class="tools-tab on" id="tab-rag"        onclick="switchToolTab('rag')">📚 RAG</button>
+      <button class="tools-tab"    id="tab-compare"    onclick="switchToolTab('compare')">⚖ Compare</button>
+      <button class="tools-tab"    id="tab-structured" onclick="switchToolTab('structured')">{ } Structured</button>
+      <button class="tools-tab"    id="tab-summarize"  onclick="switchToolTab('summarize')">📝 Summarize</button>
+      <button class="tools-tab"    id="tab-think"      onclick="switchToolTab('think')">💡 Think API</button>
+      <button class="tools-tab"    id="tab-gguf"       onclick="switchToolTab('gguf')">🔍 GGUF</button>
+      <button class="tools-tab"    id="tab-import"     onclick="switchToolTab('import')">📥 Import Ollama</button>
+      <button class="tools-tab"    id="tab-webhooks"   onclick="switchToolTab('webhooks')">🔗 Webhooks</button>
+      <button class="tools-tab"    id="tab-audit"      onclick="switchToolTab('audit')">📋 Audit Log</button>
+    </div>
+    <div class="panel-inner" style="overflow-y:auto;flex:1">
+
+      <!-- ── RAG ── -->
+      <div id="tool-rag" class="tool-tab-content">
+        <div class="panel-title">📚 RAG — Retrieval Augmented Generation</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+          <div>
+            <div style="font-weight:500;margin-bottom:12px;font-size:14px">Ingest Documents</div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Embed model</label>
+            <select id="rag-ingest-model" class="tool-input" style="width:100%;margin-bottom:10px"></select>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Collection name</label>
+            <input id="rag-collection" class="tool-input" placeholder="default" style="width:100%;margin-bottom:10px">
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Document text</label>
+            <textarea id="rag-docs" class="tool-input" rows="6" placeholder="Paste document text here..." style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+            <button class="btn primary" onclick="ragIngest()">⬆ Ingest</button>
+            <div id="rag-ingest-result" style="margin-top:10px;font-size:13px"></div>
+          </div>
+          <div>
+            <div style="font-weight:500;margin-bottom:12px;font-size:14px">Query Collection</div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Embed model</label>
+            <select id="rag-query-model" class="tool-input" style="width:100%;margin-bottom:10px"></select>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Collection name</label>
+            <input id="rag-query-collection" class="tool-input" placeholder="default" style="width:100%;margin-bottom:10px">
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Query</label>
+            <textarea id="rag-query-text" class="tool-input" rows="3" placeholder="Ask something..." style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <label style="font-size:12px;color:var(--text3)">Top-K</label>
+              <input id="rag-topk" class="tool-input" type="number" value="5" min="1" max="20" style="width:70px">
+            </div>
+            <button class="btn primary" onclick="ragQuery()">🔍 Query</button>
+            <div id="rag-query-result" style="margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Compare ── -->
+      <div id="tool-compare" class="tool-tab-content" style="display:none">
+        <div class="panel-title">⚖ Compare Models</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Run the same prompt on multiple models and compare outputs side by side.</div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Models (comma-separated refs)</label>
+        <input id="cmp-models" class="tool-input" placeholder="llm/mistral:7b, llm/llama3:8b" style="width:100%;margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">System prompt (optional)</label>
+        <input id="cmp-system" class="tool-input" placeholder="Optional system prompt..." style="width:100%;margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Prompt</label>
+        <textarea id="cmp-prompt" class="tool-input" rows="4" placeholder="Enter your prompt..." style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+        <button class="btn primary" onclick="toolCompare()" id="cmp-btn">⚖ Compare</button>
+        <div id="cmp-result" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── Structured ── -->
+      <div id="tool-structured" class="tool-tab-content" style="display:none">
+        <div class="panel-title">{ } Structured Output</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Force the model to output valid JSON matching a schema.</div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Model</label>
+        <select id="struct-model" class="tool-input" style="width:100%;margin-bottom:10px"></select>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Prompt</label>
+        <textarea id="struct-prompt" class="tool-input" rows="3" placeholder="E.g. List 3 programming languages with pros and cons" style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">JSON Schema (optional — leave blank for free JSON)</label>
+        <textarea id="struct-schema" class="tool-input" rows="4" placeholder='{"type":"object","properties":{"languages":{"type":"array"}}}' style="width:100%;margin-bottom:10px;resize:vertical;font-family:var(--mono);font-size:12px"></textarea>
+        <button class="btn primary" onclick="toolStructured()" id="struct-btn">{ } Generate</button>
+        <div id="struct-result" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── Summarize ── -->
+      <div id="tool-summarize" class="tool-tab-content" style="display:none">
+        <div class="panel-title">📝 Summarize (Map-Reduce)</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Summarize long text using map-reduce chunking. Works on texts larger than the context window.</div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px;align-items:end">
+          <div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Model</label>
+            <select id="summ-model" class="tool-input" style="width:100%"></select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Style</label>
+            <select id="summ-style" class="tool-input">
+              <option value="paragraph">Paragraph</option>
+              <option value="bullets">Bullets</option>
+              <option value="tldr">TL;DR</option>
+            </select>
+          </div>
+        </div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Text to summarize</label>
+        <textarea id="summ-text" class="tool-input" rows="8" placeholder="Paste long text here..." style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+        <button class="btn primary" onclick="toolSummarize()" id="summ-btn">📝 Summarize</button>
+        <div id="summ-result" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── Think API ── -->
+      <div id="tool-think" class="tool-tab-content" style="display:none">
+        <div class="panel-title">💡 Think — Chain-of-Thought API</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Force chain-of-thought reasoning. Returns &lt;think&gt; block separately from the final answer.</div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Model</label>
+        <select id="think-api-model" class="tool-input" style="width:100%;margin-bottom:10px"></select>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">System prompt (optional)</label>
+        <input id="think-api-system" class="tool-input" placeholder="You are a careful reasoner." style="width:100%;margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Prompt</label>
+        <textarea id="think-api-prompt" class="tool-input" rows="4" placeholder="Ask a complex question..." style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+        <button class="btn primary" onclick="toolThinkAPI()" id="think-api-btn">💡 Think</button>
+        <div id="think-api-result" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── GGUF Inspect ── -->
+      <div id="tool-gguf" class="tool-tab-content" style="display:none">
+        <div class="panel-title">🔍 GGUF Inspect</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Parse GGUF file metadata — architecture, quantization, context length, tokenizer info.</div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">GGUF file path (absolute path on the server)</label>
+        <input id="gguf-path" class="tool-input" placeholder="/path/to/model.gguf" style="width:100%;margin-bottom:10px">
+        <button class="btn primary" onclick="toolGGUFInspect()" id="gguf-btn">🔍 Inspect</button>
+        <div id="gguf-result" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── Import Ollama ── -->
+      <div id="tool-import" class="tool-tab-content" style="display:none">
+        <div class="panel-title">📥 Import from Ollama</div>
+        <div style="margin-bottom:16px;font-size:13px;color:var(--text2);line-height:1.6">
+          Import models already downloaded by your local Ollama installation.<br>
+          Vortelio will register them without re-downloading — no extra disk usage.
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Ollama path (optional — leave blank for default ~/.ollama)</label>
+          <input id="import-ollama-path" class="tool-input" placeholder="~/.ollama" style="width:100%;margin-bottom:10px">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn primary" onclick="toolImportOllama(false)" id="import-btn">📥 Import All</button>
+          <button class="btn" onclick="toolImportOllama(true)">👁 Dry Run (preview)</button>
+        </div>
+        <div id="import-result"></div>
+      </div>
+
+      <!-- ── Webhooks ── -->
+      <div id="tool-webhooks" class="tool-tab-content" style="display:none">
+        <div class="panel-title">🔗 Webhooks</div>
+        <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">Receive HTTP POST notifications on Vortelio events (pull_done, model_loaded, generate_done, …).</div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px">
+          <div style="font-weight:500;margin-bottom:10px;font-size:14px">Add Webhook</div>
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">URL</label>
+          <input id="wh-url" class="tool-input" placeholder="https://your-server.com/webhook" style="width:100%;margin-bottom:8px">
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Secret (optional — sent as X-Vortelio-Secret)</label>
+          <input id="wh-secret" class="tool-input" placeholder="Optional HMAC secret" style="width:100%;margin-bottom:8px">
+          <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Events (comma-separated, or * for all)</label>
+          <input id="wh-events" class="tool-input" value="*" style="width:100%;margin-bottom:10px">
+          <button class="btn primary" onclick="webhookAdd()">+ Add Webhook</button>
+        </div>
+        <div id="wh-list"></div>
+      </div>
+
+      <!-- ── Audit Log ── -->
+      <div id="tool-audit" class="tool-tab-content" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="panel-title" style="margin:0">📋 Audit Log</div>
+          <button class="btn" onclick="loadAuditLog()">🔄 Refresh</button>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Last 100 API requests. Auto-refreshes on tab open.</div>
+        <div id="audit-list"></div>
+      </div>
+
     </div>
   </div>
 
@@ -2903,8 +3106,9 @@ function showPanel(name) {
   if (name === 'registry') renderReg(REG);
   if (name === 'agents')   refreshAgentCatalog();
   if (name === 'cloud')    { renderCloudProviderCards(); showCloudSetup(); }
+  if (name === 'tools')    { populateToolModelSelects(); switchToolTab('rag'); }
   // Update topbar context
-  const titles = {chat:'Chat', models:'Installed models', registry:'Download models', agents:'AI Agents', agent:'Agent chat', cloud:'☁️ Cloud API'};
+  const titles = {chat:'Chat', models:'Installed models', registry:'Download models', agents:'AI Agents', agent:'Agent chat', cloud:'☁️ Cloud API', tools:'🔧 Advanced Tools'};
   const ttEl = document.getElementById('topbar-title');
   if (ttEl) ttEl.textContent = titles[name] || 'Vortelio';
   // Save button only visible in chat panel when there are messages
@@ -3804,7 +4008,7 @@ async function refreshAgentCatalog() {
   }
 }
 
-const AGENT_ICONS = { openclaw: '🦞', opencode: '💻', 'open-webui': '🌐', anythingllm: '📚' };
+const AGENT_ICONS = { openclaw: '🦞', opencode: '💻', 'open-webui': '🌐', flowise: '🔀' };
 
 function renderAgentCatalog() {
   const el = document.getElementById('agent-catalog');
@@ -4772,6 +4976,361 @@ function acctChangePassword() {
     toast('✅ Password updated', 'ok');
   });
 }
+
+// ══════════════════════════════════════════════════════════════
+// ADVANCED TOOLS PANEL
+// ══════════════════════════════════════════════════════════════
+
+function switchToolTab(tab) {
+  document.querySelectorAll('.tools-tab').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.tool-tab-content').forEach(c => c.style.display = 'none');
+  const btn = document.getElementById('tab-' + tab);
+  if (btn) btn.classList.add('on');
+  const content = document.getElementById('tool-' + tab);
+  if (content) content.style.display = '';
+  if (tab === 'webhooks') loadWebhooks();
+  if (tab === 'audit')    loadAuditLog();
+}
+
+function populateToolModelSelects() {
+  const ids = ['rag-ingest-model','rag-query-model','struct-model','summ-model','think-api-model'];
+  fetch('/api/models').then(r=>r.json()).then(data => {
+    const models = (data.models || []);
+    const opts = '<option value="">— Select model —</option>' +
+      models.map(m => `<option value="${esc(m.type+'/'+m.name+':'+m.tag)}">${esc(m.display_name||m.name+':'+m.tag)} (${esc(m.type)})</option>`).join('');
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts; });
+  }).catch(()=>{});
+}
+
+// ── RAG ──────────────────────────────────────────────────────
+async function ragIngest() {
+  const model = document.getElementById('rag-ingest-model').value;
+  const coll  = document.getElementById('rag-collection').value.trim() || 'default';
+  const rawText = document.getElementById('rag-docs').value.trim();
+  if (!model || !rawText) { toast('Select model and paste documents', 'err'); return; }
+  const el = document.getElementById('rag-ingest-result');
+  el.textContent = 'Ingesting…';
+  try {
+    const r = await fetch('/api/rag/ingest', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, collection: coll, documents:[{text: rawText}] })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    el.innerHTML = `<span style="color:var(--accent)">✅ Added ${d.added} chunk(s) (total: ${d.total}) to collection "${esc(d.collection)}"</span>`;
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+}
+
+async function ragQuery() {
+  const model = document.getElementById('rag-query-model').value;
+  const coll  = document.getElementById('rag-query-collection').value.trim() || 'default';
+  const query = document.getElementById('rag-query-text').value.trim();
+  const topk  = parseInt(document.getElementById('rag-topk').value) || 5;
+  if (!model || !query) { toast('Select model and enter query', 'err'); return; }
+  const el = document.getElementById('rag-query-result');
+  el.textContent = 'Querying…';
+  try {
+    const r = await fetch('/api/rag/query', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, collection: coll, query, top_k: topk })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const results = d.results || [];
+    if (!results.length) { el.textContent = 'No results found.'; return; }
+    el.innerHTML = results.map((res,i) => `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">#${i+1} · ${esc(res.id)}</span>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--accent)">score: ${res.score.toFixed(4)}</span>
+        </div>
+        <div style="font-size:13px;line-height:1.55;white-space:pre-wrap">${esc(res.text)}</div>
+      </div>
+    `).join('');
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+}
+
+// ── Compare ──────────────────────────────────────────────────
+async function toolCompare() {
+  const modelsRaw = document.getElementById('cmp-models').value.trim();
+  const prompt    = document.getElementById('cmp-prompt').value.trim();
+  const system    = document.getElementById('cmp-system').value.trim();
+  if (!modelsRaw || !prompt) { toast('Enter models and prompt', 'err'); return; }
+  const models = modelsRaw.split(',').map(m=>m.trim()).filter(Boolean);
+  const btn = document.getElementById('cmp-btn');
+  btn.disabled = true; btn.textContent = 'Comparing…';
+  const el = document.getElementById('cmp-result');
+  el.innerHTML = '<div style="color:var(--text3)">Running on ' + models.length + ' model(s)…</div>';
+  try {
+    const r = await fetch('/api/compare', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ models, prompt, system })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const cols = Math.min(models.length, 2);
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px">` +
+      d.results.map(res => `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+          <div style="padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg3);display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-family:var(--mono);color:var(--accent);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%">${esc(res.model)}</span>
+            <span style="font-size:11px;font-family:var(--mono);color:var(--text3);flex-shrink:0">${res.duration_ms}ms</span>
+          </div>
+          <div style="padding:14px;font-size:13px;line-height:1.65;white-space:pre-wrap;max-height:400px;overflow-y:auto">
+            ${res.error ? `<span style="color:#dc2626">❌ ${esc(res.error)}</span>` : esc(res.response)}
+          </div>
+        </div>
+      `).join('') + '</div>';
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+  btn.disabled = false; btn.textContent = '⚖ Compare';
+}
+
+// ── Structured output ─────────────────────────────────────────
+async function toolStructured() {
+  const model  = document.getElementById('struct-model').value;
+  const prompt = document.getElementById('struct-prompt').value.trim();
+  const schemaRaw = document.getElementById('struct-schema').value.trim();
+  if (!model || !prompt) { toast('Select model and enter prompt', 'err'); return; }
+  let schema = undefined;
+  if (schemaRaw) { try { schema = JSON.parse(schemaRaw); } catch(e) { toast('Invalid JSON schema: ' + e.message, 'err'); return; } }
+  const btn = document.getElementById('struct-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  const el = document.getElementById('struct-result');
+  el.textContent = 'Generating…';
+  try {
+    const body = { model, prompt };
+    if (schema) body.schema = schema;
+    const r = await fetch('/api/structured', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const pretty = d.parsed ? JSON.stringify(d.parsed, null, 2) : d.raw;
+    el.innerHTML = `
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">JSON</span><button class="code-copy-btn" onclick="const t=this.closest('.code-block').querySelector('pre').innerText;navigator.clipboard?navigator.clipboard.writeText(t).then(()=>toast('✅ Copied','ok')):fallbackCopy(t)">Copy</button></div>
+        <pre><code>${esc(pretty)}</code></pre>
+      </div>
+      ${d.parse_err ? `<div style="font-size:12px;color:#ea580c;margin-top:6px">⚠ Parse warning: ${esc(d.parse_err)}</div>` : ''}
+    `;
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+  btn.disabled = false; btn.textContent = '{ } Generate';
+}
+
+// ── Summarize ─────────────────────────────────────────────────
+async function toolSummarize() {
+  const model = document.getElementById('summ-model').value;
+  const text  = document.getElementById('summ-text').value.trim();
+  const style = document.getElementById('summ-style').value;
+  if (!model || !text) { toast('Select model and enter text', 'err'); return; }
+  const btn = document.getElementById('summ-btn');
+  btn.disabled = true; btn.textContent = 'Summarizing…';
+  const el = document.getElementById('summ-result');
+  el.textContent = 'Processing…';
+  try {
+    const r = await fetch('/api/summarize', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, text, style })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    el.innerHTML = `
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Processed in ${d.chunks} chunk(s)</div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:14px;line-height:1.75;white-space:pre-wrap">${esc(d.summary)}</div>
+    `;
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+  btn.disabled = false; btn.textContent = '📝 Summarize';
+}
+
+// ── Think API ─────────────────────────────────────────────────
+async function toolThinkAPI() {
+  const model  = document.getElementById('think-api-model').value;
+  const prompt = document.getElementById('think-api-prompt').value.trim();
+  const system = document.getElementById('think-api-system').value.trim();
+  if (!model || !prompt) { toast('Select model and enter prompt', 'err'); return; }
+  const btn = document.getElementById('think-api-btn');
+  btn.disabled = true; btn.textContent = 'Thinking…';
+  const el = document.getElementById('think-api-result');
+  el.textContent = 'Thinking…';
+  try {
+    const r = await fetch('/api/think', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, prompt, system })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    el.innerHTML = `
+      ${d.thinking ? `<div class="thinking-block"><div class="thinking-label">💡 Reasoning</div><div style="white-space:pre-wrap;margin-top:4px">${esc(d.thinking)}</div></div>` : ''}
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:14px;line-height:1.75;white-space:pre-wrap;margin-top:8px">${esc(d.answer)}</div>
+    `;
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+  btn.disabled = false; btn.textContent = '💡 Think';
+}
+
+// ── GGUF Inspect ──────────────────────────────────────────────
+async function toolGGUFInspect() {
+  const path = document.getElementById('gguf-path').value.trim();
+  if (!path) { toast('Enter GGUF file path', 'err'); return; }
+  const btn = document.getElementById('gguf-btn');
+  btn.disabled = true; btn.textContent = 'Inspecting…';
+  const el = document.getElementById('gguf-result');
+  el.textContent = 'Reading GGUF…';
+  try {
+    const r = await fetch('/api/gguf/inspect', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ path })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const rows = Object.entries(d).map(([k,v]) => {
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return `<div class="info-row"><span class="info-label">${esc(k)}</span><span class="info-value" style="max-width:300px;text-align:right;word-break:break-all">${esc(val)}</span></div>`;
+    }).join('');
+    el.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px">${rows}</div>`;
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+  btn.disabled = false; btn.textContent = '🔍 Inspect';
+}
+
+// ── Import Ollama ─────────────────────────────────────────────
+async function toolImportOllama(dryRun) {
+  const ollamaPath = document.getElementById('import-ollama-path').value.trim();
+  const btn = document.getElementById('import-btn');
+  btn.disabled = true; btn.textContent = dryRun ? 'Scanning…' : 'Importing…';
+  const el = document.getElementById('import-result');
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px">Scanning Ollama models…</div>';
+  try {
+    const body = { dry_run: !!dryRun };
+    if (ollamaPath) body.ollama_path = ollamaPath;
+    const r = await fetch('/api/import/ollama', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const imported = d.imported || [];
+    const skipped  = d.skipped  || [];
+    const dryLabel = dryRun ? ' (dry run — nothing was imported)' : '';
+    el.innerHTML = `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Ollama path: <span style="font-family:var(--mono)">${esc(d.ollama_path)}</span>${dryLabel}</div>
+        <div style="color:var(--accent);margin-bottom:6px;font-size:13px;font-weight:500">✅ ${dryRun?'Would import':'Imported'}: ${imported.length} model(s)</div>
+        ${imported.map(m=>`<div style="font-size:12px;font-family:var(--mono);padding:2px 0;color:var(--text2)">+ ${esc(m.model)} (${m.size ? (m.size/1e9).toFixed(1)+'GB' : '?'})</div>`).join('')}
+        ${skipped.length ? `<div style="color:var(--text3);margin-top:10px;font-size:12px;font-weight:500">Skipped: ${skipped.length}</div>
+          ${skipped.map(m=>`<div style="font-size:11px;font-family:var(--mono);padding:2px 0;color:var(--text3)">· ${esc(m.model)} — ${esc(m.reason)}</div>`).join('')}` : ''}
+      </div>
+    `;
+    if (!dryRun && imported.length) { loadModels(); toast(`✅ Imported ${imported.length} model(s) from Ollama`, 'ok'); }
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626">❌ ${esc(e.message)}</span>`; }
+  btn.disabled = false; btn.textContent = '📥 Import All';
+}
+
+// ── Webhooks ──────────────────────────────────────────────────
+async function loadWebhooks() {
+  const el = document.getElementById('wh-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px">Loading…</div>';
+  try {
+    const r = await fetch('/api/hooks');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const hooks = d.hooks || [];
+    if (!hooks.length) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">No webhooks configured.</div>';
+      return;
+    }
+    el.innerHTML = hooks.map(h => `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-family:var(--mono);color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.url)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Events: ${esc((h.events||['*']).join(', '))} &nbsp;·&nbsp; ID: <span style="font-family:var(--mono)">${esc(h.id)}</span></div>
+        </div>
+        <button class="btn danger" style="flex-shrink:0;font-size:12px;padding:4px 10px" onclick="webhookDelete('${esc(h.id)}')">🗑</button>
+      </div>
+    `).join('');
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626;font-size:12px">❌ ${esc(e.message)}</span>`; }
+}
+
+async function webhookAdd() {
+  const url    = document.getElementById('wh-url').value.trim();
+  const secret = document.getElementById('wh-secret').value.trim();
+  const evRaw  = document.getElementById('wh-events').value.trim();
+  if (!url) { toast('Enter webhook URL', 'err'); return; }
+  const events = evRaw.split(',').map(e=>e.trim()).filter(Boolean);
+  try {
+    const body = { url, events };
+    if (secret) body.secret = secret;
+    const r = await fetch('/api/hooks', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    document.getElementById('wh-url').value    = '';
+    document.getElementById('wh-secret').value = '';
+    document.getElementById('wh-events').value = '*';
+    loadWebhooks();
+    toast('✅ Webhook added', 'ok');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+async function webhookDelete(id) {
+  try {
+    const r = await fetch('/api/hooks/' + encodeURIComponent(id), { method:'DELETE' });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    loadWebhooks();
+    toast('✅ Webhook deleted', 'ok');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+// ── Audit Log ─────────────────────────────────────────────────
+async function loadAuditLog() {
+  const el = document.getElementById('audit-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px">Loading…</div>';
+  try {
+    const r = await fetch('/api/audit?limit=100');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const entries = (d.entries || []).slice().reverse();
+    if (!entries.length) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px 0">No audit entries yet.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="background:var(--bg3);border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:7px 10px;color:var(--text3);font-weight:500;white-space:nowrap">Time</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text3);font-weight:500">Method</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text3);font-weight:500">Path</th>
+            <th style="text-align:right;padding:7px 10px;color:var(--text3);font-weight:500">Status</th>
+            <th style="text-align:right;padding:7px 10px;color:var(--text3);font-weight:500">ms</th>
+            <th style="text-align:left;padding:7px 10px;color:var(--text3);font-weight:500">IP</th>
+          </tr></thead>
+          <tbody>
+            ${entries.map(e => {
+              const sc = e.status >= 500 ? '#dc2626' : e.status >= 400 ? '#ea580c' : e.status >= 300 ? '#ca8a04' : 'var(--text2)';
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:5px 10px;white-space:nowrap;color:var(--text3)">${esc(e.timestamp.replace('T',' ').slice(0,19))}</td>
+                <td style="padding:5px 10px;font-family:var(--mono);color:var(--text2)">${esc(e.method)}</td>
+                <td style="padding:5px 10px;font-family:var(--mono);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${esc(e.path)}</td>
+                <td style="padding:5px 10px;text-align:right;font-family:var(--mono);color:${sc};font-weight:500">${e.status}</td>
+                <td style="padding:5px 10px;text-align:right;font-family:var(--mono);color:var(--text3)">${e.duration_ms}</td>
+                <td style="padding:5px 10px;font-family:var(--mono);color:var(--text3)">${esc(e.remote_ip||'')}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch(e) { el.innerHTML = `<span style="color:#dc2626;font-size:12px">❌ ${esc(e.message)}</span>`; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// END ADVANCED TOOLS PANEL
+// ══════════════════════════════════════════════════════════════
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
