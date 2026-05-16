@@ -9,13 +9,14 @@ import (
 
 // Config contiene tutte le opzioni configurabili a runtime.
 type Config struct {
-	Port             int      `json:"port"`               // porta server HTTP (default 11500)
-	BindAddr         string   `json:"bind_addr"`          // indirizzo bind (default "127.0.0.1"; usa "0.0.0.0" per accesso remoto)
-	APIKey           string   `json:"api_key"`            // chiave API opzionale per autenticazione (vuota = nessuna auth)
-	AllowOrigins     []string `json:"allow_origins"`      // origini CORS aggiuntive ("*" = tutte)
-	OllamaPort       int      `json:"ollama_port"`        // porta Ollama locale (default 11434)
-	CloudTimeoutSec  int      `json:"cloud_timeout_sec"`  // timeout chiamate cloud in secondi (default 120)
-	PythonBin        string   `json:"python_bin"`         // percorso Python custom (default: auto-detect)
+	Port               int      `json:"port"`                 // porta server HTTP (default 11500)
+	BindAddr           string   `json:"bind_addr"`            // indirizzo bind (default "127.0.0.1"; usa "0.0.0.0" per accesso remoto)
+	APIKey             string   `json:"api_key"`              // chiave API opzionale per autenticazione (vuota = nessuna auth)
+	AllowOrigins       []string `json:"allow_origins"`        // origini CORS aggiuntive ("*" = tutte)
+	OllamaPort         int      `json:"ollama_port"`          // porta Ollama locale (default 11434)
+	CloudTimeoutSec    int      `json:"cloud_timeout_sec"`    // timeout chiamate cloud in secondi (default 120)
+	PythonBin          string   `json:"python_bin"`           // percorso Python custom (default: auto-detect)
+	OpenRouterKey      string   `json:"openrouter_key"`       // master OpenRouter API key per proxy cloud premium
 }
 
 var (

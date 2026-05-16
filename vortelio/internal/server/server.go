@@ -195,8 +195,15 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/auth/status", withObservability(withCORS(handleAuthStatus)))
 	mux.HandleFunc("/api/user/profile", ca(handleUserProfile))
 	mux.HandleFunc("/api/user/settings", ca(handleUserSettings))
+	mux.HandleFunc("/api/user/apikeys", ca(handleAPIKeys))
+	mux.HandleFunc("/api/user/apikeys/", ca(handleAPIKeys))
 	mux.HandleFunc("/api/chats", ca(handleChats))
 	mux.HandleFunc("/api/chats/", ca(handleChats))
+
+	// ── Cloud proxy (OpenRouter) ──────────────────────────────────────────────
+	mux.HandleFunc("/api/proxy/models", withObservability(withCORS(handleProxyModels)))
+	mux.HandleFunc("/api/proxy/chat", withObservability(withCORS(withRateLimit(generateLimiter, handleProxyChat))))
+	mux.HandleFunc("/api/proxy/usage", ca(handleProxyUsage))
 
 	// Public observability/spec (no auth — required for monitoring tools)
 	mux.HandleFunc("/metrics", withObservability(withCORS(handleMetrics)))
