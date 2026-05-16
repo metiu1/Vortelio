@@ -214,3 +214,72 @@ func handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 		"firebase_enabled": fb.Enabled(),
 	})
 }
+
+// ── /api/user/apikeys ─────────────────────────────────────────────────────────
+// GET  → list keys (no hashes)
+// POST → generate new key  body: {"name":"My app"}
+// DELETE /api/user/apikeys/{id} → revoke key
+
+func handleAPIKeys(w http.ResponseWriter, r *http.Request) {
+	uid := uidFromRequest(r)
+	if uid == "" {
+		respond(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		keys, err := fb.ListAPIKeys(r.Context(), uid)
+		if err != nil {
+			slog.Error("list api keys", "uid", uid, "err", err)
+			respond(w, 500, map[string]string{"error": "internal error"})
+			return
+		}
+		if keys == nil {
+			keys = []fb.APIKey{}
+		}
+		respond(w, 200, map[string]interface{}{"keys": keys})
+
+	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+		var body struct {
+			Name string `json:"name"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		name := strings.TrimSpace(body.Name)
+		if name == "" {
+			name = "API Key"
+		}
+		if len(name) > 64 {
+			name = name[:64]
+		}
+		key, err := fb.GenerateAPIKey(r.Context(), uid, name)
+		if err != nil {
+			slog.Error("generate api key", "uid", uid, "err", err)
+			respond(w, 500, map[string]string{"error": "internal error"})
+			return
+		}
+		// Register global lookup index
+		if err := fb.RegisterKeyIndex(r.Context(), uid, key.RawKey); err != nil {
+			slog.Error("register key index", "uid", uid, "err", err)
+		}
+		respond(w, 200, key) // RawKey included — shown once only
+
+	case http.MethodDelete:
+		keyID := strings.TrimPrefix(r.URL.Path, "/api/user/apikeys/")
+		keyID = strings.Trim(keyID, "/")
+		if keyID == "" || len(keyID) > 128 {
+			respond(w, 400, map[string]string{"error": "invalid key id"})
+			return
+		}
+		if err := fb.RevokeAPIKey(r.Context(), uid, keyID); err != nil {
+			slog.Error("revoke api key", "uid", uid, "err", err)
+			respond(w, 500, map[string]string{"error": "internal error"})
+			return
+		}
+		respond(w, 200, map[string]string{"status": "revoked"})
+
+	default:
+		respond(w, 405, map[string]string{"error": "method not allowed"})
+	}
+}

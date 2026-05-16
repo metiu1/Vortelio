@@ -3999,8 +3999,10 @@ function authApplySession() {
     const plan = (s.plan || 'free').toUpperCase();
     if (planBadge) { if (!s.guest) { planBadge.textContent = plan; planBadge.style.display = ''; planBadge.style.background = plan==='PRO'?'#7c3aed':plan==='ENTERPRISE'?'#0891b2':'var(--accent)'; } else planBadge.style.display='none'; }
     if (acctPlan) { if (!s.guest) { acctPlan.textContent = plan; acctPlan.style.display=''; acctPlan.style.background = plan==='PRO'?'#7c3aed':plan==='ENTERPRISE'?'#0891b2':'var(--accent)'; } else acctPlan.style.display='none'; }
-    // Saved chats button (only for Firebase users)
+    // Saved chats + API keys buttons (only for Firebase users)
     if (savedBtn) savedBtn.style.display = s.firebase ? '' : 'none';
+    const apiKeysBtn = document.getElementById('acct-apikeys-btn');
+    if (apiKeysBtn) apiKeysBtn.style.display = s.firebase ? '' : 'none';
   } else {
     overlay.style.display = 'flex';
     if (tbAvatar) { tbAvatar.textContent = '?'; tbAvatar.style.background = 'var(--text3)'; tbAvatar.innerHTML='?'; }
@@ -5682,6 +5684,128 @@ async function saveServerConfig() {
 // END ADVANCED TOOLS PANEL
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+// API KEYS PANEL
+// ══════════════════════════════════════════════════════════════
+
+function openAPIKeys() {
+  closeAcctMenu();
+  const overlay = document.getElementById('apikeys-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  loadAPIKeys();
+  loadProxyUsage();
+}
+function closeAPIKeys() {
+  const el = document.getElementById('apikeys-overlay');
+  if (el) el.style.display = 'none';
+}
+
+async function loadAPIKeys() {
+  const list = document.getElementById('apikeys-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px 0">Loading…</div>';
+  try {
+    const r = await fetch('/api/user/apikeys');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const keys = d.keys || [];
+    if (!keys.length) {
+      list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px 0">No API keys yet. Generate one below.</div>';
+      return;
+    }
+    list.innerHTML = keys.map(k => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${esc(k.name)}</div>
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">${esc(k.key_prefix)}••••••••••••••••</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Created ${esc(new Date(k.created_at).toLocaleDateString())}</div>
+        </div>
+        <button onclick="revokeAPIKey('${esc(k.id)}',this)" style="background:none;border:1px solid #dc2626;color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px">Revoke</button>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = `<div style="color:#dc2626;font-size:12px">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function generateAPIKey() {
+  const nameEl = document.getElementById('apikey-name');
+  const name = nameEl ? nameEl.value.trim() || 'API Key' : 'API Key';
+  const btn = document.getElementById('apikey-gen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const r = await fetch('/api/user/apikeys', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    // Show raw key — visible once only
+    const resultEl = document.getElementById('apikey-result');
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div style="background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:14px;margin-top:14px">
+          <div style="color:#4ade80;font-size:12px;margin-bottom:8px;font-weight:600">✅ Key generated — copy it now, it won't be shown again!</div>
+          <div style="font-family:var(--mono);font-size:13px;color:#86efac;word-break:break-all;user-select:all;cursor:copy" onclick="navigator.clipboard.writeText('${esc(d.key)}').then(()=>toast('Copied!','ok'))">${esc(d.key)}</div>
+          <div style="font-size:11px;color:#4ade80;margin-top:8px">Click key to copy</div>
+        </div>`;
+    }
+    if (nameEl) nameEl.value = '';
+    loadAPIKeys();
+    toast('✅ API key generated', 'ok');
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '+ Generate Key'; }
+  }
+}
+
+async function revokeAPIKey(keyId, btn) {
+  if (!confirm('Revoke this API key? It will stop working immediately.')) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/user/apikeys/' + keyId, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    loadAPIKeys();
+    toast('Key revoked');
+  } catch(e) { toast('❌ ' + e.message, 'err'); btn.disabled = false; }
+}
+
+async function loadProxyUsage() {
+  const el = document.getElementById('proxy-usage-bar');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/proxy/usage');
+    const d = await r.json();
+    if (d.error) { el.innerHTML = ''; return; }
+    const used = (d.usage.tokens_in||0) + (d.usage.tokens_out||0);
+    const limit = d.limit || 0;
+    const pct = limit > 0 ? Math.min(100, Math.round(used/limit*100)) : 0;
+    const planColor = d.plan==='enterprise'?'#0891b2':d.plan==='pro'?'#7c3aed':'var(--text3)';
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:600">${esc((d.plan||'free').toUpperCase())} Plan</span>
+        <span style="font-size:11px;color:var(--text3)">${fmtTokens(used)} / ${limit>0?fmtTokens(limit):'∞'} tokens</span>
+      </div>
+      ${limit > 0 ? `<div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${planColor};border-radius:3px;transition:.3s"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Resets on the 1st · ${esc(d.month)}</div>` : ''}`;
+  } catch(e) { el.innerHTML = ''; }
+}
+
+function fmtTokens(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(0)+'K';
+  return String(n);
+}
+
+// ══════════════════════════════════════════════════════════════
+// END API KEYS PANEL
+// ══════════════════════════════════════════════════════════════
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
 } else {
@@ -5689,6 +5813,52 @@ if (document.readyState === "loading") {
 }
 </script>
 
+
+<!-- ── API KEYS OVERLAY ──────────────────────────────────────── -->
+<div id="apikeys-overlay" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+  <div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);width:min(560px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">🔑 API Keys &amp; Usage</div>
+      <button onclick="closeAPIKeys()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:2px 6px">×</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:18px">
+      <!-- Usage bar -->
+      <div id="proxy-usage-bar" style="margin-bottom:20px"></div>
+
+      <!-- Premium models -->
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">☁️ Available Cloud Models</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Use these models via <code style="font-size:11px">/api/proxy/chat</code> (OpenAI-compatible)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:20px">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px"><span style="font-family:var(--mono)">claude-sonnet-4-5</span><br><span style="color:#7c3aed;font-size:10px;font-weight:600">PRO</span></div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px"><span style="font-family:var(--mono)">gpt-4o / gpt-4o-mini</span><br><span style="color:#7c3aed;font-size:10px;font-weight:600">PRO</span></div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px"><span style="font-family:var(--mono)">gemini-2.0-flash</span><br><span style="color:#7c3aed;font-size:10px;font-weight:600">PRO</span></div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px"><span style="font-family:var(--mono)">llama-3.3-70b</span><br><span style="color:#7c3aed;font-size:10px;font-weight:600">PRO</span></div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px"><span style="font-family:var(--mono)">claude-opus-4-5</span><br><span style="color:#0891b2;font-size:10px;font-weight:600">ENTERPRISE</span></div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px"><span style="font-family:var(--mono)">openai/o3 · o4-mini</span><br><span style="color:#0891b2;font-size:10px;font-weight:600">ENTERPRISE</span></div>
+      </div>
+
+      <!-- API Endpoint -->
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔌 Endpoint</div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:20px;word-break:break-all">
+        POST http://localhost:11500/api/proxy/chat<br>
+        Authorization: Bearer vt_live_…<br>
+        Content-Type: application/json<br><br>
+        {"model":"anthropic/claude-sonnet-4-5","messages":[{"role":"user","content":"Hello"}]}
+      </div>
+
+      <!-- Keys list -->
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">🗝 Your API Keys</div>
+      <div id="apikeys-list"></div>
+
+      <!-- Generate -->
+      <div style="margin-top:16px;display:flex;gap:8px;align-items:center">
+        <input id="apikey-name" class="tool-input" placeholder="Key name (e.g. My App)" style="flex:1">
+        <button id="apikey-gen-btn" class="btn" onclick="generateAPIKey()">+ Generate Key</button>
+      </div>
+      <div id="apikey-result"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ── SAVED CHATS OVERLAY ───────────────────────────────────── -->
 <div id="saved-chats-overlay" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
@@ -5718,6 +5888,10 @@ if (document.readyState === "loading") {
     <button class="acct-item" id="acct-saved-chats-btn" onclick="openSavedChats()" style="display:none">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2h10v8H2z"/><path d="M4 5h6M4 7h4"/></svg>
       Saved Chats
+    </button>
+    <button class="acct-item" id="acct-apikeys-btn" onclick="openAPIKeys()" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="8" r="3"/><path d="M7.5 5.5L13 1M11 3l1 1"/></svg>
+      API Keys &amp; Usage
     </button>
     <button class="acct-item" onclick="acctOpenSettings()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
