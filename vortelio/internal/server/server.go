@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vortelio/vortelio/internal/config"
+	fb "github.com/vortelio/vortelio/internal/firebase"
 	"github.com/vortelio/vortelio/internal/hub"
 	"github.com/vortelio/vortelio/internal/runtime"
 	"github.com/vortelio/vortelio/internal/version"
@@ -105,6 +106,13 @@ type ChatMessage struct {
 
 func NewMux() *http.ServeMux {
 	go getHardware() // warm up hardware detection
+	go func() {
+		if err := fb.Init(); err != nil {
+			slog.Info("firebase disabled", "reason", err.Error())
+		} else {
+			slog.Info("firebase initialized", "project", "vortelio-3e7a8")
+		}
+	}()
 	mux := http.NewServeMux()
 
 	ca := func(h http.HandlerFunc) http.HandlerFunc { return withObservability(withCORS(withAuth(h))) }
@@ -180,6 +188,15 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/rag/query", ca(handleRAGQuery))
 	mux.HandleFunc("/api/import/ollama", ca(handleImportOllama))
 	mux.HandleFunc("/api/config", ca(handleConfig))
+
+	// ── Firebase Auth & user data ─────────────────────────────────────────────
+	// /api/auth/verify is public (no Vortelio API key needed — client sends Firebase ID token)
+	mux.HandleFunc("/api/auth/verify", withObservability(withCORS(handleAuthVerify)))
+	mux.HandleFunc("/api/auth/status", withObservability(withCORS(handleAuthStatus)))
+	mux.HandleFunc("/api/user/profile", ca(handleUserProfile))
+	mux.HandleFunc("/api/user/settings", ca(handleUserSettings))
+	mux.HandleFunc("/api/chats", ca(handleChats))
+	mux.HandleFunc("/api/chats/", ca(handleChats))
 
 	// Public observability/spec (no auth — required for monitoring tools)
 	mux.HandleFunc("/metrics", withObservability(withCORS(handleMetrics)))
