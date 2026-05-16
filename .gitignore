@@ -11,6 +11,11 @@ vortelio-installer/build/*.exe
 vortelio-installer/*.exe
 .DS_Store
 Thumbs.db
+# Firebase credentials — NEVER commit
+*firebase-adminsdk*.json
+firebase-credentials.json
+service-account*.json
+
 # Stray editor / OS state
 .idea/
 .vscode/
