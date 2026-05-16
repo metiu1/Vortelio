@@ -66,8 +66,9 @@ func (tb *tokenBucket) allow(ip string) bool {
 
 // rate limiters globali
 var (
-	generateLimiter = newTokenBucket(2, 5)  // 2 req/s, burst 5
-	pullLimiter     = newTokenBucket(1, 3)  // 1 req/s, burst 3
+	generateLimiter = newTokenBucket(2, 5)   // 2 req/s, burst 5
+	pullLimiter     = newTokenBucket(1, 3)   // 1 req/s, burst 3
+	authLimiter     = newTokenBucket(5, 10)  // 5 req/s, burst 10 — covers auth verify flood
 )
 
 func withRateLimit(tb *tokenBucket, h http.HandlerFunc) http.HandlerFunc {
