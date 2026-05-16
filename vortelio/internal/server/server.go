@@ -191,7 +191,7 @@ func NewMux() *http.ServeMux {
 
 	// ── Firebase Auth & user data ─────────────────────────────────────────────
 	// /api/auth/verify is public (no Vortelio API key needed — client sends Firebase ID token)
-	mux.HandleFunc("/api/auth/verify", withObservability(withCORS(handleAuthVerify)))
+	mux.HandleFunc("/api/auth/verify", withObservability(withCORS(withRateLimit(authLimiter, handleAuthVerify))))
 	mux.HandleFunc("/api/auth/status", withObservability(withCORS(handleAuthStatus)))
 	mux.HandleFunc("/api/user/profile", ca(handleUserProfile))
 	mux.HandleFunc("/api/user/settings", ca(handleUserSettings))
@@ -282,7 +282,7 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-Token")
 		if r.Method == "OPTIONS" { w.WriteHeader(204); return }
 		h(w, r)
 		slog.Debug("request", "method", r.Method, "path", r.URL.Path, "dur", time.Since(start).Round(time.Millisecond))

@@ -4186,7 +4186,7 @@ function loadSavedChat(idx) {
   if (welcome) welcome.style.display = 'none';
   msgsEl.innerHTML = (chat.messages || []).map(m => `
     <div class="msg ${m.role === 'user' ? 'user' : 'assistant'}">
-      <div class="msg-content">${m.role === 'user' ? esc(m.content) : m.content}</div>
+      <div class="msg-content">${esc(m.content)}</div>
     </div>`).join('');
   msgsEl.scrollTop = msgsEl.scrollHeight;
   toast('💬 Chat loaded: ' + chat.title);

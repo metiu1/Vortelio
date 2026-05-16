@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -35,10 +37,14 @@ type ChatMessage struct {
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 // GetOrCreateUser fetches the user profile from Firestore, creating it if it doesn't exist.
+// Only treats a true "not found" response as a creation trigger; all other errors propagate.
 func GetOrCreateUser(ctx context.Context, uid, email string) (*UserProfile, error) {
 	doc := fbStore.Collection("users").Doc(uid)
 	snap, err := doc.Get(ctx)
 	if err != nil {
+		if status.Code(err) != codes.NotFound {
+			return nil, err // network/permission error — don't create a phantom user
+		}
 		profile := &UserProfile{
 			UID:       uid,
 			Email:     email,
