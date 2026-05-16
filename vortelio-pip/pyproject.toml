@@ -8,21 +8,39 @@ version = "0.3.49"
 description = "Run AI models locally — LLM, images, audio, video, 3D. Web UI included."
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "Proprietary" }
-authors = [{ name = "Vortelio" }]
-keywords = ["ai", "llm", "local", "ollama", "diffusers"]
+license = { text = "Apache-2.0" }
+authors = [{ name = "Vortelio Contributors" }]
+keywords = [
+  "ai", "llm", "local-llm", "ollama", "ollama-alternative",
+  "stable-diffusion", "flux", "whisper", "kokoro", "tts", "stt",
+  "diffusers", "llama-cpp", "huggingface", "openai-api",
+  "image-generation", "video-generation", "text-to-3d",
+  "self-hosted", "privacy", "offline-ai",
+]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: Apache Software License",
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS",
   "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Multimedia :: Graphics",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Multimedia :: Video",
 ]
 
 [project.scripts]
 vortelio = "vortelio_cli.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/vortelio/vortelio"
+Homepage = "https://github.com/metiu1/Vortelio"
+Source = "https://github.com/metiu1/Vortelio"
+Issues = "https://github.com/metiu1/Vortelio/issues"
+Changelog = "https://github.com/metiu1/Vortelio/blob/main/CHANGELOG.md"
+Releases = "https://github.com/metiu1/Vortelio/releases"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vortelio_cli"]

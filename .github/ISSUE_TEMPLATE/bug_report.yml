@@ -1,0 +1,46 @@
+name: Bug report
+description: Something is broken
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for filing a bug. Please include enough detail to reproduce.
+  - type: input
+    id: version
+    attributes:
+      label: Vortelio version
+      placeholder: e.g. 0.3.49 (run `vortelio --version`)
+    validations: { required: true }
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux, Other]
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Describe the bug and expected behavior.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Run `vortelio ...`
+        2. Open ...
+        3. See error
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - { label: I searched existing issues, required: true }
+        - { label: I am on the latest version, required: false }

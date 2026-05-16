@@ -13,7 +13,7 @@ from pathlib import Path
 VERSION = "0.3.49"
 RELEASE_BASE = os.environ.get(
     "VORTELIO_RELEASE_BASE",
-    f"https://github.com/vortelio/vortelio/releases/download/v{VERSION}",
+    f"https://github.com/metiu1/Vortelio/releases/download/v{VERSION}",
 )
 
 BIN_DIR = Path(__file__).parent / "bin"

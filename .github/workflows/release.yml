@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64, ext: '' }
+          - { goos: linux,   goarch: arm64, ext: '' }
+          - { goos: darwin,  goarch: amd64, ext: '' }
+          - { goos: darwin,  goarch: arm64, ext: '' }
+          - { goos: windows, goarch: amd64, ext: '.exe' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: vortelio/go.sum
+      - name: Build
+        working-directory: vortelio
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" \
+            -o "dist/vortelio-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
+            ./cmd/vortelio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vortelio-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: vortelio/dist/vortelio-*
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  pypi:
+    name: Publish Python wrapper to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: bins
+          merge-multiple: true
+      - name: Copy binaries into wheel
+        run: |
+          mkdir -p vortelio-pip/src/vortelio_cli/bin
+          cp bins/vortelio-* vortelio-pip/src/vortelio_cli/bin/
+      - uses: astral-sh/setup-uv@v3
+      - run: uv build
+        working-directory: vortelio-pip
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: vortelio-pip/dist

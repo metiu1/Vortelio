@@ -5,7 +5,14 @@ __pycache__/
 venv/
 dist/*.whl
 dist/*.tar.gz
+vortelio/vortelio.exe
+vortelio/dist/
 vortelio-installer/build/*.exe
 vortelio-installer/*.exe
 .DS_Store
 Thumbs.db
+# Stray editor / OS state
+.idea/
+.vscode/
+*.swp
+*.bak
