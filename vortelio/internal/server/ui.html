@@ -17,6 +17,9 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Vortelio — Run AI Models Locally">
 <meta name="twitter:description" content="Open-source local AI platform. Run LLMs, image, audio, video and 3D models on your hardware. Ollama-compatible, no cloud required.">
+<!-- Firebase SDK (compat — works with non-module scripts) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Söhne:wght@300;400;450;500&family=Söhne+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -980,6 +983,7 @@ textarea.inp::placeholder { color: var(--text3); }
         <button class="topbar-btn" onclick="toggleAcctMenu()" id="topbar-auth-btn" aria-label="Account" title="Account" style="gap:6px">
           <span id="topbar-avatar" style="width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">?</span>
           <span id="topbar-username" style="font-size:12px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Account</span>
+          <span id="topbar-plan-badge" style="display:none;font-size:9px;font-weight:700;background:var(--accent);color:#fff;padding:1px 5px;border-radius:8px;letter-spacing:.5px"></span>
         </button>
       </div>
     </div>
@@ -1777,6 +1781,9 @@ textarea.inp::placeholder { color: var(--text3); }
 
 
 <script>
+// ── Firebase globals ───────────────────────────────────────────────────────
+var _fbApp = null, _fbAuth = null, _fbUser = null, _fbIdToken = null, _fbProfile = null;
+
 // ── Remote server fetch interceptor ──────────────────────────────────────
 ;(function() {
   const _fetch = window.fetch.bind(window);
@@ -1789,6 +1796,12 @@ textarea.inp::placeholder { color: var(--text3); }
         url = remote.replace(/\/$/, '') + url;
         const headers = Object.assign({}, opts.headers || {});
         if (key) headers['Authorization'] = 'Bearer ' + key;
+        opts = Object.assign({}, opts, { headers });
+      }
+      // Inject Firebase ID token for auth-protected endpoints
+      if (_fbIdToken && (url.includes('/api/user') || url.includes('/api/chats'))) {
+        const headers = Object.assign({}, opts.headers || {});
+        headers['X-Firebase-Token'] = _fbIdToken;
         opts = Object.assign({}, opts, { headers });
       }
     }
@@ -2433,7 +2446,8 @@ let installedModels = [];
 
 // ── Init ──────────────────────────────────────────
 function init() {
-  authApplySession();
+  fbInit();           // initialize Firebase Auth (async — onAuthStateChanged calls authApplySession)
+  authApplySession(); // show overlay immediately while Firebase loads
   applyTheme(currentTheme);
   applyLang();
   updateRemoteBadge();
@@ -3892,128 +3906,86 @@ document.head.appendChild(style);
 
 
 // ══════════════════════════════════════════════════════════════
-// AUTH SYSTEM (email+password locale + Google OAuth)
+// AUTH SYSTEM — Firebase Auth + Firestore
 // ══════════════════════════════════════════════════════════════
-
-// Minimal password hash using Web Crypto (SHA-256 + salt)
-async function hashPassword(password, salt) {
-  const enc = new TextEncoder();
-  const data = enc.encode(salt + password);
-  const buf  = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-function randomSalt() { return crypto.getRandomValues(new Uint8Array(16)).reduce((a,b)=>a+b.toString(16).padStart(2,'0'),''); }
-
-// DB: localStorage key 'vortelio_users' = [{email, name, salt, hash}]
-// Session: localStorage key 'vortelio_session' = {email, name, avatar}
-
-function authGetUsers() { try { return JSON.parse(localStorage.getItem('vortelio_users')||'[]'); } catch { return []; } }
-function authSaveUsers(u) { localStorage.setItem('vortelio_users', JSON.stringify(u)); }
-function authGetSession() { try { return JSON.parse(localStorage.getItem('vortelio_session')||'null'); } catch { return null; } }
-function authSetSession(s) { localStorage.setItem('vortelio_session', JSON.stringify(s)); }
-function authClearSession() { localStorage.removeItem('vortelio_session'); }
 
 function authShowLogin()    { document.getElementById('auth-login-form').style.display=''; document.getElementById('auth-register-form').style.display='none'; }
 function authShowRegister() { document.getElementById('auth-register-form').style.display=''; document.getElementById('auth-login-form').style.display='none'; }
-function authShowError(id, msg) { const e=document.getElementById(id); e.textContent=msg; e.style.display='block'; }
-function authClearError(id) { const e=document.getElementById(id); e.style.display='none'; }
+function authShowError(id, msg) { const e=document.getElementById(id); if(e){e.textContent=msg; e.style.display='block';} }
+function authClearError(id) { const e=document.getElementById(id); if(e) e.style.display='none'; }
 
-async function authLogin() {
-  authClearError('auth-err');
-  const email = document.getElementById('auth-email').value.trim().toLowerCase();
-  const pwd   = document.getElementById('auth-pwd').value;
-  if (!email || !pwd) { authShowError('auth-err','Please fill in all fields'); return; }
-  const users = authGetUsers();
-  const user  = users.find(u => u.email === email);
-  if (!user) { authShowError('auth-err','Account not found'); return; }
-  const hash  = await hashPassword(pwd, user.salt);
-  if (hash !== user.hash) { authShowError('auth-err','Incorrect password'); return; }
-  authSetSession({email: user.email, name: user.name, avatar: user.avatar || null});
-  authApplySession();
-}
+// ── Firebase init ─────────────────────────────────────────────
+function fbInit() {
+  if (_fbApp) return;
+  _fbApp = firebase.initializeApp({
+    apiKey:            "AIzaSyAdcdsA3V3CevO70yV1wj67TFNil9XDdQI",
+    authDomain:        "vortelio-3e7a8.firebaseapp.com",
+    projectId:         "vortelio-3e7a8",
+    storageBucket:     "vortelio-3e7a8.firebasestorage.app",
+    messagingSenderId: "359636664531",
+    appId:             "1:359636664531:web:17ec1ebaaadcb0806d1426",
+    measurementId:     "G-BRF27E6S0S"
+  });
+  _fbAuth = firebase.auth();
 
-async function authRegister() {
-  authClearError('auth-reg-err');
-  const name  = document.getElementById('auth-name').value.trim();
-  const email = document.getElementById('auth-reg-email').value.trim().toLowerCase();
-  const pwd   = document.getElementById('auth-reg-pwd').value;
-  if (!name || !email || !pwd) { authShowError('auth-reg-err','Please fill in all fields'); return; }
-  if (pwd.length < 8) { authShowError('auth-reg-err','Password must be at least 8 characters'); return; }
-  const users = authGetUsers();
-  if (users.find(u => u.email === email)) { authShowError('auth-reg-err','Email already registered'); return; }
-  const salt = randomSalt();
-  const hash = await hashPassword(pwd, salt);
-  users.push({email, name, salt, hash, createdAt: new Date().toISOString()});
-  authSaveUsers(users);
-  authSetSession({email, name, avatar: null});
-  authApplySession();
-  toast('✅ Account created!', 'ok');
-}
-
-// Google OAuth — opens Google in a popup, receives token via postMessage
-function authGoogle() {
-  // Check if Google Client ID is configured
-  const clientId = localStorage.getItem('vortelio_google_client_id') || '';
-  if (!clientId) {
-    // Show config dialog
-    const id = prompt('Google OAuth not configured.\nEnter your Google Client ID\n(get it at console.cloud.google.com):', '');
-    if (id) { localStorage.setItem('vortelio_google_client_id', id.trim()); }
-    else { toast('Google login not configured', 'err'); return; }
-  }
-  const gClientId = localStorage.getItem('vortelio_google_client_id');
-  const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
-  const scope = encodeURIComponent('openid email profile');
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${gClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
-  const popup = window.open(url, 'google-auth', 'width=500,height=600,popup=1');
-  if (!popup) { toast('Popup blocked by browser', 'err'); return; }
-  // Poll for redirect back
-  const interval = setInterval(() => {
-    try {
-      const hash = popup.location.hash;
-      if (hash && hash.includes('access_token')) {
-        clearInterval(interval);
-        popup.close();
-        const params = new URLSearchParams(hash.slice(1));
-        const token  = params.get('access_token');
-        if (token) authGoogleFetchUser(token);
-      }
-    } catch(_) {}
-    if (popup.closed) clearInterval(interval);
-  }, 500);
-}
-
-async function authGoogleFetchUser(token) {
-  try {
-    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: 'Bearer ' + token }
-    });
-    const u = await r.json();
-    const session = {email: u.email, name: u.name || u.email, avatar: u.picture || null, google: true};
-    // Upsert user record
-    const users = authGetUsers();
-    const existing = users.findIndex(x => x.email === u.email);
-    const record = {email: u.email, name: u.name || u.email, salt:'', hash:'', google:true};
-    if (existing >= 0) users[existing] = {...users[existing], ...record};
-    else users.push(record);
-    authSaveUsers(users);
-    authSetSession(session);
+  _fbAuth.onAuthStateChanged(async (user) => {
+    _fbUser = user;
+    if (user) {
+      try {
+        _fbIdToken = await user.getIdToken();
+        // Sync user with Firestore (create if new)
+        const r = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ id_token: _fbIdToken })
+        });
+        const d = await r.json();
+        if (!d.error) _fbProfile = d;
+      } catch(e) { console.warn('Firebase sync error:', e); }
+    } else {
+      _fbIdToken = null;
+      _fbProfile = null;
+    }
     authApplySession();
-    toast('✅ Google sign-in successful!', 'ok');
-  } catch(e) { toast('❌ Google login error: ' + e.message, 'err'); }
+  });
+
+  // Refresh token before it expires (every 50 min)
+  setInterval(async () => {
+    if (_fbUser) { try { _fbIdToken = await _fbUser.getIdToken(true); } catch(e) {} }
+  }, 50 * 60 * 1000);
+}
+
+// ── Session helpers ───────────────────────────────────────────
+function authGetSession() {
+  if (_fbUser) {
+    return {
+      email:  _fbUser.email,
+      name:   _fbUser.displayName || _fbUser.email,
+      avatar: _fbUser.photoURL || null,
+      google: (_fbUser.providerData||[]).some(p => p.providerId === 'google.com'),
+      plan:   _fbProfile ? _fbProfile.plan : 'free',
+      uid:    _fbUser.uid,
+      firebase: true
+    };
+  }
+  // Fallback: guest session
+  try { const s = JSON.parse(localStorage.getItem('vortelio_session')||'null'); return (s && s.guest) ? s : null; }
+  catch { return null; }
 }
 
 function authApplySession() {
-  const s       = authGetSession();
-  const overlay = document.getElementById('auth-overlay');
+  const overlay  = document.getElementById('auth-overlay');
   const tbAvatar = document.getElementById('topbar-avatar');
   const tbName   = document.getElementById('topbar-username');
+  const planBadge = document.getElementById('topbar-plan-badge');
+  const acctPlan  = document.getElementById('acct-plan-badge');
+  const savedBtn  = document.getElementById('acct-saved-chats-btn');
+  if (!overlay) return;
 
-  if (!overlay) return; // DOM not ready
-
+  const s = authGetSession();
   if (s) {
-    // Logged in — hide overlay, update topbar
     overlay.style.display = 'none';
-    const initial = (s.name || s.email || 'O').slice(0,1).toUpperCase();
+    const initial = (s.name || s.email || 'G').slice(0,1).toUpperCase();
     if (tbAvatar) {
       if (s.avatar) {
         tbAvatar.innerHTML = `<img src="${esc(s.avatar)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
@@ -4022,37 +3994,123 @@ function authApplySession() {
         tbAvatar.style.background = s.guest ? 'var(--text3)' : 'var(--accent)';
       }
     }
-    if (tbName) tbName.textContent = s.guest ? 'Ospite' : (s.name || s.email || 'Account');
+    if (tbName) tbName.textContent = s.guest ? 'Guest' : (s.name || s.email || 'Account');
+    // Plan badge
+    const plan = (s.plan || 'free').toUpperCase();
+    if (planBadge) { if (!s.guest) { planBadge.textContent = plan; planBadge.style.display = ''; planBadge.style.background = plan==='PRO'?'#7c3aed':plan==='ENTERPRISE'?'#0891b2':'var(--accent)'; } else planBadge.style.display='none'; }
+    if (acctPlan) { if (!s.guest) { acctPlan.textContent = plan; acctPlan.style.display=''; acctPlan.style.background = plan==='PRO'?'#7c3aed':plan==='ENTERPRISE'?'#0891b2':'var(--accent)'; } else acctPlan.style.display='none'; }
+    // Saved chats button (only for Firebase users)
+    if (savedBtn) savedBtn.style.display = s.firebase ? '' : 'none';
   } else {
-    // Not logged in — show overlay
     overlay.style.display = 'flex';
-    if (tbAvatar) { tbAvatar.textContent = '?'; tbAvatar.style.background = 'var(--text3)'; }
+    if (tbAvatar) { tbAvatar.textContent = '?'; tbAvatar.style.background = 'var(--text3)'; tbAvatar.innerHTML='?'; }
     if (tbName)   tbName.textContent = 'Account';
-    // Reset auth forms so user can re-login cleanly
-    const emailInp = document.getElementById('auth-email');
-    const pwdInp   = document.getElementById('auth-pwd');
-    if (emailInp) emailInp.value = '';
-    if (pwdInp)   pwdInp.value   = '';
-    // Clear any error messages
+    if (planBadge) planBadge.style.display = 'none';
+    if (acctPlan)  acctPlan.style.display  = 'none';
+    if (savedBtn)  savedBtn.style.display  = 'none';
+    authShowLogin();
     const errEl = document.getElementById('auth-err');
     if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-    // Show login form, hide register
-    const loginForm = document.getElementById('auth-login-form');
-    const regForm   = document.getElementById('auth-register-form');
-    if (loginForm) loginForm.style.display = '';
-    if (regForm)   regForm.style.display   = 'none';
   }
 }
+
+// ── Login / Register / Google ─────────────────────────────────
+async function authLogin() {
+  authClearError('auth-err');
+  const email = document.getElementById('auth-email').value.trim();
+  const pwd   = document.getElementById('auth-pwd').value;
+  if (!email || !pwd) { authShowError('auth-err', 'Please fill in all fields'); return; }
+  const btn = document.querySelector('#auth-login-form .auth-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  try {
+    await _fbAuth.signInWithEmailAndPassword(email, pwd);
+  } catch(e) {
+    authShowError('auth-err', fbErrorMsg(e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+  }
+}
+
+async function authRegister() {
+  authClearError('auth-reg-err');
+  const name  = document.getElementById('auth-name').value.trim();
+  const email = document.getElementById('auth-reg-email').value.trim();
+  const pwd   = document.getElementById('auth-reg-pwd').value;
+  if (!name || !email || !pwd) { authShowError('auth-reg-err', 'Please fill in all fields'); return; }
+  if (pwd.length < 8) { authShowError('auth-reg-err', 'Password must be at least 8 characters'); return; }
+  const btn = document.querySelector('#auth-register-form .auth-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating account…'; }
+  try {
+    const cred = await _fbAuth.createUserWithEmailAndPassword(email, pwd);
+    await cred.user.updateProfile({ displayName: name });
+    toast('✅ Account created!', 'ok');
+  } catch(e) {
+    authShowError('auth-reg-err', fbErrorMsg(e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create account'; }
+  }
+}
+
+function authGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  _fbAuth.signInWithPopup(provider).catch(e => {
+    if (e.code !== 'auth/popup-closed-by-user') toast('❌ ' + fbErrorMsg(e), 'err');
+  });
+}
+
 function authLogout() {
-  authClearSession();
-  authApplySession();
+  if (_fbAuth) {
+    _fbAuth.signOut();
+  } else {
+    localStorage.removeItem('vortelio_session');
+    authApplySession();
+  }
   toast('Signed out');
 }
 
+function authSkip() {
+  localStorage.setItem('vortelio_session', JSON.stringify({email:'', name:'Guest', avatar:null, guest:true}));
+  authApplySession();
+}
+
+function authShowOverlay() {
+  const overlay = document.getElementById('auth-overlay');
+  if (!overlay) return;
+  authShowLogin();
+  const errEl = document.getElementById('auth-err');
+  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+  overlay.style.display = 'flex';
+  setTimeout(() => { const el = document.getElementById('auth-email'); if (el) el.focus(); }, 50);
+}
+
+function fbErrorMsg(e) {
+  const m = {
+    'auth/user-not-found':        'Account not found',
+    'auth/wrong-password':        'Incorrect password',
+    'auth/invalid-credential':    'Incorrect email or password',
+    'auth/email-already-in-use':  'Email already registered',
+    'auth/weak-password':         'Password too weak (min. 6 characters)',
+    'auth/invalid-email':         'Invalid email address',
+    'auth/too-many-requests':     'Too many attempts. Try again later.',
+    'auth/network-request-failed':'Network error — check your connection',
+  };
+  return m[e.code] || e.message || 'Authentication error';
+}
+
+// ── Change password ───────────────────────────────────────────
+function acctChangePassword() {
+  closeAcctMenu();
+  if (!_fbUser || _fbUser.providerData?.some(p => p.providerId === 'google.com')) return;
+  const newPwd = prompt('New password (min. 8 characters):');
+  if (!newPwd) return;
+  if (newPwd.length < 8) { toast('Password too short', 'err'); return; }
+  _fbUser.updatePassword(newPwd)
+    .then(() => toast('✅ Password updated', 'ok'))
+    .catch(e => toast('❌ ' + fbErrorMsg(e), 'err'));
+}
+
 // ── Init auth on start ────────────────────────────────────────
-// Auth is optional — if user skips, we show a "Continua senza account" link
 (function initAuth() {
-  // Add "skip" option to login form
   setTimeout(() => {
     const card = document.querySelector('.auth-card');
     if (card && !document.getElementById('auth-skip')) {
@@ -4065,27 +4123,97 @@ function authLogout() {
   }, 100);
 })();
 
-function authShowOverlay() {
-  const overlay = document.getElementById('auth-overlay');
+// ── Saved Chats ───────────────────────────────────────────────
+let _savedChats = [];
+
+function openSavedChats() {
+  closeAcctMenu();
+  const overlay = document.getElementById('saved-chats-overlay');
   if (!overlay) return;
-  // Reset to login form
-  const loginForm = document.getElementById('auth-login-form');
-  const regForm   = document.getElementById('auth-register-form');
-  if (loginForm) loginForm.style.display = '';
-  if (regForm)   regForm.style.display   = 'none';
-  const errEl = document.getElementById('auth-err');
-  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
   overlay.style.display = 'flex';
-  // Focus email field
-  setTimeout(() => {
-    const emailEl = document.getElementById('auth-email');
-    if (emailEl) emailEl.focus();
-  }, 50);
+  loadSavedChats();
 }
 
-function authSkip() {
-  authSetSession({email:'', name:'Guest', avatar:null, guest:true});
-  authApplySession();
+function closeSavedChats() {
+  const overlay = document.getElementById('saved-chats-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function loadSavedChats() {
+  const list = document.getElementById('saved-chats-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:16px">Loading…</div>';
+  try {
+    const r = await fetch('/api/chats');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    _savedChats = d.chats || [];
+    if (!_savedChats.length) {
+      list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:16px">No saved chats yet.</div>';
+      return;
+    }
+    list.innerHTML = _savedChats.map((c, i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;hover:background:var(--bg2)" onmouseenter="this.style.background='var(--bg2)'" onmouseleave="this.style.background=''">
+        <div style="flex:1;min-width:0" onclick="loadSavedChat(${i})">
+          <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.title)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(c.model||'—')} · ${esc(new Date(c.updated_at).toLocaleDateString())}</div>
+        </div>
+        <button onclick="deleteSavedChat('${esc(c.id)}',this)" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;border-radius:4px;font-size:13px" title="Delete">🗑</button>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = `<div style="color:#dc2626;font-size:12px;padding:16px">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function deleteSavedChat(chatId, btn) {
+  if (!confirm('Delete this chat?')) return;
+  try {
+    await fetch('/api/chats/' + chatId, { method: 'DELETE' });
+    loadSavedChats();
+    toast('Chat deleted');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+function loadSavedChat(idx) {
+  const chat = _savedChats[idx];
+  if (!chat) return;
+  closeSavedChats();
+  // Restore messages into the chat UI
+  const msgsEl = document.getElementById('msgs');
+  const welcome = document.getElementById('welcome');
+  if (!msgsEl) return;
+  msgsEl.style.display = '';
+  if (welcome) welcome.style.display = 'none';
+  msgsEl.innerHTML = (chat.messages || []).map(m => `
+    <div class="msg ${m.role === 'user' ? 'user' : 'assistant'}">
+      <div class="msg-content">${m.role === 'user' ? esc(m.content) : m.content}</div>
+    </div>`).join('');
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  toast('💬 Chat loaded: ' + chat.title);
+}
+
+async function saveCurrentChat() {
+  if (!_fbUser) { toast('Sign in to save chats', 'err'); return; }
+  const msgsEl = document.getElementById('msgs');
+  if (!msgsEl || !msgsEl.children.length) { toast('No messages to save', 'err'); return; }
+  const messages = [];
+  msgsEl.querySelectorAll('.msg').forEach(el => {
+    const role = el.classList.contains('user') ? 'user' : 'assistant';
+    const content = el.querySelector('.msg-content')?.textContent || '';
+    messages.push({ role, content, timestamp: new Date().toISOString() });
+  });
+  const firstUserMsg = messages.find(m => m.role === 'user');
+  const title = firstUserMsg ? firstUserMsg.content.slice(0, 60) : ('Chat ' + new Date().toLocaleDateString());
+  const modelSel = document.getElementById('model-select');
+  const model = modelSel ? modelSel.value : '';
+  try {
+    await fetch('/api/chats', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ title, model, messages })
+    });
+    toast('💾 Chat saved', 'ok');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -5074,9 +5202,15 @@ function toggleAcctMenu() {
     if (s.email && !s.guest) { emailEl.textContent = s.email; emailEl.style.display=''; }
     else emailEl.style.display = 'none';
     const typeEl = document.getElementById('acct-menu-type');
-    typeEl.textContent = s.google ? '🔵 Google Account' : s.guest ? '👤 Guest' : '🔒 Local account';
+    typeEl.textContent = s.google ? '🔵 Google Account' : s.guest ? '👤 Guest' : '🔒 Firebase Account';
+    const planBadge = document.getElementById('acct-plan-badge');
+    if (planBadge) {
+      const plan = (s.plan || 'free').toUpperCase();
+      if (!s.guest) { planBadge.textContent = plan; planBadge.style.display=''; planBadge.style.background = plan==='PRO'?'#7c3aed':plan==='ENTERPRISE'?'#0891b2':'var(--accent)'; }
+      else planBadge.style.display='none';
+    }
     const pwdBtn = document.getElementById('acct-change-pwd');
-    if (pwdBtn) pwdBtn.style.display = (!s.google && !s.guest) ? '' : 'none';
+    if (pwdBtn) pwdBtn.style.display = (!s.google && !s.guest && s.firebase) ? '' : 'none';
     menu.classList.add('open');
     setTimeout(() => document.addEventListener('click', _acctOutsideClick, {once:true}), 10);
   }
@@ -5087,21 +5221,8 @@ function _acctOutsideClick(e) {
 function closeAcctMenu() { document.getElementById('acct-menu')?.classList.remove('open'); }
 function acctOpenSettings() { closeAcctMenu(); openSettings(); }
 function acctLogout() { closeAcctMenu(); authLogout(); }
-function acctChangePassword() {
-  closeAcctMenu();
-  const s = authGetSession();
-  if (!s || s.guest || s.google) return;
-  const newPwd = prompt('New password (min. 8 characters):');
-  if (!newPwd || newPwd.length < 8) { if (newPwd !== null) toast('Password too short', 'err'); return; }
-  const users = authGetUsers();
-  const idx   = users.findIndex(u => u.email === s.email);
-  if (idx < 0) { toast('User not found', 'err'); return; }
-  const salt = randomSalt();
-  hashPassword(newPwd, salt).then(hash => {
-    users[idx].salt = salt; users[idx].hash = hash;
-    authSaveUsers(users);
-    toast('✅ Password updated', 'ok');
-  });
+// acctChangePassword defined in AUTH SYSTEM section above (Firebase version)
+function _acctChangePwdOld() { // kept for reference, replaced by Firebase version
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -5569,14 +5690,35 @@ if (document.readyState === "loading") {
 </script>
 
 
+<!-- ── SAVED CHATS OVERLAY ───────────────────────────────────── -->
+<div id="saved-chats-overlay" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+  <div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);width:min(520px,94vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">💾 Saved Chats</div>
+      <button onclick="closeSavedChats()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:2px 6px">×</button>
+    </div>
+    <div id="saved-chats-list" style="overflow-y:auto;flex:1"></div>
+    <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+      <button class="btn" onclick="saveCurrentChat()">💾 Save current chat</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── ACCOUNT DROPDOWN ─────────────────────────────────────── -->
 <div class="acct-menu" id="acct-menu">
   <div class="acct-header">
     <div class="acct-name" id="acct-menu-name">—</div>
     <div class="acct-email" id="acct-menu-email" style="display:none"></div>
-    <div class="acct-email" id="acct-menu-type" style="color:var(--accent);font-size:10px;margin-top:3px">Account locale</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+      <div class="acct-email" id="acct-menu-type" style="color:var(--accent);font-size:10px">Account locale</div>
+      <span id="acct-plan-badge" style="display:none;font-size:9px;font-weight:700;background:var(--accent);color:#fff;padding:1px 6px;border-radius:8px;letter-spacing:.5px"></span>
+    </div>
   </div>
   <div style="padding:4px 0">
+    <button class="acct-item" id="acct-saved-chats-btn" onclick="openSavedChats()" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2h10v8H2z"/><path d="M4 5h6M4 7h4"/></svg>
+      Saved Chats
+    </button>
     <button class="acct-item" onclick="acctOpenSettings()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
       Settings

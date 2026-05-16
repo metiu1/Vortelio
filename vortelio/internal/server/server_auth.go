@@ -16,11 +16,17 @@ func uidFromRequest(r *http.Request) string {
 	if !fb.Enabled() {
 		return ""
 	}
-	auth := r.Header.Get("Authorization")
-	if !strings.HasPrefix(auth, "Bearer ") {
+	// Prefer dedicated header (avoids conflict with Vortelio API key in Authorization)
+	idToken := r.Header.Get("X-Firebase-Token")
+	if idToken == "" {
+		// Fallback: Authorization: Bearer <token>
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			idToken = strings.TrimPrefix(auth, "Bearer ")
+		}
+	}
+	if idToken == "" {
 		return ""
 	}
-	idToken := strings.TrimPrefix(auth, "Bearer ")
 	t, err := fb.Auth().VerifyIDToken(context.Background(), idToken)
 	if err != nil {
 		return ""
