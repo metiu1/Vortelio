@@ -1,0 +1,317 @@
+package commands
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"syscall"
+	"text/tabwriter"
+	"time"
+
+	"github.com/vortelio/vortelio/internal/config"
+	"github.com/vortelio/vortelio/internal/hub"
+	"github.com/vortelio/vortelio/internal/server"
+)
+
+// ─── LIST ─────────────────────────────────────────────────────────────────────
+
+type ListCommand struct{}
+
+func NewListCommand() *ListCommand { return &ListCommand{} }
+func (c *ListCommand) Name() string { return "list" }
+func (c *ListCommand) Run(args []string) error {
+	store := hub.NewModelStore()
+	models, err := store.List()
+	if err != nil {
+		return fmt.Errorf("failed to list models: %w", err)
+	}
+	if len(models) == 0 {
+		fmt.Println("No models downloaded yet.")
+		fmt.Println("Try: vortelio pull llm/mistral:7b")
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tTYPE\tSIZE\tFORMAT\tDOWNLOADED")
+	fmt.Fprintln(w, "────\t────\t────\t──────\t─────────")
+	for _, m := range models {
+		fmt.Fprintf(w, "%s/%s:%s\t%s\t%s\t%s\t%s\n",
+			m.Type, m.Name, m.Tag, m.Type, m.SizeHuman(), m.Format,
+			m.DownloadedAt.Format("2006-01-02"))
+	}
+	w.Flush()
+	return nil
+}
+
+// ─── REMOVE ───────────────────────────────────────────────────────────────────
+
+type RemoveCommand struct{}
+
+func NewRemoveCommand() *RemoveCommand { return &RemoveCommand{} }
+func (c *RemoveCommand) Name() string { return "remove" }
+func (c *RemoveCommand) Run(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: vortelio remove <model> [model2 ...] [--all]")
+	}
+	store := hub.NewModelStore()
+	if len(args) == 1 && args[0] == "--all" {
+		models, err := store.List()
+		if err != nil || len(models) == 0 {
+			fmt.Println("No models installed.")
+			return nil
+		}
+		fmt.Printf("⚠️   You are about to remove %d models:\n", len(models))
+		for _, m := range models {
+			fmt.Printf("    • %s/%s:%s (%s)\n", m.Type, m.Name, m.Tag, m.SizeHuman())
+		}
+		fmt.Print("\nConfermi? [y/N]: ")
+		var answer string
+		fmt.Scanln(&answer)
+		if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+		removed := 0
+		for _, m := range models {
+			ref := &hub.ModelRef{Type: m.Type, Name: m.Name, Tag: m.Tag}
+			if err := store.Remove(ref); err != nil {
+				fmt.Fprintf(os.Stderr, "❌  %s/%s:%s: %v\n", m.Type, m.Name, m.Tag, err)
+			} else {
+				fmt.Printf("🗑️   Rimosso %s/%s:%s\n", m.Type, m.Name, m.Tag)
+				removed++
+			}
+		}
+		fmt.Printf("\n✅  %d models removed.\n", removed)
+		return nil
+	}
+	failed := 0
+	for _, arg := range args {
+		ref, err := hub.ParseModelRef(arg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌  %s: %v\n", arg, err)
+			failed++
+			continue
+		}
+		if err := store.Remove(ref); err != nil {
+			fmt.Fprintf(os.Stderr, "❌  %s: %v\n", arg, err)
+			failed++
+		} else {
+			fmt.Printf("🗑️   Rimosso %s/%s:%s\n", ref.Type, ref.Name, ref.Tag)
+		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d modelli non rimossi", failed)
+	}
+	return nil
+}
+
+// ─── INFO ─────────────────────────────────────────────────────────────────────
+
+type InfoCommand struct{}
+
+func NewInfoCommand() *InfoCommand { return &InfoCommand{} }
+func (c *InfoCommand) Name() string { return "info" }
+func (c *InfoCommand) Run(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: vortelio info <type/model[:tag]>")
+	}
+	ref, err := hub.ParseModelRef(args[0])
+	if err != nil {
+		return err
+	}
+	store := hub.NewModelStore()
+	m, err := store.Resolve(ref)
+	if err != nil {
+		return fmt.Errorf("model not found: %w", err)
+	}
+	fmt.Printf("📦  Model Info\n")
+	fmt.Printf("    Name:        %s/%s:%s\n", m.Type, m.Name, m.Tag)
+	fmt.Printf("    Type:        %s\n", m.Type)
+	fmt.Printf("    Format:      %s\n", m.Format)
+	fmt.Printf("    Size:        %s\n", m.SizeHuman())
+	fmt.Printf("    Path:        %s\n", m.LocalPath)
+	fmt.Printf("    Source:      %s\n", m.Source)
+	fmt.Printf("    Downloaded:  %s\n", m.DownloadedAt.Format("2006-01-02 15:04:05"))
+	return nil
+}
+
+// ─── GUI ──────────────────────────────────────────────────────────────────────
+
+type GUICommand struct{}
+
+func NewGUICommand() *GUICommand { return &GUICommand{} }
+func (c *GUICommand) Name() string { return "gui" }
+func (c *GUICommand) Run(args []string) error {
+	port := "11500"
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--port" || args[i] == "-p" {
+			port = args[i+1]
+		}
+	}
+	url := "http://localhost:" + port
+	_, err := EnsureServiceRunning(port)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌  %v\n", err)
+		fmt.Fprintf(os.Stderr, "    Prova: vortelio serve --port %s\n", port)
+	}
+	fmt.Printf("🌐  Apertura GUI: %s\n", url)
+	openDesktopWindow(url)
+	return nil
+}
+
+// ─── SERVE ────────────────────────────────────────────────────────────────────
+
+type ServeCommand struct{}
+
+func NewServeCommand() *ServeCommand { return &ServeCommand{} }
+func (c *ServeCommand) Name() string { return "serve" }
+func (c *ServeCommand) Run(args []string) error {
+	port := ""
+	host := ""
+	apiKey := ""
+	noBrowser := false
+	remote := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--port", "-p":
+			if i+1 < len(args) { port = args[i+1]; i++ }
+		case "--host":
+			if i+1 < len(args) { host = args[i+1]; i++ }
+		case "--remote":
+			remote = true
+		case "--api-key":
+			if i+1 < len(args) { apiKey = args[i+1]; i++ }
+		case "--no-browser":
+			noBrowser = true
+		}
+	}
+
+	cfg := config.Load()
+	if port != "" {
+		var p int
+		fmt.Sscanf(port, "%d", &p)
+		if p > 0 { cfg.Port = p }
+	}
+	if host != "" {
+		cfg.BindAddr = host
+	}
+	if remote && cfg.BindAddr == "127.0.0.1" {
+		cfg.BindAddr = "0.0.0.0"
+	}
+	if apiKey != "" {
+		cfg.APIKey = apiKey
+	}
+
+	portStr := fmt.Sprintf("%d", cfg.Port)
+	addr := cfg.BindAddr + ":" + portStr
+	localURL := "http://localhost:" + portStr
+	mux := server.NewMux()
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		if strings.Contains(err.Error(), "bind") || strings.Contains(err.Error(), "address already in use") {
+			fmt.Printf("ℹ️   Server già attivo su %s\n", localURL)
+			if !noBrowser {
+				fmt.Println("    Apertura GUI...")
+				openDesktopWindow(localURL)
+			}
+			return nil
+		}
+		return err
+	}
+
+	fmt.Printf("🌐  Vortelio Web UI → %s\n", localURL)
+	if cfg.BindAddr != "127.0.0.1" && cfg.BindAddr != "localhost" {
+		hostname, _ := os.Hostname()
+		fmt.Printf("🔗  Accesso remoto  → http://%s:%s\n", hostname, portStr)
+		if cfg.APIKey != "" {
+			fmt.Printf("🔑  API key attiva  (Authorization: Bearer %s)\n", cfg.APIKey)
+		} else {
+			fmt.Printf("⚠️   Nessuna API key — accesso remoto aperto a tutti\n")
+		}
+	}
+	fmt.Printf("    Premi Ctrl+C per fermare.\n\n")
+
+	server.InitLogger("info")
+
+	if !noBrowser {
+		go func() {
+			time.Sleep(600 * time.Millisecond)
+			openDesktopWindow(localURL)
+		}()
+	}
+
+	srv := &http.Server{Handler: mux}
+
+	// Graceful shutdown su SIGINT/SIGTERM
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-quit
+		fmt.Println("\n⏹️   Arresto server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		srv.Shutdown(ctx)
+	}()
+
+	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	fmt.Println("✅  Server fermato.")
+	return nil
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
+}
+
+func openDesktopWindow(url string) {
+	if runtime.GOOS != "windows" {
+		openBrowser(url)
+		return
+	}
+	edgePaths := []string{
+		`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
+		`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
+	}
+	chromePaths := []string{
+		`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+		`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
+	}
+	home, _ := os.UserHomeDir()
+	profileDir := filepath.Join(home, ".vortelio", "app-profile")
+	os.MkdirAll(profileDir, 0755)
+	appArgs := func(exe string) *exec.Cmd {
+		return exec.Command(exe,
+			"--app="+url,
+			"--user-data-dir="+profileDir,
+			"--window-size=1280,820",
+			"--no-first-run",
+			"--no-default-browser-check",
+			"--disable-extensions",
+		)
+	}
+	for _, p := range append(edgePaths, chromePaths...) {
+		if _, err := os.Stat(p); err == nil {
+			if err := appArgs(p).Start(); err == nil {
+				return
+			}
+		}
+	}
+	openBrowser(url)
+}

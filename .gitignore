@@ -1,0 +1,11 @@
+*.exe.part
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/*.whl
+dist/*.tar.gz
+vortelio-installer/build/*.exe
+vortelio-installer/*.exe
+.DS_Store
+Thumbs.db

@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vortelio"
+version = "0.3.49"
+description = "Run AI models locally — LLM, images, audio, video, 3D. Web UI included."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Proprietary" }
+authors = [{ name = "Vortelio" }]
+keywords = ["ai", "llm", "local", "ollama", "diffusers"]
+classifiers = [
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+vortelio = "vortelio_cli.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/vortelio/vortelio"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vortelio_cli"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/vortelio_cli/bin" = "vortelio_cli/bin"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "README.md", "pyproject.toml"]

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PullAI — Local AI Dashboard</title>
+<style>
+  :root {
+    --bg:#0f0e17;--surface:#1a1830;--card:#221f3a;--border:#2e2a4a;
+    --accent:#7c5cbf;--accent2:#a78bfa;--green:#34d399;--red:#f87171;
+    --yellow:#fbbf24;--text:#e2e0f0;--muted:#8b85b0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex}
+  .sidebar{width:220px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;flex-shrink:0}
+  .logo{padding:0 20px 24px;display:flex;align-items:center;gap:10px}
+  .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#7c5cbf,#a78bfa);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#fff}
+  .logo-text{font-size:20px;font-weight:700;letter-spacing:-0.5px}
+  .logo-ver{font-size:11px;color:var(--muted)}
+  nav{flex:1}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:var(--muted);font-size:14px;font-weight:500;border-left:3px solid transparent;transition:all .15s}
+  .nav-item:hover{color:var(--text);background:rgba(124,92,191,.1)}
+  .nav-item.active{color:var(--accent2);border-left-color:var(--accent2);background:rgba(124,92,191,.15)}
+  .sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface)}
+  .page-title{font-size:18px;font-weight:600}
+  .badge{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--muted)}
+  .content{flex:1;overflow-y:auto;padding:28px}
+  .page{display:none}.page.active{display:block}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
+  .stat-num{font-size:32px;font-weight:700;color:var(--accent2);text-align:center}
+  .stat-label{font-size:12px;color:var(--muted);text-align:center;margin-top:4px}
+  .btn{padding:10px 20px;border-radius:10px;border:none;cursor:pointer;font-size:14px;font-weight:600;transition:all .15s}
+  .btn-p{background:var(--accent);color:#fff}.btn-p:hover{background:var(--accent2)}
+  .btn-s{background:var(--card);color:var(--text);border:1px solid var(--border)}.btn-s:hover{border-color:var(--accent)}
+  select.sel,input.inp,textarea.ta{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:14px;outline:none;font-family:inherit;transition:border-color .15s;width:100%}
+  select.sel:focus,input.inp:focus,textarea.ta:focus{border-color:var(--accent)}
+  textarea.ta{resize:vertical;min-height:80px}
+  .fl{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:6px;display:block;text-transform:uppercase;letter-spacing:.4px}
+  .fg{margin-bottom:16px}
+  .rg{display:flex;align-items:center;gap:10px}
+  input[type=range]{flex:1;accent-color:var(--accent)}
+  .rv{font-size:13px;color:var(--accent2);font-weight:600;min-width:28px;text-align:right}
+  .chat-layout{display:flex;flex-direction:column;height:calc(100vh - 130px)}
+  .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:20px;background:var(--surface);border-radius:14px;border:1px solid var(--border);margin-bottom:16px}
+  .msg{display:flex;gap:12px;max-width:80%}.msg.u{align-self:flex-end;flex-direction:row-reverse}
+  .bubble{padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.6;background:var(--card);border:1px solid var(--border)}
+  .msg.u .bubble{background:var(--accent);border-color:var(--accent)}
+  .av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:var(--card);border:1px solid var(--border)}
+  .msg.u .av{background:var(--accent)}
+  .chat-row{display:flex;gap:10px}
+  .canvas{background:var(--surface);border:2px dashed var(--border);border-radius:14px;display:flex;align-items:center;justify-content:center;min-height:420px;flex-direction:column;gap:12px;color:var(--muted)}
+  .il{display:grid;grid-template-columns:340px 1fr;gap:20px}
+  .al{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .pull-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .pc{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;cursor:pointer;transition:all .15s}
+  .pc:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .pct{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:8px}
+  .pcn{font-size:16px;font-weight:700;margin-bottom:4px}
+  .pci{font-size:12px;color:var(--muted);margin-bottom:16px}
+  .pcf{display:flex;justify-content:space-between;align-items:center}
+  .pb{padding:6px 14px;border-radius:7px;border:1px solid var(--accent);color:var(--accent2);background:rgba(124,92,191,.1);font-size:12px;font-weight:600;cursor:pointer}
+  .pb:hover{background:var(--accent);color:#fff}
+  .tb{font-size:11px;color:var(--muted)}
+  .tllm{background:rgba(167,139,250,.15);color:var(--accent2);display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .timg{background:rgba(251,191,36,.15);color:var(--yellow);display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .taud{background:rgba(52,211,153,.15);color:var(--green);display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .tvid{background:rgba(248,113,113,.15);color:var(--red);display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .drop{border:2px dashed var(--border);border-radius:10px;padding:30px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;transition:all .15s;margin-bottom:14px}
+  .drop:hover{border-color:var(--accent);color:var(--accent2)}
+  .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+  .st{font-size:16px;font-weight:600}
+  .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent2);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .strow{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(46,42,74,.5)}
+  .toggle{width:44px;height:24px;background:var(--border);border-radius:12px;position:relative;cursor:pointer;transition:background .2s}
+  .toggle.on{background:var(--accent)}
+  .toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+  .toggle.on::after{transform:translateX(20px)}
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .empty{text-align:center;padding:60px;color:var(--muted)}
+  .code{background:var(--bg);border-radius:8px;padding:14px;font-family:monospace;font-size:13px;color:var(--accent2);line-height:2}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">P</div>
+    <div><div class="logo-text">PullAI</div><div class="logo-ver">v0.1.0</div></div>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="go('dash')"><span>🏠</span> Dashboard</div>
+    <div class="nav-item" onclick="go('chat')"><span>💬</span> Chat (LLM)</div>
+    <div class="nav-item" onclick="go('image')"><span>🎨</span> Immagini</div>
+    <div class="nav-item" onclick="go('audio')"><span>🎙️</span> Audio</div>
+    <div class="nav-item" onclick="go('video')"><span>🎬</span> Video</div>
+    <div class="nav-item" onclick="go('models')"><span>📦</span> Modelli</div>
+    <div class="nav-item" onclick="go('pull')"><span>⬇️</span> Scarica</div>
+    <div class="nav-item" onclick="go('settings')"><span>⚙️</span> Impostazioni</div>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="dot"></span><span style="font-size:12px;color:var(--muted)">Server attivo · porta 11500</span>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="ptitle">Dashboard</div>
+    <div style="display:flex;gap:8px">
+      <span class="badge" id="hw-badge">🖥️ Rilevando...</span>
+      <span class="badge">🌐 localhost:11500</span>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="pg-dash">
+      <div class="grid4">
+        <div class="card"><div class="stat-num" id="smodels">0</div><div class="stat-label">Modelli scaricati</div></div>
+        <div class="card"><div class="stat-num" style="color:var(--yellow)">4</div><div class="stat-label">Tipi supportati</div></div>
+        <div class="card"><div class="stat-num" style="color:var(--green)">✓</div><div class="stat-label">Server attivo</div></div>
+        <div class="card"><div class="stat-num" style="color:var(--red)" id="ssize">0 GB</div><div class="stat-label">Spazio usato</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="st" style="margin-bottom:14px">⚡ Avvio Rapido</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Scarica un modello e inizia subito a generare contenuti localmente.</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-p" onclick="go('pull')">⬇️ Scarica il tuo primo modello</button>
+            <button class="btn btn-s" onclick="go('chat')">💬 Vai alla Chat LLM</button>
+            <button class="btn btn-s" onclick="go('image')">🎨 Genera un'immagine</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="st" style="margin-bottom:14px">📋 Comandi CLI</div>
+          <div class="code">
+            <div><span style="color:var(--muted)"># Scarica modello</span></div>
+            <div>pullai pull llm/mistral:7b</div>
+            <div><span style="color:var(--muted)"># Chat</span></div>
+            <div>pullai run llm/mistral:7b "ciao"</div>
+            <div><span style="color:var(--muted)"># Lista</span></div>
+            <div>pullai list</div>
+            <div><span style="color:var(--muted)"># API server</span></div>
+            <div>pullai serve --port 11500</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="st" style="margin-bottom:16px">🗺️ Capacità di PullAI</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;text-align:center">
+          <div style="padding:16px;background:var(--surface);border-radius:10px"><div style="font-size:28px;margin-bottom:8px">💬</div><div style="font-weight:600;margin-bottom:4px">LLM / Chat</div><div style="font-size:12px;color:var(--muted)">Mistral, Llama3, Phi3, Qwen</div></div>
+          <div style="padding:16px;background:var(--surface);border-radius:10px"><div style="font-size:28px;margin-bottom:8px">🎨</div><div style="font-weight:600;margin-bottom:4px">Immagini</div><div style="font-size:12px;color:var(--muted)">SDXL, FLUX, testo→immagine</div></div>
+          <div style="padding:16px;background:var(--surface);border-radius:10px"><div style="font-size:28px;margin-bottom:8px">🎙️</div><div style="font-weight:600;margin-bottom:4px">Audio</div><div style="font-size:12px;color:var(--muted)">Whisper STT, Bark TTS</div></div>
+          <div style="padding:16px;background:var(--surface);border-radius:10px"><div style="font-size:28px;margin-bottom:8px">🎬</div><div style="font-weight:600;margin-bottom:4px">Video</div><div style="font-size:12px;color:var(--muted)">CogVideoX, AnimateDiff</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="page" id="pg-chat">
+      <div class="chat-layout">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+          <select class="sel" style="width:auto" id="chat-model">
+            <option value="">— Seleziona modello LLM —</option>
+            <option>llm/mistral:7b</option><option>llm/llama3:8b</option><option>llm/phi3:mini</option>
+          </select>
+          <button class="btn btn-s" onclick="clearChat()">🗑️ Pulisci</button>
+        </div>
+        <div class="msgs" id="msgs">
+          <div style="text-align:center;color:var(--muted);padding:40px"><div style="font-size:36px;margin-bottom:10px">💬</div>Seleziona un modello e scrivi un messaggio</div>
+        </div>
+        <div class="chat-row">
+          <textarea class="ta" id="cinput" rows="2" placeholder="Scrivi... (Invio = invia, Shift+Invio = a capo)"></textarea>
+          <button class="btn btn-p" onclick="sendChat()">Invia ➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMAGE -->
+    <div class="page" id="pg-image">
+      <div class="il">
+        <div class="card" style="height:fit-content">
+          <div class="st" style="margin-bottom:18px">🎨 Genera Immagine</div>
+          <div class="fg"><label class="fl">Modello</label><select class="sel"><option>image/sdxl:latest</option><option>image/flux:schnell</option></select></div>
+          <div class="fg"><label class="fl">Prompt</label><textarea class="ta" id="ipr" placeholder="Una città cyberpunk di notte con neon viola e pioggia..."></textarea></div>
+          <div class="fg"><label class="fl">Prompt negativo</label><textarea class="ta" id="ineg" style="min-height:60px" placeholder="blurry, low quality..."></textarea></div>
+          <div class="fg"><label class="fl">Passi (<span id="sv">20</span>)</label><input type="range" min="10" max="50" value="20" oninput="document.getElementById('sv').textContent=this.value"></div>
+          <div class="fg"><label class="fl">CFG Scale (<span id="cv">7</span>)</label><input type="range" min="1" max="15" value="7" step="0.5" oninput="document.getElementById('cv').textContent=this.value"></div>
+          <div class="fg"><label class="fl">Dimensione</label><select class="sel"><option>1024×1024</option><option>1280×720</option><option>768×1344</option></select></div>
+          <button class="btn btn-p" style="width:100%" onclick="genImg()">🎨 Genera</button>
+        </div>
+        <div>
+          <div class="canvas" id="iout"><div style="font-size:48px">🖼️</div><div>L'immagine generata apparirà qui</div><div style="font-size:12px">Inserisci un prompt e premi Genera</div></div>
+          <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-s">💾 Salva PNG</button>
+            <button class="btn btn-s" onclick="genImg()">🔁 Rigenera</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIO -->
+    <div class="page" id="pg-audio">
+      <div class="al">
+        <div class="card">
+          <div style="font-size:36px;margin-bottom:12px">🎙️</div>
+          <div class="st" style="margin-bottom:6px">Audio → Testo (STT)</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">Trascrivi file audio con Whisper. Supporta MP3, WAV, M4A, FLAC.</div>
+          <div class="fg"><label class="fl">Modello</label><select class="sel"><option>audio/whisper:large</option><option>audio/whisper:base</option></select></div>
+          <div class="drop" onclick="document.getElementById('afile').click()">📂 Clicca o trascina un file audio<br><span style="font-size:11px">MP3, WAV, M4A, FLAC, OGG</span><input type="file" id="afile" style="display:none" accept="audio/*"></div>
+          <button class="btn btn-p" style="width:100%" onclick="doSTT()">▶️ Trascrivi</button>
+          <div id="sttout" style="margin-top:16px;display:none"><label class="fl">Trascrizione</label><textarea class="ta" rows="6" readonly></textarea><button class="btn btn-s" style="width:100%;margin-top:8px">💾 Salva TXT</button></div>
+        </div>
+        <div class="card">
+          <div style="font-size:36px;margin-bottom:12px">🔊</div>
+          <div class="st" style="margin-bottom:6px">Testo → Voce (TTS)</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">Genera parlato naturale dal testo con Bark.</div>
+          <div class="fg"><label class="fl">Modello</label><select class="sel"><option>audio/bark:latest</option></select></div>
+          <div class="fg"><label class="fl">Testo</label><textarea class="ta" id="ttstext" rows="5" placeholder="Ciao! Sono PullAI, il tuo assistente AI locale..."></textarea></div>
+          <div class="fg"><label class="fl">Voce</label><select class="sel"><option>v2/it_speaker_0 (Italiano)</option><option>v2/en_speaker_0 (Inglese)</option><option>v2/en_speaker_6 (Inglese 2)</option></select></div>
+          <button class="btn btn-p" style="width:100%" onclick="doTTS()">🔊 Genera Audio</button>
+          <div id="ttsout" style="margin-top:16px;display:none"><audio controls style="width:100%;margin-top:8px"></audio><button class="btn btn-s" style="width:100%;margin-top:8px">💾 Salva WAV</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIDEO -->
+    <div class="page" id="pg-video">
+      <div class="il">
+        <div class="card" style="height:fit-content">
+          <div class="st" style="margin-bottom:18px">🎬 Genera Video</div>
+          <div class="fg"><label class="fl">Modello</label><select class="sel"><option>video/cogvideo:5b</option><option>video/animatediff:v3</option></select></div>
+          <div class="fg"><label class="fl">Prompt</label><textarea class="ta" id="vpr" placeholder="Un panda rosso che arrampica su un bambù nella foresta nebbiosa..."></textarea></div>
+          <div class="fg"><label class="fl">Frame (<span id="fv">24</span>)</label><input type="range" min="8" max="49" value="24" oninput="document.getElementById('fv').textContent=this.value"></div>
+          <div class="fg"><label class="fl">Passi (<span id="vsv">20</span>)</label><input type="range" min="10" max="50" value="20" oninput="document.getElementById('vsv').textContent=this.value"></div>
+          <div class="fg"><label class="fl">FPS</label><select class="sel"><option>8 fps</option><option>16 fps</option><option>24 fps</option></select></div>
+          <div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px;font-size:12px;color:var(--yellow);margin-bottom:14px">⚠️ Richiede GPU 8+ GB VRAM. Può richiedere diversi minuti.</div>
+          <button class="btn btn-p" style="width:100%" onclick="genVid()">🎬 Genera</button>
+        </div>
+        <div>
+          <div class="canvas" id="vout"><div style="font-size:48px">🎬</div><div>Il video generato apparirà qui</div><div style="font-size:12px">La generazione può richiedere diversi minuti</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODELS -->
+    <div class="page" id="pg-models">
+      <div class="sh"><div class="st">📦 Modelli Scaricati</div><button class="btn btn-p" onclick="go('pull')">⬇️ Scarica altri</button></div>
+      <div class="card"><div id="mlist"><div class="empty"><div style="font-size:48px">📭</div><div style="font-size:15px;margin-top:12px">Nessun modello scaricato</div><div style="font-size:13px;margin-top:6px">Vai a "Scarica" per iniziare</div></div></div></div>
+    </div>
+
+    <!-- PULL -->
+    <div class="page" id="pg-pull">
+      <div class="sh">
+        <div class="st">⬇️ Scarica Modelli</div>
+        <input class="inp" style="width:220px" placeholder="🔍 Cerca..." oninput="filterQ(this.value)">
+      </div>
+      <div style="margin-bottom:16px;display:flex;gap:8px">
+        <button class="btn btn-p" onclick="filterT('all',this)">Tutti</button>
+        <button class="btn btn-s" onclick="filterT('llm',this)">💬 LLM</button>
+        <button class="btn btn-s" onclick="filterT('image',this)">🎨 Immagini</button>
+        <button class="btn btn-s" onclick="filterT('audio',this)">🎙️ Audio</button>
+        <button class="btn btn-s" onclick="filterT('video',this)">🎬 Video</button>
+      </div>
+      <div class="pull-grid" id="preg"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="pg-settings">
+      <div class="card">
+        <div style="font-size:15px;font-weight:600;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)">🌐 Server API</div>
+        <div class="strow"><div><div style="font-size:14px">Porta locale</div><div style="font-size:12px;color:var(--muted)">Porta del server REST</div></div><input class="inp" style="width:100px;text-align:right" value="11500"></div>
+        <div class="strow"><div><div style="font-size:14px">Avvia all'apertura</div><div style="font-size:12px;color:var(--muted)">Avvia il server automaticamente</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="strow"><div><div style="font-size:14px">Accesso rete locale</div><div style="font-size:12px;color:var(--muted)">Consenti accesso da LAN</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+        <div style="font-size:15px;font-weight:600;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border)">⚡ Hardware</div>
+        <div class="strow"><div><div style="font-size:14px">Backend accelerazione</div></div><select class="sel" style="width:200px"><option>Auto (CUDA/Metal/CPU)</option><option>Solo CPU</option><option>CUDA (NVIDIA)</option></select></div>
+        <div class="strow"><div><div style="font-size:14px">Layer GPU (LLM)</div></div><input class="inp" style="width:80px;text-align:right" value="35"></div>
+        <div style="font-size:15px;font-weight:600;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border)">📁 Storage</div>
+        <div class="strow"><div><div style="font-size:14px">Cartella modelli</div></div><input class="inp" style="width:260px" value="C:\Users\utente\.pullai\models"></div>
+        <div style="display:flex;gap:10px;margin-top:20px">
+          <button class="btn btn-p">💾 Salva</button>
+          <button class="btn btn-s">↩️ Default</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const titles={dash:'Dashboard',chat:'Chat (LLM)',image:'Generazione Immagini',audio:'Audio',video:'Generazione Video',models:'Modelli Scaricati',pull:'Scarica Modelli',settings:'Impostazioni'};
+function go(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('pg-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.textContent.toLowerCase().includes(id==='dash'?'dashboard':titles[id].split(' ')[0].toLowerCase()))n.classList.add('active')});
+  document.getElementById('ptitle').textContent=titles[id]||id;
+}
+
+// HW detect
+const hw=navigator.userAgent;
+document.getElementById('hw-badge').textContent=hw.includes('Win')?'🪟 Windows':hw.includes('Mac')?'🍎 macOS':'🐧 Linux';
+
+// Chat
+function sendChat(){
+  const inp=document.getElementById('cinput'),msg=inp.value.trim();
+  if(!msg)return;inp.value='';addMsg('u',msg);
+  setTimeout(()=>{
+    const m=document.getElementById('chat-model').value;
+    if(!m){addMsg('ai','⚠️ Seleziona prima un modello LLM.');return}
+    addMsg('ai',`Risposta dal modello <strong>${m}</strong> — in produzione il testo viene generato da llama.cpp in locale.<br><code style="font-size:11px">pullai run ${m} "..."</code>`);
+  },600);
+}
+function addMsg(r,t){
+  const d=document.getElementById('msgs');
+  if(d.querySelector('[style*="padding:40px"]'))d.innerHTML='';
+  const m=document.createElement('div');m.className='msg'+(r==='u'?' u':'');
+  m.innerHTML=`<div class="av">${r==='u'?'👤':'🤖'}</div><div class="bubble">${t}</div>`;
+  d.appendChild(m);d.scrollTop=d.scrollHeight;
+}
+function clearChat(){document.getElementById('msgs').innerHTML='<div style="text-align:center;color:var(--muted);padding:40px"><div style="font-size:36px;margin-bottom:10px">💬</div>Seleziona un modello e scrivi un messaggio</div>';}
+document.getElementById('cinput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}});
+
+// Image
+function genImg(){
+  const p=document.getElementById('ipr').value.trim(),o=document.getElementById('iout');
+  if(!p){o.innerHTML='<div style="color:var(--red)">⚠️ Inserisci un prompt</div>';return}
+  o.innerHTML='<div class="spinner"></div><div style="color:var(--muted);margin-top:12px">Generazione in corso...</div>';
+  setTimeout(()=>{o.innerHTML=`<div style="padding:30px;text-align:center;color:var(--muted)"><div style="font-size:56px">🖼️</div><div style="margin-top:12px;font-size:13px">Placeholder per:<br><em>"${p}"</em></div><div style="margin-top:10px;font-size:11px;color:var(--accent2)">pullai run image/sdxl "${p}"</div></div>`;},2000);
+}
+
+// Audio
+function doSTT(){const o=document.getElementById('sttout');o.style.display='block';o.querySelector('textarea').value='[In produzione: testo trascritto da Whisper qui]\n\npullai run audio/whisper:large --input audio.mp3';}
+function doTTS(){document.getElementById('ttsout').style.display='block';}
+
+// Video
+function genVid(){
+  const p=document.getElementById('vpr').value.trim(),o=document.getElementById('vout');
+  if(!p){o.innerHTML='<div style="color:var(--red)">⚠️ Inserisci un prompt</div>';return}
+  o.innerHTML='<div class="spinner"></div><div style="color:var(--muted);margin-top:12px">Generazione in corso (può richiedere minuti)...</div>';
+  setTimeout(()=>{o.innerHTML=`<div style="padding:30px;text-align:center;color:var(--muted)"><div style="font-size:56px">🎬</div><div style="margin-top:12px;font-size:13px">Placeholder per:<br><em>"${p}"</em></div><div style="margin-top:10px;font-size:11px;color:var(--accent2)">pullai run video/cogvideo:5b "${p}"</div></div>`;},3000);
+}
+
+// Registry
+const reg=[
+  {t:'llm',n:'mistral:7b',d:'Bilanciato, ottimo per chat e coding',s:'4.1 GB',l:'Apache-2.0'},
+  {t:'llm',n:'llama3:8b',d:'Llama 3 di Meta, eccellente qualità',s:'4.7 GB',l:'Meta Llama 3'},
+  {t:'llm',n:'phi3:mini',d:'Piccolo e veloce, ottimo per CPU',s:'2.2 GB',l:'MIT'},
+  {t:'llm',n:'qwen:0.5b',d:'Ultraveloce, funziona su qualsiasi PC',s:'0.4 GB',l:'Apache-2.0'},
+  {t:'image',n:'sdxl:latest',d:'Stable Diffusion XL, 1024×1024',s:'6.9 GB',l:'CreativeML'},
+  {t:'image',n:'flux:schnell',d:'FLUX schnell, generazione rapida',s:'23 GB',l:'Apache-2.0'},
+  {t:'audio',n:'whisper:large',d:'Trascrizione precisa, 99 lingue',s:'3.1 GB',l:'Apache-2.0'},
+  {t:'audio',n:'whisper:base',d:'Trascrizione leggera e veloce',s:'290 MB',l:'Apache-2.0'},
+  {t:'audio',n:'bark:latest',d:'Sintesi vocale naturale (TTS)',s:'5.5 GB',l:'MIT'},
+  {t:'video',n:'cogvideo:5b',d:'CogVideoX 5B, alta qualità',s:'18 GB',l:'CogVideoX'},
+  {t:'video',n:'animatediff:v3',d:'Video animati da prompt',s:'4.2 GB',l:'Apache-2.0'},
+];
+const ic={llm:'💬',image:'🎨',audio:'🎙️',video:'🎬'};
+const tc={llm:'tllm',image:'timg',audio:'taud',video:'tvid'};
+let curT='all';
+
+function renderReg(items){
+  document.getElementById('preg').innerHTML=items.map(m=>`
+    <div class="pc">
+      <div class="pct ${tc[m.t]}">${ic[m.t]} ${m.t.toUpperCase()}</div>
+      <div class="pcn">${m.n}</div>
+      <div class="pci">${m.d}</div>
+      <div class="pcf">
+        <button class="pb" onclick="event.stopPropagation();pullM('${m.t}/${m.n}',this)">⬇️ Scarica</button>
+        <span class="tb">${m.s} · ${m.l}</span>
+      </div>
+    </div>`).join('');
+}
+function filterT(t,btn){
+  curT=t;
+  document.querySelectorAll('#pg-pull button').forEach(b=>{if(['Tutti','💬 LLM','🎨 Immagini','🎙️ Audio','🎬 Video'].some(x=>b.textContent.includes(x.split(' ').pop())))b.className='btn btn-s';});
+  btn.className='btn btn-p';
+  renderReg(t==='all'?reg:reg.filter(m=>m.t===t));
+}
+function filterQ(q){renderReg(reg.filter(m=>(curT==='all'||m.t===curT)&&(m.n.includes(q)||m.d.toLowerCase().includes(q.toLowerCase()))));}
+function pullM(ref,btn){btn.textContent='⏳ Download...';btn.disabled=true;setTimeout(()=>{btn.textContent='✅ Scaricato';btn.style.color='var(--green)';btn.style.borderColor='var(--green)';},2000);}
+renderReg(reg);
+</script>
+</body>
+</html>
