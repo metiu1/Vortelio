@@ -5,17 +5,27 @@ build-backend = "hatchling.build"
 [project]
 name = "vortelio"
 version = "0.3.49"
-description = "Run AI models locally — LLM, images, audio, video, 3D. Web UI included."
+description = "Local-first AI platform. Run LLMs, generate images & video, transcribe audio, create 3D — on your own machine. OpenAI & Ollama API compatible. Apache 2.0."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Vortelio Contributors" }]
 keywords = [
-  "ai", "llm", "local-llm", "ollama", "ollama-alternative",
-  "stable-diffusion", "flux", "whisper", "kokoro", "tts", "stt",
-  "diffusers", "llama-cpp", "huggingface", "openai-api",
-  "image-generation", "video-generation", "text-to-3d",
-  "self-hosted", "privacy", "offline-ai",
+  "ai", "llm", "local-ai", "local-llm", "offline-ai",
+  "ollama", "ollama-alternative", "lm-studio-alternative",
+  "gpt4all-alternative", "jan-alternative", "localai-alternative",
+  "chatgpt-alternative", "private-ai", "self-hosted-ai",
+  "stable-diffusion", "flux", "sdxl", "diffusers",
+  "whisper", "faster-whisper", "kokoro", "bark", "tts", "stt",
+  "wan-2-1", "animatediff", "cogvideo", "text-to-video",
+  "triposr", "shap-e", "lgm", "trellis", "text-to-3d", "image-to-3d",
+  "llama-cpp", "gguf", "huggingface", "transformers",
+  "openai-api", "openai-compatible", "ollama-api",
+  "image-generation", "video-generation", "audio-generation",
+  "self-hosted", "privacy", "gdpr", "hipaa", "air-gapped",
+  "multimodal", "ai-agent", "rag", "embeddings",
+  "cuda", "rocm", "metal", "apple-silicon",
+  "go", "golang", "single-binary",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
