@@ -232,7 +232,12 @@ func (r *ImageRunner) runPython(pythonBin, script string) error {
 	tmp.WriteString(script)
 	tmp.Close()
 	cmd := HideWindow(exec.Command(pythonBin, tmp.Name()))
-	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "PYTHONUTF8=1")
+	cmd.Env = append(os.Environ(),
+		"PYTHONIOENCODING=utf-8", "PYTHONUTF8=1",
+		"USE_TF=0", "USE_JAX=0",
+		"TRANSFORMERS_VERBOSITY=error",
+		"TF_CPP_MIN_LOG_LEVEL=3",
+	)
 	if err := RunWithOutput(cmd, os.Stdout, os.Stderr); err != nil {
 		return fmt.Errorf("generazione immagine fallita: %w", err)
 	}
