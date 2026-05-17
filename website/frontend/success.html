@@ -4,35 +4,82 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upgrade successful — Vortelio</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="css/style.css">
   <style>
-    .success-box {
-      max-width: 480px; margin: 100px auto; padding: 0 20px; text-align: center;
-      display: flex; flex-direction: column; align-items: center; gap: 20px;
+    body { display:flex; flex-direction:column; min-height:100vh; }
+    .success-wrap {
+      flex:1; display:flex; align-items:center; justify-content:center;
+      padding: 80px 24px; position:relative; overflow:hidden;
     }
-    .check { font-size: 56px; }
+    .success-wrap .glow-blob { width:500px; height:500px; background:#22c55e; top:-100px; left:50%; transform:translateX(-50%); opacity:.08; }
+    .success-card {
+      position:relative; z-index:1; text-align:center;
+      max-width:480px; width:100%;
+      background:var(--bg2); border:1px solid var(--border); border-radius:18px; padding:52px 40px;
+      box-shadow: 0 32px 80px rgba(0,0,0,.5);
+      display:flex; flex-direction:column; align-items:center; gap:20px;
+    }
+    .check-circle {
+      width:72px; height:72px; border-radius:50%;
+      background:linear-gradient(135deg, rgba(34,197,94,.2), rgba(34,197,94,.05));
+      border:1px solid rgba(34,197,94,.3);
+      display:flex; align-items:center; justify-content:center; font-size:32px;
+    }
+    .success-card h1 { font-size:1.8rem; font-weight:700; letter-spacing:-.02em; }
+    .success-card p { font-size:15px; color:var(--text2); line-height:1.7; }
+    .steps {
+      background:var(--bg3); border:1px solid var(--border); border-radius:12px;
+      padding:20px 24px; text-align:left; width:100%;
+      display:flex; flex-direction:column; gap:12px;
+    }
+    .step { display:flex; align-items:flex-start; gap:12px; font-size:14px; }
+    .step-num {
+      width:24px; height:24px; border-radius:50%; flex-shrink:0;
+      background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-size:12px; font-weight:700;
+    }
+    .step-text { color:var(--text2); line-height:1.5; padding-top:2px; }
   </style>
 </head>
 <body>
 <nav>
-  <a class="nav-logo" href="/" style="text-decoration:none">
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="10" stroke="#6366f1" stroke-width="2"/><path d="M7 11l3 3 5-6" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <a href="index.html" class="nav-logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="1.8"/>
+      <path d="M8 12.5l3 3 5-6.5" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
     Vortelio
   </a>
 </nav>
 
-<div class="success-box">
-  <div class="check">✅</div>
-  <h1 style="font-size:1.8rem;font-weight:700">You're all set!</h1>
-  <p style="color:var(--text2)">
-    Your plan has been activated. Open Vortelio, sign in with the same account,
-    and cloud models will be available immediately in the ☁️ Cloud Models panel.
-  </p>
-  <a href="/" class="btn primary lg">Back to homepage</a>
-  <p style="font-size:13px;color:var(--text3)">
-    It may take a few seconds for the plan to activate.
-    If models don't appear, sign out and back in inside the app.
-  </p>
+<div class="success-wrap">
+  <div class="glow-blob"></div>
+  <div class="success-card">
+    <div class="check-circle">✅</div>
+    <h1>You're all set!</h1>
+    <p>Your plan has been activated. Cloud models are now available in the Vortelio app.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Open the <strong>Vortelio app</strong> on your PC</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">Sign in with the <strong>same account</strong> you used here</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">Open <strong>☁️ Cloud Models</strong> — your plan is active</div>
+      </div>
+    </div>
+
+    <a href="index.html" class="btn primary lg" style="width:100%;justify-content:center">← Back to homepage</a>
+    <p style="font-size:12px;color:var(--text3)">
+      Plan activation may take a few seconds. If models don't appear, sign out and back in inside the app.
+    </p>
+  </div>
 </div>
 </body>
 </html>
