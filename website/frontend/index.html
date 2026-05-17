@@ -8,7 +8,8 @@
   <meta property="og:title" content="Vortelio — Local AI Platform">
   <meta property="og:description" content="Run AI models locally. Open source. Free.">
   <meta property="og:type" content="website">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/style.css">
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -17,96 +18,138 @@
 
 <!-- ── Nav ── -->
 <nav>
-  <div class="nav-logo">
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="10" stroke="#6366f1" stroke-width="2"/><path d="M7 11l3 3 5-6" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <a href="index.html" class="nav-logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="1.8"/>
+      <path d="M8 12.5l3 3 5-6.5" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
     Vortelio
-  </div>
+  </a>
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#pricing">Pricing</a>
     <a href="#download">Download</a>
-    <a href="https://github.com/metiu1/Vortelio" target="_blank">GitHub</a>
+    <a href="https://github.com/metiu1/Vortelio" target="_blank">GitHub ↗</a>
   </div>
   <div class="nav-cta">
-    <span id="nav-account" class="btn" style="display:none"></span>
-    <a href="/login.html" id="nav-login" class="btn">Sign in</a>
-    <a id="nav-logout" class="btn" style="display:none" href="#" onclick="firebase.auth().signOut();return false">Sign out</a>
-    <a href="#download" class="btn primary">↓ Download</a>
+    <a href="login.html" id="nav-login" class="btn">Sign in</a>
+    <a id="nav-account" class="btn" href="login.html" style="display:none"></a>
+    <a href="#download" class="btn primary">↓ Download free</a>
   </div>
 </nav>
 
 <!-- ── Hero ── -->
-<div class="hero">
-  <div class="hero-badge">Open Source · Free · Local</div>
-  <h1>Run AI models<br><span>on your own PC</span></h1>
-  <p>Vortelio is a local AI platform that runs Ollama models natively. No subscriptions, no cloud lock-in. Your data stays on your machine.</p>
-  <div class="hero-cta">
-    <a href="#download" class="btn primary lg">↓ Download free</a>
-    <a href="https://github.com/metiu1/Vortelio" target="_blank" class="btn lg">⭐ GitHub</a>
+<div class="hero-wrap">
+  <div class="glow-blob a"></div>
+  <div class="glow-blob b"></div>
+  <div class="hero-inner">
+    <div class="badge">
+      <span class="dot"></span>
+      Open Source · Free · Local-first
+    </div>
+    <h1>Your local AI,<br><span class="grad">no compromises</span></h1>
+    <p>Vortelio runs state-of-the-art AI models directly on your PC. No subscriptions to start, no data leaving your machine, no cloud lock-in.</p>
+    <div class="hero-cta">
+      <a href="#download" class="btn primary lg">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12l-5-5 1.4-1.4L7 9.2V2h2v7.2l2.6-3.6L13 7l-5 5zM2 14h12v-2H2v2z"/></svg>
+        Download free
+      </a>
+      <a href="https://github.com/metiu1/Vortelio" target="_blank" class="btn lg">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.26c0 4.54 2.87 8.39 6.84 9.75.5.09.68-.22.68-.49l-.01-1.71c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05A9.38 9.38 0 0112 6.84c.85.004 1.71.12 2.51.34 1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.81c0 .27.18.59.69.49C19.13 20.65 22 16.8 22 12.26 22 6.58 17.52 2 12 2z"/></svg>
+        Star on GitHub
+      </a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-num">100%</div>
+        <div class="stat-lbl">Local & private</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">€0</div>
+        <div class="stat-lbl">To get started</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">17+</div>
+        <div class="stat-lbl">Cloud models</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">OpenAI</div>
+        <div class="stat-lbl">Compatible API</div>
+      </div>
+    </div>
   </div>
 </div>
+
+<hr class="full-divider">
 
 <!-- ── Features ── -->
 <section id="features">
   <div class="section-hdr">
-    <h2>Everything you need</h2>
-    <p>A full local AI stack — no cloud account required.</p>
+    <div class="eyebrow">Features</div>
+    <h2>Everything you need to run AI locally</h2>
+    <p>A complete platform — not just a chat interface.</p>
   </div>
   <div class="features-grid">
     <div class="feature-card">
       <div class="feature-icon">🦙</div>
       <h3>Ollama compatible</h3>
-      <p>Works with any Ollama model. Download, run and manage models directly from the UI.</p>
+      <p>Works with any Ollama model. Download, manage and run models directly from the built-in UI. Zero extra setup.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🖼️</div>
       <h3>Multimodal</h3>
-      <p>Vision models, image generation, audio transcription — all local, all private.</p>
+      <p>Vision models, image generation, audio transcription and speech synthesis — all running locally on your GPU.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🤖</div>
       <h3>AI Agents</h3>
-      <p>Install and run local AI agents. Each agent runs in its own isolated environment.</p>
+      <p>Install and run autonomous AI agents. Each agent runs in an isolated environment with its own tools and memory.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🔧</div>
       <h3>Advanced tools</h3>
-      <p>RAG, structured output, model comparison, Think API, GGUF inspection and more.</p>
+      <p>RAG pipeline, structured output, model comparison, Think API, GGUF inspection, webhooks, audit log and more.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🔌</div>
-      <h3>OpenAI compatible API</h3>
-      <p>Drop-in replacement for the OpenAI API. Connect any tool that supports OpenAI.</p>
+      <h3>OpenAI-compatible API</h3>
+      <p>Drop-in replacement for the OpenAI API on <code style="font-size:12px;background:var(--bg3);padding:1px 6px;border-radius:4px">localhost:11500</code>. Connect any LLM tool instantly.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">☁️</div>
       <h3>Cloud models (paid)</h3>
-      <p>Access Claude, GPT-4o, Gemini and more through Vortelio Cloud — no API key needed.</p>
+      <p>Access Claude, GPT-4o, Gemini and more via Vortelio Cloud. No API keys needed — just upgrade your plan.</p>
     </div>
   </div>
 </section>
 
+<hr class="full-divider">
+
 <!-- ── Pricing ── -->
 <section id="pricing">
-  <h2>Simple pricing</h2>
-  <p class="sub">Local features are always free. Pay only for cloud model access.</p>
+  <div class="section-hdr">
+    <div class="eyebrow">Pricing</div>
+    <h2>Simple, transparent pricing</h2>
+    <p>Local features are always free. Pay only for cloud model access.</p>
+  </div>
 
   <div class="pricing-grid">
     <!-- Free -->
     <div class="plan-card">
-      <div class="plan-name">Free</div>
+      <div class="plan-name free">Free</div>
       <div class="plan-price">€0</div>
       <div class="plan-period">forever</div>
-      <hr class="plan-divider">
+      <hr class="plan-div">
       <ul class="plan-features">
-        <li>All local Ollama models</li>
-        <li>All advanced tools</li>
-        <li>AI Agents</li>
-        <li>OpenAI-compatible API</li>
-        <li class="no">Cloud models</li>
+        <li><span class="chk">✓</span> All local Ollama models</li>
+        <li><span class="chk">✓</span> All advanced tools</li>
+        <li><span class="chk">✓</span> AI Agents</li>
+        <li><span class="chk">✓</span> OpenAI-compatible API</li>
+        <li><span class="chk">✓</span> Multimodal (local)</li>
+        <li class="no"><span class="chk">✗</span> Cloud models</li>
       </ul>
-      <div class="plan-btn" style="margin-top:16px">
-        <a href="#download" class="btn" style="width:100%;justify-content:center">Download free</a>
+      <div class="plan-cta">
+        <a href="#download" class="btn" style="width:100%">Download free</a>
       </div>
     </div>
 
@@ -115,18 +158,18 @@
       <div class="popular-badge">MOST POPULAR</div>
       <div class="plan-name pro">Pro</div>
       <div class="plan-price">€9.99</div>
-      <div class="plan-period">/ month</div>
-      <hr class="plan-divider">
+      <div class="plan-period">/ month · cancel anytime</div>
+      <hr class="plan-div">
       <ul class="plan-features">
-        <li>Everything in Free</li>
-        <li>2M tokens / month</li>
-        <li>Claude Sonnet 4.5</li>
-        <li>GPT-4o Mini</li>
-        <li>Gemini 2.0 Flash</li>
-        <li>Llama 70B, DeepSeek Chat</li>
+        <li><span class="chk">✓</span> Everything in Free</li>
+        <li><span class="chk">✓</span> <strong>2M tokens</strong> / month</li>
+        <li><span class="chk">✓</span> Claude Sonnet 4.5</li>
+        <li><span class="chk">✓</span> GPT-4o Mini</li>
+        <li><span class="chk">✓</span> Gemini 2.0 Flash</li>
+        <li><span class="chk">✓</span> Llama 70B · DeepSeek</li>
       </ul>
-      <div class="plan-btn" style="margin-top:16px">
-        <button class="btn primary upgrade-btn" style="width:100%;justify-content:center;background:#7c3aed;border-color:#7c3aed" onclick="upgrade('pro')">Upgrade to Pro</button>
+      <div class="plan-cta">
+        <button class="btn primary upgrade-btn" style="width:100%;background:linear-gradient(135deg,#8b5cf6,#6366f1)" onclick="upgrade('pro')">Upgrade to Pro →</button>
       </div>
     </div>
 
@@ -134,76 +177,84 @@
     <div class="plan-card" data-plan="business">
       <div class="plan-name business">Business</div>
       <div class="plan-price">€20</div>
-      <div class="plan-period">/ month</div>
-      <hr class="plan-divider">
+      <div class="plan-period">/ month · cancel anytime</div>
+      <hr class="plan-div">
       <ul class="plan-features">
-        <li>Everything in Pro</li>
-        <li>5M tokens / month</li>
-        <li>GPT-4o</li>
-        <li>Claude Haiku 3.5</li>
-        <li>Gemini 2.5 Flash</li>
-        <li>Mistral Large, Qwen, R1</li>
+        <li><span class="chk">✓</span> Everything in Pro</li>
+        <li><span class="chk">✓</span> <strong>5M tokens</strong> / month</li>
+        <li><span class="chk">✓</span> GPT-4o</li>
+        <li><span class="chk">✓</span> Claude Haiku 3.5</li>
+        <li><span class="chk">✓</span> Gemini 2.5 Flash</li>
+        <li><span class="chk">✓</span> Mistral · Qwen · R1</li>
       </ul>
-      <div class="plan-btn" style="margin-top:16px">
-        <button class="btn primary upgrade-btn" style="width:100%;justify-content:center" onclick="upgrade('business')">Upgrade</button>
+      <div class="plan-cta">
+        <button class="btn primary upgrade-btn" style="width:100%" onclick="upgrade('business')">Upgrade →</button>
       </div>
     </div>
 
     <!-- Enterprise -->
     <div class="plan-card" data-plan="enterprise">
-      <div class="plan-name enterprise">Enterprise</div>
+      <div class="plan-name ent">Enterprise</div>
       <div class="plan-price">€150</div>
-      <div class="plan-period">/ month</div>
-      <hr class="plan-divider">
+      <div class="plan-period">/ month · cancel anytime</div>
+      <hr class="plan-div">
       <ul class="plan-features">
-        <li>Everything in Business</li>
-        <li>15M tokens / month</li>
-        <li>Claude Opus 4.5</li>
-        <li>OpenAI o3, o4-mini</li>
-        <li>Gemini 2.5 Pro</li>
-        <li>Grok 3, Claude Sonnet 4.7</li>
+        <li><span class="chk">✓</span> Everything in Business</li>
+        <li><span class="chk">✓</span> <strong>15M tokens</strong> / month</li>
+        <li><span class="chk">✓</span> Claude Opus 4.5</li>
+        <li><span class="chk">✓</span> OpenAI o3 · o4-mini</li>
+        <li><span class="chk">✓</span> Gemini 2.5 Pro</li>
+        <li><span class="chk">✓</span> Grok 3 · Claude Sonnet 4.7</li>
       </ul>
-      <div class="plan-btn" style="margin-top:16px">
-        <button class="btn primary upgrade-btn" style="width:100%;justify-content:center;background:#0891b2;border-color:#0891b2" onclick="upgrade('enterprise')">Upgrade</button>
+      <div class="plan-cta">
+        <button class="btn primary upgrade-btn" style="width:100%;background:linear-gradient(135deg,#0891b2,#0e7490)" onclick="upgrade('enterprise')">Upgrade →</button>
       </div>
     </div>
   </div>
 
-  <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:24px">
-    Payments secured by Stripe. Cancel anytime. Token limits reset on the 1st of each month.
+  <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:28px">
+    Payments processed securely by <strong style="color:var(--text2)">Stripe</strong>. Cancel anytime from your account. Token limits reset on the 1st of each month.
   </p>
 </section>
 
+<hr class="full-divider">
+
 <!-- ── Download ── -->
 <section id="download">
-  <div class="download-box">
-    <div style="font-size:48px">↓</div>
+  <div class="download-wrap">
+    <div style="font-size:52px;line-height:1">↓</div>
     <h2>Download Vortelio</h2>
-    <p>Free and open source. No account required to use local features.</p>
+    <p>Free and open source. No account needed to use local features. Works on Windows, macOS and Linux.</p>
     <div class="download-btns">
-      <button class="btn primary lg" onclick="downloadLatest('windows')">🪟 Windows</button>
+      <button class="btn primary lg" onclick="downloadLatest('windows')">🪟 Windows (.exe)</button>
       <button class="btn lg" onclick="downloadLatest('mac')">🍎 macOS</button>
       <button class="btn lg" onclick="downloadLatest('linux')">🐧 Linux</button>
     </div>
-    <p style="font-size:13px;color:var(--text3)">
-      Also available via <code style="font-family:monospace;background:var(--bg3);padding:2px 8px;border-radius:4px">uv tool install vortelio</code>
-    </p>
+    <p style="color:var(--text3);font-size:14px">Or install via Python:</p>
+    <div class="code-chip">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="10" height="10" rx="2"/><path d="M5 7h4M5 9h2"/></svg>
+      uv tool install vortelio
+    </div>
   </div>
 </section>
 
 <!-- ── Footer ── -->
 <footer>
-  <div>© 2025 Vortelio. Open source under <a href="https://github.com/metiu1/Vortelio/blob/main/LICENSE" target="_blank">AGPL-3.0</a>.</div>
-  <div style="display:flex;gap:20px">
+  <div style="display:flex;align-items:center;gap:10px">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="1.8"/><path d="M8 12.5l3 3 5-6.5" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>© 2025 Vortelio</span>
+    <span style="color:var(--border)">·</span>
+    <a href="https://github.com/metiu1/Vortelio/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+  </div>
+  <div class="footer-links">
     <a href="https://github.com/metiu1/Vortelio" target="_blank">GitHub</a>
-    <a href="/privacy.html">Privacy</a>
-    <a href="/terms.html">Terms</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html">Terms</a>
     <a href="mailto:support@vortelio.app">Support</a>
   </div>
 </footer>
 
 <div id="toast"></div>
-
-<script src="/js/main.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>
