@@ -1,0 +1,10 @@
+{
+  "port": 11501,
+  "stripe_secret_key": "sk_live_...",
+  "stripe_webhook_secret": "whsec_...",
+  "stripe_price_pro": "price_...",
+  "stripe_price_business": "price_...",
+  "stripe_price_enterprise": "price_...",
+  "firebase_credentials": "firebase-credentials.json",
+  "frontend_dir": "../frontend"
+}

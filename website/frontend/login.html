@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in — Vortelio</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <style>
+    .auth-box {
+      max-width: 400px; margin: 80px auto; padding: 0 20px;
+    }
+    .auth-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 36px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .auth-card h1 { font-size: 1.4rem; font-weight: 700; text-align: center; }
+    .auth-card p { font-size: 14px; color: var(--text2); text-align: center; }
+    .inp {
+      width: 100%; padding: 10px 14px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text); font-size: 14px; outline: none;
+    }
+    .inp:focus { border-color: var(--accent); }
+    .divider { display: flex; align-items: center; gap: 12px; color: var(--text3); font-size: 12px; }
+    .divider::before, .divider::after { content:''; flex:1; border-top: 1px solid var(--border); }
+    .err { font-size: 13px; color: #dc2626; text-align: center; min-height: 20px; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+    .tab { flex: 1; padding: 10px; text-align: center; font-size: 14px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; }
+    .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/" style="text-decoration:none">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="10" stroke="#6366f1" stroke-width="2"/><path d="M7 11l3 3 5-6" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Vortelio
+  </a>
+</nav>
+
+<div class="auth-box">
+  <div class="auth-card">
+    <h1>Welcome to Vortelio</h1>
+    <p>Sign in to manage your plan and access cloud models.</p>
+
+    <div class="tabs">
+      <div class="tab on" id="tab-in"  onclick="switchTab('in')">Sign in</div>
+      <div class="tab"    id="tab-up"  onclick="switchTab('up')">Create account</div>
+    </div>
+
+    <button class="btn" style="width:100%;justify-content:center;gap:10px" onclick="googleSignIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H9v3h4.28C12.69 13.01 11.12 14 9 14a5 5 0 110-10c1.24 0 2.36.46 3.22 1.2L14.4 3C13.08 1.79 11.13 1 9 1a8 8 0 100 16c4.42 0 8-3.22 8-8 0-.54-.06-1.06-.15-1.56L16.51 8z"/></svg>
+      Continue with Google
+    </button>
+
+    <div class="divider">or</div>
+
+    <input class="inp" id="email" type="email" placeholder="Email">
+    <input class="inp" id="password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')submit()">
+    <div class="err" id="err"></div>
+    <button class="btn primary" style="width:100%;justify-content:center" onclick="submit()" id="submit-btn">Sign in</button>
+    <a href="#" id="forgot-link" onclick="forgotPassword();return false" style="font-size:13px;text-align:center;color:var(--text3)">Forgot password?</a>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/js/main.js"></script>
+<script>
+let mode = 'in'; // 'in' or 'up'
+
+function switchTab(m) {
+  mode = m;
+  document.getElementById('tab-in').classList.toggle('on', m === 'in');
+  document.getElementById('tab-up').classList.toggle('on', m === 'up');
+  document.getElementById('submit-btn').textContent = m === 'in' ? 'Sign in' : 'Create account';
+  document.getElementById('forgot-link').style.display = m === 'in' ? '' : 'none';
+  document.getElementById('err').textContent = '';
+}
+
+function setErr(msg) { document.getElementById('err').textContent = msg; }
+
+async function googleSignIn() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await firebase.auth().signInWithPopup(provider);
+    redirect();
+  } catch(e) { setErr(e.message); }
+}
+
+async function submit() {
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) { setErr('Email and password required'); return; }
+  setErr('');
+  try {
+    if (mode === 'in') {
+      await firebase.auth().signInWithEmailAndPassword(email, password);
+    } else {
+      await firebase.auth().createUserWithEmailAndPassword(email, password);
+    }
+    redirect();
+  } catch(e) { setErr(e.message); }
+}
+
+async function forgotPassword() {
+  const email = document.getElementById('email').value.trim();
+  if (!email) { setErr('Enter your email first'); return; }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    setErr('');
+    toast('✉️ Password reset email sent', false);
+  } catch(e) { setErr(e.message); }
+}
+
+function redirect() {
+  const back = sessionStorage.getItem('loginRedirect') || '/';
+  sessionStorage.removeItem('loginRedirect');
+  window.location.href = back;
+}
+
+// If already logged in, redirect
+firebase.auth().onAuthStateChanged(user => {
+  if (user) {
+    checkPendingPlan();
+    redirect();
+  }
+});
+</script>
+</body>
+</html>

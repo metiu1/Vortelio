@@ -1,0 +1,5 @@
+backend/config.json
+backend/firebase-credentials.json
+backend/*firebase-adminsdk*.json
+backend/website-server*
+backend/website-server.exe
