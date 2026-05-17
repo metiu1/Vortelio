@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/vortelio/vortelio/internal/hub"
@@ -24,13 +25,6 @@ func (r *ImageRunner) Run(opts *RunOptions) error {
 		return fmt.Errorf("image generation requires a text prompt\n  Example: vortelio run image/sdxl \"a cat eating pasta\"")
 	}
 
-	pythonBin := FindPython()
-	if pythonBin == "" {
-		fmt.Println("\n⚠️   Python 3 non trovato.")
-		fmt.Println("    Installa Python 3.10+ da: https://python.org/downloads")
-		return nil
-	}
-
 	output := ResolveOutputPath(opts.OutputFile, "output.png")
 	device := r.deviceString(opts.ForceCPU)
 
@@ -42,16 +36,39 @@ func (r *ImageRunner) Run(opts *RunOptions) error {
 	isGGUF := modelExt == ".gguf"
 
 	if isGGUF {
-		return r.runGGUF(pythonBin, opts.Prompt, output, device, opts.Steps, opts.ForceCPU)
+		// GGUF: native SD.cpp doesn't need Python; FindPython() used only as fallback
+		return r.runGGUF(FindPython(), opts.Prompt, output, device, opts.Steps, opts.ForceCPU)
+	}
+
+	pythonBin := FindPython()
+	if pythonBin == "" {
+		fmt.Println("\n⚠️   Python 3 non trovato.")
+		fmt.Println("    Installa Python 3.10+ da: https://python.org/downloads")
+		return nil
 	}
 	return r.runDiffusers(pythonBin, opts.Prompt, output, device, opts.Steps)
 }
 
-// runGGUF uses stable-diffusion-cpp-python which natively supports ALL GGUF image models
-// (SD1.5, SDXL, FLUX, Illustrious, Pony, etc.) — unlike diffusers which only supports FLUX GGUF.
+// runGGUF runs a GGUF image model. Prefers the native stable-diffusion.cpp binary;
+// falls back to the stable-diffusion-cpp-python package if the binary is not available.
 func (r *ImageRunner) runGGUF(pythonBin, prompt, output, device string, steps int, forceCPU bool) error {
-	// Install stable-diffusion-cpp-python if needed
-	// Module name: stable_diffusion_cpp (package: stable-diffusion-cpp-python)
+	// ── Try native sd binary first ───────────────────────────────────────────
+	if sdBin := SDCppBin(); sdBin != "" {
+		return r.runNativeSD(sdBin, prompt, output, steps, forceCPU)
+	}
+
+	// Not installed — offer to download
+	fmt.Println("📦  stable-diffusion.cpp non trovato. Scarico il binario...")
+	if err := InstallSDCpp(r.hw); err != nil {
+		fmt.Printf("⚠️   Download fallito (%v). Uso il backend Python...\n", err)
+	} else if sdBin := SDCppBin(); sdBin != "" {
+		return r.runNativeSD(sdBin, prompt, output, steps, forceCPU)
+	}
+
+	// ── Fallback: stable-diffusion-cpp-python ───────────────────────────────
+	if pythonBin == "" {
+		return fmt.Errorf("né stable-diffusion.cpp né Python trovati\n  Scarica manualmente: https://github.com/leejet/stable-diffusion.cpp/releases")
+	}
 	if !CheckPythonPackage(pythonBin, "stable_diffusion_cpp") {
 		fmt.Println("📦  Installazione stable-diffusion-cpp-python (backend GGUF)...")
 		_ = InstallPythonPackage(pythonBin, "stable-diffusion-cpp-python")
@@ -140,6 +157,32 @@ img.save(r'''%s''')
 print(f"\n\u2705  Immagine salvata: %s")
 `, modelPath, boolPy(useCUDA), escapePy(prompt), steps, output, output)
 	return r.runPython(pythonBin, script)
+}
+
+// runNativeSD runs generation using the native stable-diffusion.cpp binary.
+func (r *ImageRunner) runNativeSD(sdBin, prompt, output string, steps int, forceCPU bool) error {
+	args := []string{
+		"-m", r.model.LocalPath,
+		"-p", prompt,
+		"-n", "low quality, blurry, deformed, bad anatomy, extra limbs",
+		"--steps", strconv.Itoa(steps),
+		"--cfg-scale", "7.0",
+		"-W", "512",
+		"-H", "512",
+		"-s", "-1",
+		"-o", output,
+	}
+
+	// GPU layers: -1 = all layers on GPU, 0 = CPU only
+	if !forceCPU && (r.hw.Backend == BackendCUDA || r.hw.Backend == BackendMetal) {
+		args = append(args, "--n-gpu-layers", "-1")
+	}
+
+	cmd := HideWindow(exec.Command(sdBin, args...))
+	if err := RunWithOutput(cmd, os.Stdout, os.Stderr); err != nil {
+		return fmt.Errorf("stable-diffusion.cpp: %w", err)
+	}
+	return nil
 }
 
 // runDiffusers handles safetensors/diffusers format models
