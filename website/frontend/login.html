@@ -8,51 +8,49 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <style>
-    body { display: flex; flex-direction: column; min-height: 100vh; }
+    body { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg2); }
     .auth-wrap {
       flex: 1; display: flex; align-items: center; justify-content: center;
-      padding: 80px 24px 40px; position: relative;
+      padding: 80px 24px 40px;
     }
-    .auth-wrap .glow-blob { width: 500px; height: 500px; background: #6366f1; top: -100px; left: 50%; transform: translateX(-50%); opacity: .12; }
     .auth-card {
-      position: relative; z-index: 1;
-      width: 100%; max-width: 400px;
-      background: var(--bg2); border: 1px solid var(--border);
-      border-radius: 18px; padding: 40px;
+      width: 100%; max-width: 390px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px;
       display: flex; flex-direction: column; gap: 18px;
-      box-shadow: 0 32px 80px rgba(0,0,0,.5);
+      box-shadow: 0 4px 24px rgba(0,0,0,.07);
     }
-    .auth-logo { display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-    .auth-card h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+    .auth-logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .auth-card h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.02em; }
     .auth-card .sub { font-size: 14px; color: var(--text2); margin-top: -8px; }
-    .tabs { display: flex; background: var(--bg3); border-radius: var(--radius-sm); padding: 3px; gap: 3px; }
+    .tabs { display: flex; background: var(--bg2); border-radius: var(--radius-sm); padding: 3px; gap: 3px; }
     .tab {
       flex: 1; padding: 8px; text-align: center; font-size: 14px; font-weight: 500;
-      cursor: pointer; color: var(--text2); border-radius: 6px; transition: background .15s, color .15s;
+      cursor: pointer; color: var(--text2); border-radius: 5px; transition: background .12s, color .12s;
     }
-    .tab.on { background: var(--bg2); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
-    .field { display: flex; flex-direction: column; gap: 6px; }
+    .tab.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .field { display: flex; flex-direction: column; gap: 5px; }
     .field label { font-size: 13px; color: var(--text2); font-weight: 500; }
     .inp {
-      width: 100%; padding: 11px 14px;
+      width: 100%; padding: 10px 13px;
       background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
       color: var(--text); font-size: 14px; outline: none; font-family: inherit;
-      transition: border-color .15s;
+      transition: border-color .12s;
     }
-    .inp:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+    .inp:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,91,214,.1); }
     .or-divider {
       display: flex; align-items: center; gap: 12px;
       font-size: 12px; color: var(--text3);
     }
     .or-divider::before, .or-divider::after { content:''; flex:1; border-top: 1px solid var(--border); }
-    .err { font-size: 13px; color: #f87171; min-height: 18px; text-align: center; }
+    .err { font-size: 13px; color: #dc2626; min-height: 18px; text-align: center; }
     .google-btn {
       display: flex; align-items: center; justify-content: center; gap: 10px;
-      width: 100%; padding: 11px; background: var(--bg3); border: 1px solid var(--border);
+      width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border);
       border-radius: var(--radius-sm); color: var(--text); font-size: 14px; font-weight: 500;
-      cursor: pointer; font-family: inherit; transition: background .15s, border-color .15s;
+      cursor: pointer; font-family: inherit; transition: background .12s;
     }
-    .google-btn:hover { background: var(--bg); border-color: #3a3a52; }
+    .google-btn:hover { background: var(--bg2); }
     .forgot { font-size: 13px; color: var(--text3); text-align: right; cursor: pointer; }
     .forgot:hover { color: var(--text2); }
   </style>
@@ -61,22 +59,19 @@
 
 <nav>
   <a href="index.html" class="nav-logo">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="1.8"/>
-      <path d="M8 12.5l3 3 5-6.5" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5b5bd6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>
     </svg>
     Vortelio
   </a>
 </nav>
 
 <div class="auth-wrap">
-  <div class="glow-blob"></div>
   <div class="auth-card">
     <div>
       <div class="auth-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="1.8"/>
-          <path d="M8 12.5l3 3 5-6.5" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5b5bd6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>
         </svg>
         Vortelio
       </div>
@@ -111,7 +106,7 @@
 
     <div class="err" id="err"></div>
 
-    <button class="btn primary" style="width:100%;padding:13px" onclick="submit()" id="submit-btn">Sign in</button>
+    <button class="btn primary" style="width:100%;padding:12px" onclick="submit()" id="submit-btn">Sign in</button>
 
     <p style="font-size:12px;color:var(--text3);text-align:center">
       By continuing you agree to our <a href="terms.html" style="color:var(--text3)">Terms</a> and <a href="privacy.html" style="color:var(--text3)">Privacy Policy</a>.
@@ -164,7 +159,7 @@ async function forgotPassword() {
   if (!email) { setErr('Enter your email first.'); return; }
   try {
     await firebase.auth().sendPasswordResetEmail(email);
-    setErr(''); toast('✉️ Password reset email sent.');
+    setErr(''); toast('Password reset email sent.');
   } catch(e) { setErr(e.message); }
 }
 
