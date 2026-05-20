@@ -32,6 +32,7 @@ const (
 	MethodNPM    InstallMethod = "npm"    // npm install -g <pkg>
 	MethodPip    InstallMethod = "pip"    // pip install <pkg>
 	MethodBinary InstallMethod = "binary" // direct exe download
+	MethodUV     InstallMethod = "uv"     // uv run --with <deps> (no separate install step)
 )
 
 type CatalogEntry struct {
@@ -53,7 +54,8 @@ type CatalogEntry struct {
 	RequiresAPIKey bool          `json:"requires_api_key"`
 	APIKeyHint     string        `json:"api_key_hint,omitempty"`
 	// Script-based agents: extract embedded script, run via python interpreter.
-	PipDeps        []string      `json:"pip_deps,omitempty"`   // multiple pip packages to install
+	PipDeps        []string      `json:"pip_deps,omitempty"`    // pip packages to install (MethodPip)
+	UVDeps         []string      `json:"uv_deps,omitempty"`     // packages for uv run --with (MethodUV)
 	ScriptName     string        `json:"script_name,omitempty"` // filename for extracted runner script
 }
 
@@ -149,16 +151,15 @@ var Catalog = []CatalogEntry{
 	},
 	{
 		ID:          "crewai",
-		Name:        "CrewAI",
-		Description: "Orchestrazione multi-agente: crea team di agenti AI collaborativi per task complessi. Richiede Python 3.10+.",
+		Name:        "CrewAI Studio",
+		Description: "Orchestrazione multi-agente: crea team di agenti AI collaborativi per task complessi. Richiede uv (astral.sh/uv).",
 		Version:     "latest",
 		DefaultPort: 8500,
 		DefaultURL:  "http://localhost:8500",
-		InstallMethod: MethodPip,
-		NPMPackage:  "crewai",
-		BinCommand:  "python",
+		InstallMethod: MethodUV,
+		BinCommand:  "uv",
 		ScriptName:  "crewai_server.py",
-		PipDeps:     []string{"crewai", "crewai-tools", "fastapi", "uvicorn", "sse-starlette", "tomli-w"},
+		UVDeps:      []string{"crewai", "crewai-tools", "fastapi", "uvicorn", "sse-starlette", "tomli-w"},
 		StartArgs:   []string{},
 		EnvVars: []string{
 			"VORTELIO_URL={{VORTELIO_URL}}",
@@ -166,7 +167,7 @@ var Catalog = []CatalogEntry{
 			"OPENAI_API_KEY=vortelio",
 		},
 		HealthPath:     "/v1/models",
-		Tags:           []string{"orchestration", "multi-agent", "crew", "automation"},
+		Tags:           []string{"orchestration", "multi-agent", "crew", "automation", "uv"},
 		RequiresAPIKey: false,
 	},
 }
@@ -181,6 +182,7 @@ type AgentState struct {
 	Port          int           `json:"port"`
 	NodeFound     bool          `json:"node_found"`
 	PipFound      bool          `json:"pip_found"`
+	UVFound       bool          `json:"uv_found"`
 	InstallMethod InstallMethod `json:"install_method"`
 	Error         string        `json:"error,omitempty"`
 }
@@ -239,8 +241,41 @@ func pipBin() string {
 	return "pip"
 }
 
+func uvAvailable() bool {
+	_, err := exec.LookPath("uv")
+	return err == nil
+}
+
+func uvBin() string {
+	if _, err := exec.LookPath("uv"); err == nil {
+		return "uv"
+	}
+	// common install location on Windows
+	home, _ := os.UserHomeDir()
+	candidate := filepath.Join(home, ".local", "bin", "uv.exe")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return "uv"
+}
+
+// uvVenvPython returns the path to the python binary inside the uv venv for an agent.
+func uvVenvPython(id string) string {
+	venvDir := filepath.Join(config.HomeDir(), "venvs", id)
+	if runtime.GOOS == "windows" {
+		return filepath.Join(venvDir, "Scripts", "python.exe")
+	}
+	return filepath.Join(venvDir, "bin", "python")
+}
+
 // isBinInstalled checks if the agent binary is available.
 func isBinInstalled(entry CatalogEntry) bool {
+	if entry.InstallMethod == MethodUV {
+		// Installed = uv venv exists and has a python binary
+		py := uvVenvPython(entry.ID)
+		_, err := os.Stat(py)
+		return err == nil
+	}
 	if entry.InstallMethod == MethodPip {
 		// Script-based pip agents: check python + primary pip dep importable
 		if entry.ScriptName != "" {
@@ -325,6 +360,7 @@ func GetState(id string) AgentState {
 		Port:          entry.DefaultPort,
 		NodeFound:     nodeAvailable(),
 		PipFound:      pipAvailable(),
+		UVFound:       uvAvailable(),
 		InstallMethod: entry.InstallMethod,
 	}
 }
@@ -366,6 +402,8 @@ func Install(ctx context.Context, id string, progress func(line string)) error {
 			return nil
 		}
 		return installPip(ctx, entry, progress)
+	case MethodUV:
+		return installUV(ctx, entry, progress)
 	case MethodBinary:
 		return fmt.Errorf("installazione binaria non supportata per questo agente")
 	default:
@@ -542,6 +580,73 @@ func installPip(ctx context.Context, entry CatalogEntry, progress func(line stri
 	return nil
 }
 
+func installUV(ctx context.Context, entry CatalogEntry, progress func(string)) error {
+	uv := uvBin()
+	if _, err := exec.LookPath(uv); err != nil {
+		return fmt.Errorf(
+			"uv non trovato nel PATH.\n" +
+				"Installalo con: pip install uv  oppure  curl -LsSf https://astral.sh/uv/install.sh | sh\n" +
+				"Poi riavvia Vortelio e riprova.",
+		)
+	}
+
+	venvDir := filepath.Join(config.HomeDir(), "venvs", entry.ID)
+
+	// Step 1: create venv
+	if progress != nil {
+		progress("Creazione virtual environment in " + venvDir + "…")
+	}
+	venvCmd := exec.CommandContext(ctx, uv, "venv", venvDir)
+	if out, err := venvCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("uv venv fallito: %w\n%s", err, string(out))
+	}
+
+	// Step 2: install each dep into the venv
+	for _, dep := range entry.UVDeps {
+		if progress != nil {
+			progress("Installazione " + dep + "…")
+		}
+		args := []string{"pip", "install", "--python", venvDir, "--upgrade", dep}
+		cmd := exec.CommandContext(ctx, uv, args...)
+		stdout, _ := cmd.StdoutPipe()
+		stderr, _ := cmd.StderrPipe()
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("uv pip install %s fallito: %w", dep, err)
+		}
+		done := make(chan struct{}, 2)
+		streamLines := func(r io.Reader) {
+			defer func() { done <- struct{}{} }()
+			buf := make([]byte, 4096)
+			var partial string
+			for {
+				n, err := r.Read(buf)
+				if n > 0 {
+					chunk := partial + string(buf[:n])
+					lines := strings.Split(chunk, "\n")
+					partial = lines[len(lines)-1]
+					for _, l := range lines[:len(lines)-1] {
+						l = strings.TrimSpace(l)
+						if l != "" && progress != nil {
+							progress(l)
+						}
+					}
+				}
+				if err != nil {
+					break
+				}
+			}
+		}
+		go streamLines(stdout)
+		go streamLines(stderr)
+		<-done
+		<-done
+		if err := cmd.Wait(); err != nil {
+			return fmt.Errorf("uv pip install %s fallito: %w", dep, err)
+		}
+	}
+	return nil
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 func Start(id string) error {
@@ -561,19 +666,20 @@ func Start(id string) error {
 	mu.Unlock()
 
 	if !isBinInstalled(entry) {
-		return fmt.Errorf("agente %q non installato — installa prima tramite npm", entry.Name)
+		if entry.InstallMethod == MethodUV {
+			return fmt.Errorf("agente %q richiede uv — installalo con: pip install uv", entry.Name)
+		}
+		return fmt.Errorf("agente %q non installato — installa prima tramite il pannello Agenti", entry.Name)
 	}
 
-	args := append([]string{}, entry.StartArgs...)
-	var cmd *exec.Cmd
-
+	// Extract embedded script to disk if needed
+	var scriptPath string
 	if entry.ScriptName != "" {
-		// Script-based agent: extract embedded script and run via python
 		runnersDir := filepath.Join(config.HomeDir(), "runners")
 		if err := os.MkdirAll(runnersDir, 0755); err != nil {
 			return fmt.Errorf("impossibile creare directory runners: %w", err)
 		}
-		scriptPath := filepath.Join(runnersDir, entry.ScriptName)
+		scriptPath = filepath.Join(runnersDir, entry.ScriptName)
 		var scriptData []byte
 		switch entry.ScriptName {
 		case "crewai_server.py":
@@ -584,15 +690,33 @@ func Start(id string) error {
 				return fmt.Errorf("impossibile estrarre script: %w", err)
 			}
 		}
-		portStr := fmt.Sprintf("%d", entry.DefaultPort)
+	}
+
+	portStr := fmt.Sprintf("%d", entry.DefaultPort)
+	extraArgs := append([]string{}, entry.StartArgs...)
+
+	var cmd *exec.Cmd
+
+	switch {
+	case entry.InstallMethod == MethodUV && scriptPath != "":
+		// Use python from the dedicated uv venv
+		venvPython := uvVenvPython(entry.ID)
 		pyArgs := []string{scriptPath, "--port", portStr, "--vortelio-url", vortURL(), "--home", config.HomeDir()}
-		pyArgs = append(pyArgs, args...)
+		pyArgs = append(pyArgs, extraArgs...)
+		cmd = exec.Command(venvPython, pyArgs...)
+
+	case scriptPath != "":
+		// Legacy pip-based script
+		pyArgs := []string{scriptPath, "--port", portStr, "--vortelio-url", vortURL(), "--home", config.HomeDir()}
+		pyArgs = append(pyArgs, extraArgs...)
 		cmd = exec.Command(pythonBin(), pyArgs...)
-	} else if runtime.GOOS == "windows" {
-		cmdArgs := append([]string{"/c", entry.BinCommand + ".cmd"}, args...)
+
+	case runtime.GOOS == "windows":
+		cmdArgs := append([]string{"/c", entry.BinCommand + ".cmd"}, extraArgs...)
 		cmd = exec.Command("cmd", cmdArgs...)
-	} else {
-		cmd = exec.Command(entry.BinCommand, args...)
+
+	default:
+		cmd = exec.Command(entry.BinCommand, extraArgs...)
 	}
 	cmd.Stdout = nil
 	cmd.Stderr = nil
@@ -663,6 +787,10 @@ func Uninstall(id string) error {
 			pipCmd = "pip3"
 		}
 		return exec.Command(pipCmd, "uninstall", "-y", entry.NPMPackage).Run()
+	case MethodUV:
+		// Remove dedicated venv directory
+		venvDir := filepath.Join(config.HomeDir(), "venvs", entry.ID)
+		return os.RemoveAll(venvDir)
 	default:
 		return fmt.Errorf("rimozione non supportata per questo tipo di agente")
 	}
