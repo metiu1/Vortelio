@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/vortelio/vortelio/internal/agent"
+	"github.com/vortelio/vortelio/internal/config"
 )
 
 // ── Agent proxy ───────────────────────────────────────────────────────────────
@@ -198,6 +201,196 @@ func handleAgentHealth(w http.ResponseWriter, r *http.Request) {
 	if id == "" { jsonError(w, 400, "id required"); return }
 	ok, body := agent.Health(id)
 	respond(w, 200, map[string]interface{}{"ok": ok, "body": body})
+}
+
+// ── CrewAI orchestration ──────────────────────────────────────────────────────
+
+func crewsDir() string {
+	return filepath.Join(config.HomeDir(), "crews")
+}
+
+func handleCrewList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet { jsonError(w, 405, "GET only"); return }
+	os.MkdirAll(crewsDir(), 0755)
+	entries, _ := os.ReadDir(crewsDir())
+	crews := []map[string]interface{}{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(crewsDir(), e.Name()))
+		if err != nil {
+			continue
+		}
+		var crew map[string]interface{}
+		if json.Unmarshal(data, &crew) == nil {
+			crew["name"] = strings.TrimSuffix(e.Name(), ".json")
+			crews = append(crews, crew)
+		}
+	}
+	respond(w, 200, map[string]interface{}{"crews": crews})
+}
+
+// handleCrewDispatch routes /api/crewai/crews/{name} and /api/crewai/crews/{name}/run
+func handleCrewDispatch(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/crewai/crews/")
+	path = strings.TrimSuffix(path, "/")
+
+	if strings.HasSuffix(path, "/run") {
+		name := strings.TrimSuffix(path, "/run")
+		if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+		handleCrewRun(w, r, name)
+		return
+	}
+
+	name := path
+	if name == "" { jsonError(w, 400, "name required"); return }
+
+	switch r.Method {
+	case http.MethodGet:
+		handleCrewGet(w, r, name)
+	case http.MethodPost, http.MethodPut:
+		handleCrewSave(w, r, name)
+	case http.MethodDelete:
+		handleCrewDelete(w, r, name)
+	default:
+		jsonError(w, 405, "method not allowed")
+	}
+}
+
+func handleCrewGet(w http.ResponseWriter, r *http.Request, name string) {
+	if !validCrewName(name) { jsonError(w, 400, "nome non valido"); return }
+	data, err := os.ReadFile(filepath.Join(crewsDir(), name+".json"))
+	if err != nil { jsonError(w, 404, "crew non trovata"); return }
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
+}
+
+func handleCrewSave(w http.ResponseWriter, r *http.Request, name string) {
+	var body map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	// Allow name from URL to override body
+	if name != "" {
+		body["name"] = name
+	} else {
+		n, _ := body["name"].(string)
+		name = strings.TrimSpace(n)
+	}
+	if !validCrewName(name) { jsonError(w, 400, "nome crew non valido"); return }
+	os.MkdirAll(crewsDir(), 0755)
+	data, _ := json.MarshalIndent(body, "", "  ")
+	os.WriteFile(filepath.Join(crewsDir(), name+".json"), data, 0644)
+	respond(w, 200, map[string]interface{}{"ok": true, "name": name})
+}
+
+func handleCrewDelete(w http.ResponseWriter, r *http.Request, name string) {
+	if !validCrewName(name) { jsonError(w, 400, "nome non valido"); return }
+	os.Remove(filepath.Join(crewsDir(), name+".json"))
+	respond(w, 200, map[string]interface{}{"ok": true})
+}
+
+func handleCrewRun(w http.ResponseWriter, r *http.Request, name string) {
+	if !validCrewName(name) { jsonError(w, 400, "nome non valido"); return }
+
+	// Proxy run to CrewAI Python server (port 8500)
+	var reqBody map[string]interface{}
+	json.NewDecoder(r.Body).Decode(&reqBody)
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	target := "http://localhost:8500/api/crews/" + name + "/run"
+	hreq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(bodyBytes))
+	if err != nil { jsonError(w, 500, "cannot build request: "+err.Error()); return }
+	hreq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Minute, Transport: &http.Transport{DisableCompression: true}}
+	resp, err := client.Do(hreq)
+	if err != nil {
+		jsonError(w, 503, "CrewAI server non disponibile — avvia prima l'agente CrewAI: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	w.WriteHeader(resp.StatusCode)
+
+	flusher, canFlush := w.(http.Flusher)
+	buf := make([]byte, 1)
+	for {
+		n, rerr := resp.Body.Read(buf)
+		if n > 0 {
+			w.Write(buf[:n])
+			if canFlush { flusher.Flush() }
+		}
+		if rerr != nil { break }
+	}
+}
+
+func validCrewName(name string) bool {
+	return name != "" && !strings.ContainsAny(name, "/\\") && !strings.Contains(name, "..")
+}
+
+// handleCrewStudioProxy forwards /api/crewai/studio/* to the Python crewai-studio server at port 8500.
+func handleCrewStudioProxy(w http.ResponseWriter, r *http.Request) {
+	subpath := strings.TrimPrefix(r.URL.Path, "/api/crewai/studio")
+	if subpath == "" {
+		subpath = "/"
+	}
+	target := "http://localhost:8500" + subpath
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+
+	hreq, err := http.NewRequestWithContext(r.Context(), r.Method, target, r.Body)
+	if err != nil {
+		jsonError(w, 500, "proxy build error: "+err.Error())
+		return
+	}
+	for k, v := range r.Header {
+		if strings.EqualFold(k, "host") {
+			continue
+		}
+		hreq.Header[k] = v
+	}
+
+	client := &http.Client{
+		Timeout:   30 * time.Minute,
+		Transport: &http.Transport{DisableCompression: true},
+	}
+	resp, err := client.Do(hreq)
+	if err != nil {
+		jsonError(w, 503, "CrewAI Studio non disponibile — avvia prima l'agente CrewAI: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	for k, v := range resp.Header {
+		w.Header()[k] = v
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(resp.StatusCode)
+
+	flusher, canFlush := w.(http.Flusher)
+	buf := make([]byte, 1024)
+	for {
+		n, rerr := resp.Body.Read(buf)
+		if n > 0 {
+			w.Write(buf[:n])
+			if canFlush {
+				flusher.Flush()
+			}
+		}
+		if rerr != nil {
+			break
+		}
+	}
 }
 
 // ── Ollama ────────────────────────────────────────────────────────────────────

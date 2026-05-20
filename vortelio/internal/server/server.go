@@ -145,6 +145,15 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/agents/health", ca(handleAgentHealth))
 	mux.HandleFunc("/api/ollama/models", ca(handleOllamaModels))
 
+	// CrewAI orchestration (legacy JSON CRUD)
+	mux.HandleFunc("/api/crewai/crews", ca(handleCrewList))
+	mux.HandleFunc("/api/crewai/crews/", ca(handleCrewDispatch))
+	// CrewAI Studio proxy → Python server port 8500
+	mux.HandleFunc("/api/crewai/studio/", ca(handleCrewStudioProxy))
+
+	// Graceful shutdown (used by vortelio stop)
+	mux.HandleFunc("/api/shutdown", handleShutdown)
+
 	// History
 	mux.HandleFunc("/api/history", ca(handleHistory))
 
@@ -230,6 +239,20 @@ func handleUI(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(data)
+}
+
+var shutdownCh = make(chan struct{}, 1)
+
+// ShutdownCh returns the channel closed by POST /api/shutdown.
+func ShutdownCh() <-chan struct{} { return shutdownCh }
+
+func handleShutdown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	respond(w, 200, map[string]string{"status": "shutting down"})
+	select {
+	case shutdownCh <- struct{}{}:
+	default:
+	}
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {

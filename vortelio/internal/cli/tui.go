@@ -43,6 +43,7 @@ func runInteractiveMenu() error {
 			"Download a model",
 			"Cloud Models",
 			"AI Agents",
+			"🤖 CrewAI Orchestration",
 			"Import from Ollama",
 			"Advanced Tools",
 			"Open Web UI",
@@ -68,16 +69,20 @@ func runInteractiveMenu() error {
 				return err
 			}
 		case 4:
-			if err := handleImportOllama(); err != nil {
+			if err := handleCrewAI(); err != nil {
 				return err
 			}
 		case 5:
-			if err := handleAdvancedTools(); err != nil {
+			if err := handleImportOllama(); err != nil {
 				return err
 			}
 		case 6:
-			return reExec("gui")
+			if err := handleAdvancedTools(); err != nil {
+				return err
+			}
 		case 7:
+			return reExec("gui")
+		case 8:
 			return reExec("help")
 		}
 	}

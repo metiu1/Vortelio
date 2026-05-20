@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="vortelio-installer/assets/pullai.ico" alt="Vortelio" width="96" height="96" />
+<img src="vortelio-installer/assets/pullai.ico" alt="Vortelio — local AI platform" width="96" height="96" />
 
-# Vortelio
+# Vortelio — Run AI Locally. Every Modality. One Binary.
 
-**The local-first AI platform. Run LLMs, generate images, transcribe audio, create video and 3D — all on your own machine. One binary. Web UI included. No cloud. No subscriptions.**
+**Vortelio is an open-source, local AI platform** that lets you run LLMs, generate images with Stable Diffusion, transcribe audio with Whisper, create video, build 3D models, and orchestrate multi-agent AI workflows — all on your own machine, with no cloud, no API keys, and no subscriptions.
 
-*Open-source Ollama alternative for every AI modality — text, image, audio, video, 3D.*
+**The best open-source Ollama alternative** with built-in image generation, audio, video, 3D, and multi-agent support via CrewAI.
 
 [![Release](https://img.shields.io/github/v/release/metiu1/Vortelio?style=flat-square)](https://github.com/metiu1/Vortelio/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
@@ -16,41 +16,58 @@
 [![Go Report](https://goreportcard.com/badge/github.com/metiu1/Vortelio?style=flat-square)](https://goreportcard.com/report/github.com/metiu1/Vortelio)
 [![CI](https://img.shields.io/github/actions/workflow/status/metiu1/Vortelio/ci.yml?branch=main&style=flat-square)](https://github.com/metiu1/Vortelio/actions)
 
-[Install](#-install) • [Quickstart](#-quickstart) • [Features](#-features) • [Models](#-supported-models) • [API](#-api) • [Contributing](#-contributing)
+[Install](#-install) • [Quickstart](#-quickstart) • [Features](#-features) • [Models](#-supported-models) • [API](#-api) • [CrewAI](#-crewai-orchestration) • [Contributing](#-contributing)
 
 </div>
 
 ---
 
-## 🔥 The problem
+## What is Vortelio?
 
-> **Cloud AI is expensive, leaks your data, and breaks without internet. Running it yourself means 5 different tools, Python dependency hell, and a weekend lost to setup.**
->
-> **Vortelio fixes all of it — one binary, every modality, zero cloud.**
+**Vortelio** is a self-hosted, offline AI platform that replaces Ollama, ComfyUI, Whisper UIs, and CrewAI cloud services with a single Go binary and a built-in web interface.
 
-## Why Vortelio
+- **Run LLMs locally** (Llama, Mistral, Qwen, Phi, Gemma — any GGUF model from HuggingFace)
+- **Generate images locally** (Stable Diffusion 1.5, SDXL, FLUX.1 — no Replicate, no Midjourney)
+- **Transcribe audio offline** (Whisper large-v3, local speech-to-text, no OpenAI key needed)
+- **Text-to-speech locally** (Kokoro TTS, Bark — no ElevenLabs subscription)
+- **Generate video locally** (WAN 2.1, AnimateDiff, CogVideo-X)
+- **3D generation** (TripoSR, Shap-E — image-to-3D or text-to-3D)
+- **Multi-agent AI workflows** (CrewAI orchestration using your local models — no OpenAI key)
+- **OpenAI-compatible API** — drop-in replacement for existing OpenAI SDK code
 
-> **Ollama for everything.** Run LLMs, Stable Diffusion, Whisper, Kokoro, WAN 2.1, TripoSR — all from one CLI, one server, one web UI. No Docker. No Python juggling. No cloud lock-in.
+> Vortelio is the answer to: *"How do I run AI locally without setting up 5 different tools?"*
 
-### Who is this for
+---
 
-- 👩‍💻 **Indie devs** building AI features without burning runway on API bills
-- 🏢 **Enterprises** with strict data residency / compliance requirements
-- 🎨 **Creators** generating images / video / voice locally without watermarks or rate limits
-- 🔬 **Researchers** running reproducible offline experiments
-- 🕹️ **Hobbyists** with a gaming GPU sitting idle
+## Vortelio vs Ollama vs LM Studio vs ComfyUI
 
-| | Vortelio | Ollama | LM Studio | ComfyUI |
+| Feature | **Vortelio** | Ollama | LM Studio | ComfyUI |
 |---|:---:|:---:|:---:|:---:|
-| LLM chat | ✅ | ✅ | ✅ | ❌ |
-| Image gen (SD/FLUX) | ✅ | ❌ | ❌ | ✅ |
-| Audio (Whisper + TTS) | ✅ | ❌ | ❌ | ❌ |
-| Video (WAN 2.1) | ✅ | ❌ | ❌ | ⚠️ |
-| 3D (TripoSR, Shap-E) | ✅ | ❌ | ❌ | ❌ |
+| Run LLMs (Llama, Mistral, Qwen…) | ✅ | ✅ | ✅ | ❌ |
+| Local image generation (SD/FLUX) | ✅ | ❌ | ❌ | ✅ |
+| Local audio — Whisper STT | ✅ | ❌ | ❌ | ❌ |
+| Local TTS — Kokoro / Bark | ✅ | ❌ | ❌ | ❌ |
+| Local video generation (WAN 2.1) | ✅ | ❌ | ❌ | ⚠️ |
+| Local 3D generation (TripoSR) | ✅ | ❌ | ❌ | ❌ |
 | Web UI included | ✅ | ❌ | ✅ | ✅ |
-| OpenAI / Ollama API compat | ✅ | ✅ | ✅ | ❌ |
-| Cloud provider proxy (8 providers) | ✅ | ❌ | ❌ | ❌ |
-| Single binary install | ✅ | ✅ | ❌ | ❌ |
+| OpenAI-compatible API | ✅ | ✅ | ✅ | ❌ |
+| Ollama-compatible API | ✅ | ✅ | ❌ | ❌ |
+| Cloud proxy (OpenAI, Anthropic…) | ✅ | ❌ | ❌ | ❌ |
+| CrewAI multi-agent orchestration | ✅ | ❌ | ❌ | ❌ |
+| Background server + stop command | ✅ | ✅ | ❌ | ❌ |
+| Single binary, no Docker | ✅ | ✅ | ❌ | ❌ |
+
+**→ Ollama only runs LLMs.** Vortelio runs LLMs *plus* images, audio, video, 3D — and stays Ollama-compatible so your existing tools work unchanged.
+
+---
+
+### Who uses Vortelio
+
+- 👩‍💻 **Developers** — local OpenAI-compatible API, no bills, no rate limits, works offline
+- 🏢 **Enterprises** — GDPR / HIPAA compliance, data never leaves your server
+- 🎨 **Creators** — Stable Diffusion + FLUX locally, no watermarks, no monthly limits
+- 🔬 **Researchers** — reproducible experiments, offline, air-gapped environments
+- 🕹️ **Hobbyists** — put that gaming GPU to work
 
 ---
 
@@ -99,6 +116,10 @@ vortelio run llama-3.2-3b-instruct "Explain quantum entanglement in one tweet"
 # Serve OpenAI / Ollama compatible API
 vortelio serve --port 11500
 
+# Serve in background (detached process)
+vortelio serve --bg
+vortelio stop           # graceful shutdown
+
 # Use it from any OpenAI SDK
 curl http://localhost:11500/v1/chat/completions \
   -d '{"model":"llama-3.2-3b-instruct","messages":[{"role":"user","content":"hi"}]}'
@@ -116,10 +137,12 @@ curl http://localhost:11500/v1/chat/completions \
 - 🌐 **Web UI** — single-file HTML, dark theme, code blocks, streaming
 - 🔌 **API compatibility** — drop-in for OpenAI `/v1/chat/completions` and Ollama `/api/chat`
 - ☁️ **Cloud proxy** — OpenAI, Anthropic, Gemini, Groq, Mistral, OpenRouter, Ollama Cloud
-- 🤖 **AI agents** — install/start/stop OpenClaw, Open Code from the UI
+- 🤖 **AI agents** — install/start/stop OpenClaw, Open Code, Open WebUI, Flowise, CrewAI from the UI
+- 🫂 **CrewAI orchestration** — build multi-agent teams with visual crew builder, run task pipelines locally using your own models
+- 🔄 **Background mode** — `vortelio serve --bg` to run headless; `vortelio stop` for graceful shutdown
 - 🔐 **Local auth** — email+password, Google OAuth, session in browser
 - ⚙️ **Hardware aware** — auto-detects CUDA, ROCm, Metal, CPU
-- 📦 **Zero-config** — one binary, models in `~/.pullai/models/`
+- 📦 **Zero-config** — one binary, models in `~/.vortelio/`
 
 ---
 
@@ -158,13 +181,135 @@ GET  /api/tags
 Native:
 
 ```bash
-GET  /api/status            # hardware, version, model count
-POST /api/pull              # download model (SSE progress)
-POST /api/generate          # run any model type (SSE)
-POST /api/agents/install    # install AI agent
+GET  /api/status                        # hardware, version, model count
+POST /api/pull                          # download model (SSE progress)
+POST /api/generate                      # run any model type (SSE)
+POST /api/agents/install                # install AI agent (npm/pip)
+POST /api/agents/start                  # start agent subprocess
+POST /api/agents/stop                   # stop agent subprocess
+GET  /api/crewai/crews                  # list saved crew definitions
+POST /api/crewai/crews/{name}           # save/update a crew definition
+POST /api/crewai/crews/{name}/run       # run crew (SSE output stream)
+DELETE /api/crewai/crews/{name}         # delete crew definition
+POST /api/shutdown                      # graceful server shutdown
 ```
 
 Full route list in [`vortelio/internal/server/server.go`](vortelio/internal/server/server.go).
+
+---
+
+---
+
+## 🤖 CrewAI Orchestration
+
+Vortelio integrates [CrewAI](https://github.com/crewAIInc/crewAI) as a built-in agent — build teams of AI agents that collaborate to complete complex tasks, all running against your **local models**.
+
+### Setup
+
+```bash
+# In the Web UI → Agenti AI → CrewAI → Installa
+# Or from TUI: CrewAI Orchestration → Install CrewAI
+
+# Or manually:
+pip install crewai fastapi uvicorn
+vortelio serve   # CrewAI server auto-starts when you click Start in the UI
+```
+
+### Visual crew builder
+
+Open **Web UI → 🤖 CrewAI** (sidebar) or click **Gestisci Crew** on the running agent card:
+
+1. **New Crew** → give it a name, pick a local model (e.g. `mistral:7b`), choose `sequential` or `hierarchical`
+2. **Add agents** — define role, goal, backstory for each
+3. **Add tasks** — description, expected output, assign to an agent
+4. **Save & Run** — output streams live in the UI
+
+### API
+
+```bash
+# List saved crews
+GET http://localhost:11500/api/crewai/crews
+
+# Save a crew definition
+POST http://localhost:11500/api/crewai/crews/research_team
+{
+  "name": "research_team",
+  "model": "mistral:7b",
+  "process": "sequential",
+  "agents": [
+    {"role": "Researcher", "goal": "Find key facts about X", "backstory": "Expert analyst"},
+    {"role": "Writer",     "goal": "Write a clear summary", "backstory": "Technical writer"}
+  ],
+  "tasks": [
+    {"description": "Research topic X",       "expected_output": "Bullet list of facts", "agent_role": "Researcher"},
+    {"description": "Write a 300-word report","expected_output": "Markdown report",      "agent_role": "Writer"}
+  ]
+}
+
+# Run the crew (SSE stream)
+POST http://localhost:11500/api/crewai/crews/research_team/run
+{"model": "mistral:7b", "inputs": {"topic": "quantum computing"}}
+```
+
+> CrewAI runs on **port 8500** (local only). All LLM calls go to Vortelio's OpenAI-compatible API — no external API keys required.
+
+---
+
+---
+
+## 🔌 Use Vortelio with any OpenAI SDK, LangChain or LlamaIndex
+
+Vortelio exposes an OpenAI-compatible API. **No code changes needed** — just change the `base_url`.
+
+### Python (OpenAI SDK)
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:11500/v1", api_key="local")
+
+# Chat with a local LLM
+response = client.chat.completions.create(
+    model="mistral:7b",
+    messages=[{"role": "user", "content": "Explain quantum computing in simple terms"}]
+)
+print(response.choices[0].message.content)
+
+# Generate an image locally (no Midjourney, no DALL-E)
+image = client.images.generate(model="image/dreamshaper:latest", prompt="a cat on the moon")
+
+# Transcribe audio locally (no OpenAI key)
+audio = client.audio.transcriptions.create(model="audio/whisper:large-v3", file=open("audio.mp3","rb"))
+```
+
+### LangChain
+
+```python
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(base_url="http://localhost:11500/v1", api_key="local", model="mistral:7b")
+result = llm.invoke("What is the capital of Italy?")
+```
+
+### Node.js / TypeScript
+
+```typescript
+import OpenAI from "openai";
+
+const client = new OpenAI({ baseURL: "http://localhost:11500/v1", apiKey: "local" });
+const chat = await client.chat.completions.create({
+  model: "mistral:7b",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+### curl
+
+```bash
+curl http://localhost:11500/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"mistral:7b","messages":[{"role":"user","content":"Hello!"}],"stream":false}'
+```
 
 ---
 
@@ -204,29 +349,44 @@ go test ./...
 
 ## ❓ FAQ
 
-**Is Vortelio really free?**
-Yes. Apache 2.0. No paid tier, no telemetry, no account required.
+**Is Vortelio free and open source?**
+Yes. Apache 2.0 license. No paid tier, no telemetry, no account required.
 
-**Does it work without a GPU?**
-Yes for LLMs (CPU inference via llama.cpp) and Whisper. Image/video/3D need a GPU (NVIDIA CUDA, AMD ROCm, or Apple Metal) to be usable.
+**How do I run LLMs locally for free?**
+Install Vortelio, then `vortelio pull llm/mistral:7b` and `vortelio run llm/mistral:7b "your prompt"`. No API key, no cloud, no cost.
 
-**How does it compare to Ollama?**
-Ollama only runs LLMs. Vortelio runs LLMs **plus** images, audio (STT + TTS), video, 3D — and exposes Ollama-compatible API so existing Ollama clients work unchanged.
+**How is Vortelio different from Ollama?**
+Ollama only runs LLMs. Vortelio runs LLMs **plus** Stable Diffusion image generation, Whisper speech-to-text, Kokoro text-to-speech, WAN 2.1 video, TripoSR 3D — all from one binary. Vortelio also exposes Ollama-compatible API so your existing Ollama clients work unchanged.
+
+**Can I use Vortelio as a local Stable Diffusion alternative?**
+Yes. `vortelio pull image/dreamshaper:latest` then `vortelio run image/dreamshaper:latest "a cat in space"`. No Automatic1111 setup, no Docker, no Python environment.
+
+**How do I run Whisper locally without OpenAI?**
+`vortelio pull audio/whisper:large-v3` then `vortelio run audio/whisper:large-v3 --input audio.mp3`. Fully offline, no OpenAI API key needed.
 
 **Can I use Vortelio with LangChain / LlamaIndex / OpenAI SDK?**
-Yes. Vortelio serves OpenAI-compatible `/v1/chat/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/audio/*`. Point any OpenAI SDK at `http://localhost:11500`.
+Yes. Vortelio serves OpenAI-compatible endpoints at `http://localhost:11500/v1/`. Change `base_url` to `http://localhost:11500/v1` and `api_key` to any string. Supports `/v1/chat/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/audio/transcriptions`.
 
-**Where are my data stored?**
-`~/.pullai/models/` for models. Chats live in your browser's `localStorage`. Nothing is sent to a server unless you explicitly enable a Cloud provider.
+**Does CrewAI work locally without OpenAI API key?**
+Yes. Vortelio runs CrewAI agents against your local models. No external API keys needed. Set model to any model you've pulled (e.g. `mistral:7b`).
 
-**Can I run it offline / air-gapped?**
-Yes. Pull models once on a connected machine, copy `~/.pullai/` over, run.
+**Does it work without a GPU?**
+LLMs and Whisper run on CPU (slower but functional). Image, video, and 3D generation need a GPU — NVIDIA CUDA, AMD ROCm, or Apple Metal.
 
 **Does it support Apple Silicon (M1/M2/M3/M4)?**
-Yes — Metal acceleration via llama.cpp for LLMs, MPS for diffusers.
+Yes — Metal acceleration via llama.cpp for LLMs, MPS backend for diffusers (images).
 
-**Can I self-host for my team?**
-Yes. `vortelio serve --port 11500 --host 0.0.0.0` and point teammates' OpenAI SDK at your box.
+**How do I run Vortelio in the background?**
+`vortelio serve --bg` — detached process, PID saved to `~/.vortelio/vortelio.pid`. Stop with `vortelio stop`.
+
+**Can I self-host Vortelio for my team?**
+Yes. `vortelio serve --remote --port 11500` exposes the API on your LAN. Optionally protect with `--api-key yourkey`.
+
+**Where are models and data stored?**
+Models: `~/.vortelio/`. Chat history: browser `localStorage` only. Nothing is sent externally unless you explicitly enable a Cloud provider.
+
+**Can I run it offline / air-gapped?**
+Yes. Pull models once, copy `~/.vortelio/` to the air-gapped machine, run.
 
 ---
 
@@ -247,13 +407,14 @@ Made with ⚡ by the Vortelio community.
 <details>
 <summary>🔍 Keywords / topics</summary>
 
-`local ai` · `local llm` · `run llm locally` · `offline ai` · `self-hosted ai` · `private ai` · `ollama alternative` · `lm studio alternative` · `gpt4all alternative` · `jan ai alternative` · `localai alternative` · `open source chatgpt` · `chatgpt local` · `claude local` · `llama local` · `mistral local` · `qwen local` · `gemma local` · `phi local` · `llama.cpp` · `gguf` · `huggingface` · `stable diffusion local` · `flux local` · `sdxl local` · `text to image local` · `image generation offline` · `whisper local` · `speech to text offline` · `tts local` · `text to speech offline` · `kokoro tts` · `bark tts` · `wan 2.1 local` · `text to video local` · `animatediff` · `cogvideo` · `text to 3d` · `image to 3d` · `triposr` · `shap-e` · `lgm` · `trellis` · `openai api compatible` · `openai compatible server` · `ollama api compatible` · `drop-in openai replacement` · `langchain local` · `llamaindex local` · `local rag` · `local embeddings` · `local agent` · `ai agent local` · `openclaw` · `open code agent` · `go ai server` · `golang ai` · `single binary ai` · `windows ai` · `linux ai` · `macos ai` · `apple silicon ai` · `m1 m2 m3 m4 llm` · `cuda llm` · `rocm llm` · `metal llm` · `cpu llm` · `low vram llm` · `quantized llm` · `gguf quantization` · `ai chatbot self-hosted` · `private chatgpt` · `gdpr ai` · `hipaa ai` · `air-gapped ai` · `enterprise ai on-prem` · `data sovereignty ai` · `no api key ai` · `free chatgpt alternative` · `unlimited ai` · `no rate limit ai` · `ai studio` · `multimodal ai` · `omni ai` · `all-in-one ai` · `ai toolkit` · `ai playground` · `local inference` · `edge ai` · `vortelio`
+`local ai` · `run ai locally` · `local llm` · `run llm locally` · `offline ai` · `self-hosted ai` · `private ai` · `ollama alternative` · `ollama alternative with image generation` · `local stable diffusion` · `run stable diffusion locally` · `local whisper` · `run whisper locally` · `local image generation` · `local text to speech` · `crewai local` · `crewai without openai` · `multi-agent local` · `ai orchestration local` · `openai api compatible` · `langchain local` · `free chatgpt alternative` · `self hosted chatgpt` · `no api key ai` · `background ai server` · `local multimodal ai` · `lm studio alternative` · `gpt4all alternative` · `jan ai alternative` · `localai alternative` · `open source chatgpt` · `chatgpt local` · `claude local` · `llama local` · `mistral local` · `qwen local` · `gemma local` · `phi local` · `llama.cpp` · `gguf` · `huggingface` · `stable diffusion local` · `flux local` · `sdxl local` · `text to image local` · `image generation offline` · `whisper local` · `speech to text offline` · `tts local` · `text to speech offline` · `kokoro tts` · `bark tts` · `wan 2.1 local` · `text to video local` · `animatediff` · `cogvideo` · `text to 3d` · `image to 3d` · `triposr` · `shap-e` · `lgm` · `trellis` · `openai api compatible` · `openai compatible server` · `ollama api compatible` · `drop-in openai replacement` · `langchain local` · `llamaindex local` · `local rag` · `local embeddings` · `local agent` · `ai agent local` · `openclaw` · `open code agent` · `go ai server` · `golang ai` · `single binary ai` · `windows ai` · `linux ai` · `macos ai` · `apple silicon ai` · `m1 m2 m3 m4 llm` · `cuda llm` · `rocm llm` · `metal llm` · `cpu llm` · `low vram llm` · `quantized llm` · `gguf quantization` · `ai chatbot self-hosted` · `private chatgpt` · `gdpr ai` · `hipaa ai` · `air-gapped ai` · `enterprise ai on-prem` · `data sovereignty ai` · `no api key ai` · `free chatgpt alternative` · `unlimited ai` · `no rate limit ai` · `ai studio` · `multimodal ai` · `omni ai` · `all-in-one ai` · `ai toolkit` · `ai playground` · `local inference` · `edge ai` · `vortelio`
 
 </details>
 
 <!--
-SEO meta (rendered as HTML comment so it does not show but is indexed in raw):
-keywords: vortelio, local ai, local llm, ollama alternative, lm studio alternative, run llm locally, offline ai, self-hosted ai, private ai, stable diffusion local, flux local, whisper offline, kokoro tts, wan 2.1, triposr, shap-e, openai api compatible, ollama api compatible, golang ai server, single binary ai platform, apple silicon llm, cuda llm, multimodal ai studio, gdpr compliant ai, air-gapped ai, free chatgpt alternative
-description: Vortelio is the open-source, local-first AI platform. Run LLMs, generate images and video, transcribe audio, and create 3D — all on your own machine. One binary. OpenAI & Ollama API compatible. Apache 2.0.
+SEO meta — indexed in raw view:
+title: Vortelio — Run AI Locally | Open Source Ollama Alternative with Image, Audio, Video, 3D and CrewAI
+description: Vortelio is the open-source local AI platform. Run LLMs (Llama, Mistral, Qwen), generate images with Stable Diffusion and FLUX, transcribe with Whisper, use CrewAI multi-agent workflows — all offline, one binary, OpenAI and Ollama API compatible.
+keywords: vortelio, local ai platform, run llm locally, run ai locally, local llm, ollama alternative, lm studio alternative, comfyui alternative, open source ai, self-hosted ai, private ai, offline ai, local stable diffusion, run stable diffusion locally, flux local, local image generation ai, whisper local, run whisper locally, local speech to text, offline transcription, kokoro tts local, local text to speech, wan 2.1 local, local video generation ai, triposr local, local 3d generation ai, crewai local models, crewai without openai, crewai ollama, multi-agent ai local, local ai orchestration, openai api compatible, ollama api compatible, openai drop-in replacement, langchain local, llamaindex local, local rag, local embeddings, local ai agents, self-hosted chatgpt, free chatgpt alternative, private chatgpt, gdpr ai, hipaa ai, air-gapped ai, offline ai platform, go ai server, golang ai, single binary ai, windows ai, linux ai, macos ai, apple silicon llm, m1 m2 m3 m4 ai, cuda llm, rocm llm, metal llm, cpu llm, gguf, huggingface local, multimodal ai, all-in-one ai, local inference server, edge ai, no api key ai, no subscription ai
 -->
 

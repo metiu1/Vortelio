@@ -21,6 +21,7 @@ func Execute() error {
 		commands.NewQuantizeCommand(),
 		commands.NewInfoCommand(),
 		commands.NewServeCommand(),
+		commands.NewStopCommand(),
 		commands.NewGUICommand(),
 		commands.NewSetupCommand(),
 		commands.NewCleanupCommand(),
@@ -83,6 +84,8 @@ func (r *rootCommand) printHelp() {
 	fmt.Println("  vortelio info          <model>          Model details")
 	fmt.Println("  vortelio gui                            Open the Web UI in the browser")
 	fmt.Println("  vortelio serve         [--port N]       Start server (default port 11500)")
+	fmt.Println("  vortelio serve         --bg             Start server in background")
+	fmt.Println("  vortelio stop          [--port N]       Stop background server")
 	fmt.Println("  vortelio quantize      <model>          Quantize a model")
 	fmt.Println("  vortelio import-ollama [--path P]       Import models from local Ollama")
 	fmt.Println("  vortelio setup                          Install dependencies (llama.cpp, Python)")

@@ -910,6 +910,11 @@ textarea.inp::placeholder { color: var(--text3); }
     <span>Agenti AI</span>
   </button>
 
+  <button class="new-chat-btn" onclick="showPanel('crewai')" style="margin-bottom:4px">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="5" r="2"/><circle cx="10" cy="5" r="2"/><circle cx="7" cy="2" r="1.5"/><path d="M2 13c0-2 1.3-3 2-3h6c.7 0 2 1 2 3"/></svg>
+    <span>🤖 CrewAI</span>
+  </button>
+
   <button class="new-chat-btn" onclick="showPanel('cloud')" style="margin-bottom:4px">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.5 9.5H3a2.5 2.5 0 010-5h.3A4 4 0 0111.5 9.5z"/></svg>
     <span>☁️ Cloud Models</span>
@@ -1202,6 +1207,107 @@ textarea.inp::placeholder { color: var(--text3); }
           <span style="font-size:12px;color:var(--text3)" id="agent-model-hint">—</span>
           <div style="margin-left:auto;font-size:12px;color:var(--text3)" id="agent-hint" data-i18n="sendHintShort">↵ send · Shift+↵ newline</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🤖 CREWAI PANEL ─────────────────────────────────────────── -->
+  <div class="panel" id="ws-crewai">
+    <div class="main-topbar">
+      <div class="topbar-left" style="gap:10px">
+        <button class="topbar-btn" onclick="showPanel('agents')" style="padding:5px 10px">← Agenti</button>
+        <span class="topbar-title">🤖 CrewAI Studio</span>
+      </div>
+      <div class="topbar-right" id="crew-topbar-actions">
+        <button class="topbar-btn" onclick="crewNew()" id="crew-btn-new">+ Nuova Crew</button>
+        <button class="topbar-btn" onclick="crewRefreshList()">Aggiorna</button>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg1)">
+      <button class="crew-tab-btn" data-tab="crews"
+        style="background:none;border:none;border-bottom:2px solid var(--accent);color:var(--text1);padding:8px 18px;font-size:13px;cursor:pointer;font-weight:500"
+        onclick="crewSwitchTab('crews')">Crew</button>
+      <button class="crew-tab-btn" data-tab="providers"
+        style="background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);padding:8px 18px;font-size:13px;cursor:pointer"
+        onclick="crewSwitchTab('providers')">Provider LLM</button>
+    </div>
+
+    <!-- TAB: Crews -->
+    <div id="crew-tab-crews" style="display:grid;grid-template-columns:280px 1fr;gap:16px;height:calc(100% - 90px);overflow:hidden;padding:16px">
+      <!-- Left: crew list -->
+      <div style="overflow-y:auto;border-right:1px solid var(--border);padding-right:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Crew salvate</div>
+        <div id="crew-list-el">
+          <div style="color:var(--text3);font-size:13px">Nessuna crew. Crea la prima con "+ Nuova Crew".</div>
+        </div>
+      </div>
+      <!-- Right: editor / output -->
+      <div style="overflow-y:auto">
+        <div id="crew-editor-el"></div>
+        <div id="crew-output-el" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-weight:600;font-size:14px" id="crew-output-title">Output</div>
+            <button class="btn" onclick="crewOutputClose()" style="font-size:12px">← Torna all'editor</button>
+          </div>
+          <div id="crew-output-log" style="font-family:var(--mono);font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;min-height:200px;max-height:500px;overflow-y:auto;white-space:pre-wrap;line-height:1.6"></div>
+          <div id="crew-output-result" style="display:none;margin-top:16px;background:var(--accent-light);border:1px solid #b2ddd4;border-radius:8px;padding:14px;font-size:13px;line-height:1.6;white-space:pre-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Providers -->
+    <div id="crew-tab-providers" style="display:none;padding:16px;overflow-y:auto;height:calc(100% - 90px)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:600">Provider LLM configurati</div>
+        <button class="btn primary" onclick="crewProviderShowAdd()" style="font-size:12px;padding:5px 12px">+ Aggiungi</button>
+      </div>
+
+      <!-- Add provider form -->
+      <div id="crew-provider-add-form" style="display:none;border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;background:var(--bg2)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:12px">Nuovo Provider</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Nome *</label>
+            <input id="prov-f-name" class="inp" style="width:100%;padding:7px;font-size:12px" placeholder="es. my-ollama">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Tipo</label>
+            <select id="prov-f-type" class="inp" style="width:100%;padding:7px;font-size:12px" onchange="crewProviderTypeChange(this)">
+              <option value="openai">openai</option>
+              <option value="ollama" selected>ollama</option>
+              <option value="anthropic">anthropic</option>
+              <option value="google">google</option>
+              <option value="azure">azure</option>
+              <option value="groq">groq</option>
+              <option value="mistral">mistral</option>
+              <option value="deepseek">deepseek</option>
+              <option value="litellm">litellm</option>
+              <option value="other">other</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">API Key</label>
+            <input id="prov-f-key" class="inp" style="width:100%;padding:7px;font-size:12px" placeholder="sk-... o lascia vuoto">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Base URL</label>
+            <input id="prov-f-url" class="inp" style="width:100%;padding:7px;font-size:12px" placeholder="es. http://localhost:11434">
+          </div>
+          <div style="grid-column:1/-1">
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Modelli (separati da virgola)</label>
+            <input id="prov-f-models" class="inp" style="width:100%;padding:7px;font-size:12px" placeholder="es. llama3.2, mistral:7b">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" onclick="crewProviderAdd()" style="font-size:12px;padding:6px 14px">Salva</button>
+          <button class="btn" onclick="crewProviderShowAdd()" style="font-size:12px">Annulla</button>
+        </div>
+      </div>
+
+      <div id="crew-providers-el">
+        <div style="color:var(--text3);font-size:13px">Nessun provider configurato.</div>
       </div>
     </div>
   </div>
@@ -3268,7 +3374,7 @@ function addUserMsg(text, files) {
 }
 
 // ── Panels ────────────────────────────────────────
-function showPanel(name) {
+function _showPanel(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
   const target = document.getElementById('ws-' + name);
   if (target) target.classList.add('on');
@@ -3277,8 +3383,9 @@ function showPanel(name) {
   if (name === 'agents')   refreshAgentCatalog();
   if (name === 'cloud')    { cloudPanelEnter(); }
   if (name === 'tools')    { populateToolModelSelects(); switchToolTab('rag'); }
+  if (name === 'crewai')   crewRefreshList();
   // Update topbar context
-  const titles = {chat:'Chat', models:'Installed models', registry:'Download models', agents:'AI Agents', agent:'Agent chat', cloud:'☁️ Cloud Models', tools:'🔧 Advanced Tools'};
+  const titles = {chat:'Chat', models:'Installed models', registry:'Download models', agents:'AI Agents', agent:'Agent chat', cloud:'☁️ Cloud Models', tools:'🔧 Advanced Tools', crewai:'🤖 CrewAI'};
   const ttEl = document.getElementById('topbar-title');
   if (ttEl) ttEl.textContent = titles[name] || 'Vortelio';
   // Save button only visible in chat panel when there are messages
@@ -3288,6 +3395,7 @@ function showPanel(name) {
     scb.style.display = (name === 'chat' && hasMsgs) ? 'flex' : 'none';
   }
 }
+function showPanel(name) { _showPanel(name); }
 
 // ── Models ────────────────────────────────────────
 async function loadModels() {
@@ -4297,7 +4405,7 @@ async function refreshAgentCatalog() {
   }
 }
 
-const AGENT_ICONS = { openclaw: '🦞', opencode: '💻', 'open-webui': '🌐', flowise: '🔀' };
+const AGENT_ICONS = { openclaw: '🦞', opencode: '💻', 'open-webui': '🌐', flowise: '🔀', crewai: '🤖' };
 
 function renderAgentCatalog() {
   const el = document.getElementById('agent-catalog');
@@ -4357,7 +4465,10 @@ function renderAgentCatalog() {
       const openBtn = hasURL
         ? `<button class="btn primary" onclick="window.open('${agentURL}','_blank')" style="font-size:13px;padding:8px 18px;font-weight:500;flex:1">${t('agentOpenWeb')}</button>`
         : '';
-      footBtns = statusBar + openBtn +
+      const crewBtn = a.id === 'crewai'
+        ? `<button class="btn primary" onclick="openCrewPanel()" style="font-size:12px;flex:1">🤖 Gestisci Crew</button>`
+        : '';
+      footBtns = statusBar + crewBtn + openBtn +
         `<button class="btn" onclick="agentStop('${a.id}')" style="font-size:12px;color:#dc2626;border-color:#fca5a5">${t('agentStop')}</button>`;
     } else if (st.installed) {
       footBtns = `
@@ -5651,6 +5762,521 @@ function fmtTokens(n) {
 
 // ══════════════════════════════════════════════════════════════
 // END API KEYS PANEL
+// ══════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════
+// CREWAI STUDIO PANEL
+// ══════════════════════════════════════════════════════════════
+
+const CREW_API = '/api/crewai/studio/api';
+
+let crewList = [];
+let crewProviders = [];   // ProviderConfig[]
+let crewAllModels = [];   // [{label,value,provider,type}]
+let currentCrew = null;
+let crewRunAC = null;
+let crewTab = 'crews';    // 'crews' | 'providers'
+
+function openCrewPanel() {
+  _showPanel('crewai');
+}
+
+// ── Tab switcher ──────────────────────────────────────────────
+
+function crewSwitchTab(tab) {
+  crewTab = tab;
+  const tabs = document.querySelectorAll('.crew-tab-btn');
+  tabs.forEach(b => {
+    const active = b.dataset.tab === tab;
+    b.style.borderBottom = active ? '2px solid var(--accent)' : '2px solid transparent';
+    b.style.color = active ? 'var(--text1)' : 'var(--text3)';
+  });
+  document.getElementById('crew-tab-crews').style.display    = tab === 'crews'     ? '' : 'none';
+  document.getElementById('crew-tab-providers').style.display = tab === 'providers' ? '' : 'none';
+}
+
+// Called by showPanel when crewai is opened
+async function crewRefreshList() {
+  await Promise.all([_crewLoadCrews(), _crewLoadProviders()]);
+}
+
+async function _crewLoadCrews() {
+  try {
+    const r = await fetch(CREW_API + '/config/crews');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    crewList = await r.json();
+    renderCrewList();
+  } catch(e) {
+    const el = document.getElementById('crew-list-el');
+    if (el) el.innerHTML = `<div style="color:#dc2626;font-size:12px">CrewAI Studio non avviato o errore: ${esc(e.message)}</div>`;
+  }
+}
+
+async function _crewLoadProviders() {
+  try {
+    const [pr, mr] = await Promise.all([
+      fetch(CREW_API + '/providers').then(r => r.json()),
+      fetch(CREW_API + '/providers/models/all').then(r => r.json()),
+    ]);
+    crewProviders = pr;
+    crewAllModels = mr;
+    renderProviderList();
+  } catch(e) {
+    crewProviders = [];
+    crewAllModels = [];
+  }
+}
+
+// ── Crew list ─────────────────────────────────────────────────
+
+function renderCrewList() {
+  const el = document.getElementById('crew-list-el');
+  if (!el) return;
+  if (!crewList.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px">Nessuna crew. Crea la prima con "+ Nuova Crew".</div>';
+    return;
+  }
+  el.innerHTML = crewList.map(c => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg2)">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">${esc(c.name)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+        ${(c.agents||[]).length} agenti · ${(c.tasks||[]).length} task · ${esc(c.process||'sequential')}
+        ${c.memory ? ' · memory' : ''}${c.verbose ? ' · verbose' : ''}
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn primary" onclick="crewRun('${esc(c.name)}')" style="font-size:11px;padding:4px 10px">▶ Esegui</button>
+        <button class="btn" onclick="crewEdit('${esc(c.name)}')" style="font-size:11px;padding:4px 10px">✏ Modifica</button>
+        <button class="btn" onclick="crewDelete('${esc(c.name)}')" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:#fca5a5">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function crewNew() {
+  currentCrew = { name: '', process: 'sequential', verbose: false, memory: false, agents: [], tasks: [] };
+  renderCrewEditor();
+}
+
+function crewEdit(name) {
+  const c = crewList.find(x => x.name === name);
+  if (!c) return;
+  currentCrew = JSON.parse(JSON.stringify(c));
+  renderCrewEditor();
+}
+
+function _modelDatalist() {
+  if (!crewAllModels.length) return '';
+  return `<datalist id="crew-models-dl">${crewAllModels.map(m => `<option value="${esc(m.value)}">${esc(m.label)}</option>`).join('')}</datalist>`;
+}
+
+function renderCrewEditor() {
+  const el = document.getElementById('crew-editor-el');
+  const out = document.getElementById('crew-output-el');
+  if (!el || !currentCrew) return;
+  if (out) out.style.display = 'none';
+  el.style.display = '';
+
+  const agentOpts = (currentCrew.agents || []).map(a =>
+    `<option value="${esc(a.name||a.role)}">${esc(a.name||a.role)}</option>`
+  ).join('');
+
+  el.innerHTML = `
+    ${_modelDatalist()}
+    <div style="font-weight:600;font-size:15px;margin-bottom:16px">${currentCrew.name ? 'Modifica: ' + esc(currentCrew.name) : 'Nuova Crew'}</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Nome crew *</label>
+        <input id="crew-f-name" class="inp" style="width:100%;padding:8px;font-size:13px" value="${esc(currentCrew.name)}" placeholder="es. research_team">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Processo</label>
+        <select id="crew-f-process" class="inp" style="width:100%;padding:8px;font-size:13px">
+          <option value="sequential" ${currentCrew.process==='sequential'?'selected':''}>Sequential</option>
+          <option value="hierarchical" ${currentCrew.process==='hierarchical'?'selected':''}>Hierarchical</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <label style="font-size:12px;color:var(--text3)">
+          <input type="checkbox" id="crew-f-verbose" ${currentCrew.verbose?'checked':''} style="margin-right:4px">Verbose
+        </label>
+        <label style="font-size:12px;color:var(--text3)">
+          <input type="checkbox" id="crew-f-memory" ${currentCrew.memory?'checked':''} style="margin-right:4px">Memory
+        </label>
+      </div>
+    </div>
+
+    <div style="font-weight:600;font-size:13px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+      Agenti (${(currentCrew.agents||[]).length})
+      <button class="btn" onclick="crewAddAgent()" style="font-size:11px;padding:3px 10px;margin-left:8px">+ Aggiungi</button>
+    </div>
+    <div id="crew-agents-list" style="margin-bottom:16px">
+      ${(currentCrew.agents||[]).map((a,i) => crewAgentCard(a,i)).join('')}
+    </div>
+
+    <div style="font-weight:600;font-size:13px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+      Task (${(currentCrew.tasks||[]).length})
+      <button class="btn" onclick="crewAddTask()" style="font-size:11px;padding:3px 10px;margin-left:8px">+ Aggiungi</button>
+    </div>
+    <div id="crew-tasks-list" style="margin-bottom:20px">
+      ${(currentCrew.tasks||[]).map((t,i) => crewTaskCard(t,i,agentOpts)).join('')}
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" onclick="crewSave()" style="font-size:13px;padding:8px 20px;font-weight:500">💾 Salva</button>
+      <button class="btn primary" onclick="crewSaveAndRun()" style="font-size:13px;padding:8px 20px;font-weight:500;background:#16a34a;border-color:#16a34a">▶ Salva ed Esegui</button>
+      <button class="btn" onclick="crewCancelEdit()" style="font-size:12px">Annulla</button>
+    </div>
+  `;
+}
+
+function crewAgentCard(a, i) {
+  return `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:600;color:var(--text3)">AGENTE ${i+1}</div>
+        <button class="btn" onclick="crewRemoveAgent(${i})" style="font-size:11px;padding:2px 8px;color:#dc2626;border-color:#fca5a5">Rimuovi</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Nome *</label>
+          <input class="inp" style="width:100%;padding:6px;font-size:12px" value="${esc(a.name||'')}" placeholder="es. researcher"
+            oninput="crewAgentField(${i},'name',this.value)">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Ruolo *</label>
+          <input class="inp" style="width:100%;padding:6px;font-size:12px" value="${esc(a.role||'')}" placeholder="es. Senior Researcher"
+            oninput="crewAgentField(${i},'role',this.value)">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Modello LLM</label>
+          <input class="inp" list="crew-models-dl" style="width:100%;padding:6px;font-size:12px" value="${esc(a.llm||'')}" placeholder="es. llama3.2"
+            oninput="crewAgentField(${i},'llm',this.value)">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Obiettivo *</label>
+          <input class="inp" style="width:100%;padding:6px;font-size:12px" value="${esc(a.goal||'')}" placeholder="es. Ricerca approfondita su..."
+            oninput="crewAgentField(${i},'goal',this.value)">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Backstory</label>
+          <input class="inp" style="width:100%;padding:6px;font-size:12px" value="${esc(a.backstory||'')}" placeholder="es. Esperto con 10 anni di esperienza..."
+            oninput="crewAgentField(${i},'backstory',this.value)">
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;grid-column:1/-1">
+          <label style="font-size:11px;color:var(--text3)">
+            <input type="checkbox" ${a.verbose?'checked':''} onchange="crewAgentField(${i},'verbose',this.checked)" style="margin-right:3px">Verbose
+          </label>
+          <label style="font-size:11px;color:var(--text3)">
+            <input type="checkbox" ${a.allow_delegation?'checked':''} onchange="crewAgentField(${i},'allow_delegation',this.checked)" style="margin-right:3px">Delega
+          </label>
+          <label style="font-size:11px;color:var(--text3)">
+            Max iter: <input type="number" min="1" max="100" style="width:52px;padding:2px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg1);color:var(--text1)"
+              value="${a.max_iter||25}" oninput="crewAgentField(${i},'max_iter',+this.value)">
+          </label>
+        </div>
+      </div>
+    </div>`;
+}
+
+function crewTaskCard(t, i, agentOpts) {
+  return `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:600;color:var(--text3)">TASK ${i+1}</div>
+        <button class="btn" onclick="crewRemoveTask(${i})" style="font-size:11px;padding:2px 8px;color:#dc2626;border-color:#fca5a5">Rimuovi</button>
+      </div>
+      <div style="display:grid;gap:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Nome *</label>
+            <input class="inp" style="width:100%;padding:6px;font-size:12px" value="${esc(t.name||'')}" placeholder="es. research_task"
+              oninput="crewTaskField(${i},'name',this.value)">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Agente assegnato</label>
+            <select class="inp" style="width:100%;padding:6px;font-size:12px" onchange="crewTaskField(${i},'agent',this.value)">
+              <option value="">-- scegli agente --</option>
+              ${agentOpts}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Descrizione *</label>
+          <textarea class="inp" style="width:100%;padding:6px;font-size:12px;resize:vertical;min-height:60px" placeholder="Cosa deve fare questo task..."
+            oninput="crewTaskField(${i},'description',this.value)">${esc(t.description||'')}</textarea>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Output atteso</label>
+          <input class="inp" style="width:100%;padding:6px;font-size:12px" value="${esc(t.expected_output||'')}" placeholder="es. Un report dettagliato in markdown"
+            oninput="crewTaskField(${i},'expected_output',this.value)">
+        </div>
+        <div style="display:flex;gap:16px">
+          <label style="font-size:11px;color:var(--text3)">
+            <input type="checkbox" ${t.async_execution?'checked':''} onchange="crewTaskField(${i},'async_execution',this.checked)" style="margin-right:3px">Async
+          </label>
+          <label style="font-size:11px;color:var(--text3)">
+            <input type="checkbox" ${t.human_input?'checked':''} onchange="crewTaskField(${i},'human_input',this.checked)" style="margin-right:3px">Human input
+          </label>
+        </div>
+      </div>
+    </div>`;
+}
+
+function crewAgentField(i, key, val) {
+  if (!currentCrew?.agents[i]) return;
+  currentCrew.agents[i][key] = val;
+}
+function crewTaskField(i, key, val) {
+  if (!currentCrew?.tasks[i]) return;
+  currentCrew.tasks[i][key] = val;
+}
+
+function crewAddAgent() {
+  if (!currentCrew) return;
+  currentCrew.agents = currentCrew.agents || [];
+  currentCrew.agents.push({ name: '', role: '', goal: '', backstory: '', llm: crewAllModels[0]?.value || '', verbose: false, allow_delegation: false, max_iter: 25 });
+  renderCrewEditor();
+}
+function crewRemoveAgent(i) {
+  if (!currentCrew) return;
+  currentCrew.agents.splice(i, 1);
+  renderCrewEditor();
+}
+function crewAddTask() {
+  if (!currentCrew) return;
+  currentCrew.tasks = currentCrew.tasks || [];
+  currentCrew.tasks.push({ name: '', description: '', expected_output: '', agent: '', async_execution: false, human_input: false });
+  renderCrewEditor();
+}
+function crewRemoveTask(i) {
+  if (!currentCrew) return;
+  currentCrew.tasks.splice(i, 1);
+  renderCrewEditor();
+}
+
+function crewCollectForm() {
+  if (!currentCrew) return false;
+  currentCrew.name    = (document.getElementById('crew-f-name')?.value || '').trim();
+  currentCrew.process = document.getElementById('crew-f-process')?.value || 'sequential';
+  currentCrew.verbose = document.getElementById('crew-f-verbose')?.checked || false;
+  currentCrew.memory  = document.getElementById('crew-f-memory')?.checked || false;
+  return true;
+}
+
+async function crewSave() {
+  if (!crewCollectForm()) return;
+  if (!currentCrew.name) { toast('Nome crew obbligatorio', 'err'); return; }
+  const isNew = !crewList.find(x => x.name === currentCrew.name);
+  try {
+    const url  = CREW_API + '/config/crews' + (isNew ? '' : '/' + encodeURIComponent(currentCrew.name));
+    const method = isNew ? 'POST' : 'PUT';
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentCrew) });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.detail || 'HTTP ' + r.status); }
+    toast('✅ Crew salvata: ' + currentCrew.name, 'ok');
+    await _crewLoadCrews();
+    crewCancelEdit();
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+async function crewSaveAndRun() {
+  if (!crewCollectForm()) return;
+  if (!currentCrew.name) { toast('Nome crew obbligatorio', 'err'); return; }
+  const name = currentCrew.name;
+  await crewSave();
+  crewRun(name);
+}
+
+async function crewRun(name) {
+  const editorEl = document.getElementById('crew-editor-el');
+  const outputEl = document.getElementById('crew-output-el');
+  const logEl    = document.getElementById('crew-output-log');
+  const resultEl = document.getElementById('crew-output-result');
+  const titleEl  = document.getElementById('crew-output-title');
+
+  if (editorEl) editorEl.style.display = 'none';
+  if (outputEl) outputEl.style.display = '';
+  if (logEl) logEl.textContent = '';
+  if (resultEl) { resultEl.style.display = 'none'; resultEl.textContent = ''; }
+  if (titleEl) titleEl.textContent = 'Esecuzione: ' + name;
+
+  if (crewRunAC) crewRunAC.abort();
+  crewRunAC = new AbortController();
+
+  const appendLog = (txt, color) => {
+    if (!logEl) return;
+    const line = document.createElement('span');
+    if (color) line.style.color = color;
+    line.textContent = txt + '\n';
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  try {
+    const r = await fetch(CREW_API + '/run/' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputs: {} }),
+      signal: crewRunAC.signal,
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || d.error || 'HTTP ' + r.status);
+    }
+
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const chunks = buf.split('\n\n'); buf = chunks.pop();
+      for (const chunk of chunks) {
+        let dline = '';
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('data: ')) dline = line.slice(6).trim();
+        }
+        if (!dline) continue;
+        try {
+          const ev = JSON.parse(dline);
+          switch (ev.type) {
+            case 'RunStarted':            appendLog('▶ Avvio crew: ' + ev.crew); break;
+            case 'RunCompleted':
+              if (resultEl) {
+                resultEl.style.display = '';
+                resultEl.innerHTML = '<strong>✅ Risultato:</strong>\n' + esc(ev.output);
+              }
+              appendLog('✅ Completato', '#16a34a');
+              break;
+            case 'RunFailed':             appendLog('❌ Errore: ' + ev.error, '#dc2626'); break;
+            case 'log':                   appendLog(ev.msg); break;
+            case 'CrewKickoffStartedEvent':   appendLog('[Crew] Avvio kickoff', '#6366f1'); break;
+            case 'CrewKickoffCompletedEvent': appendLog('[Crew] Kickoff completato', '#16a34a'); break;
+            case 'AgentExecutionStartedEvent': appendLog('[Agent] Esecuzione avviata: ' + (ev.source||'')); break;
+            case 'AgentExecutionCompletedEvent': appendLog('[Agent] Esecuzione completata: ' + (ev.source||'')); break;
+            case 'TaskStartedEvent':      appendLog('[Task] Avvio: ' + (ev.source||'')); break;
+            case 'TaskCompletedEvent':    appendLog('[Task] Completato: ' + (ev.source||''), '#16a34a'); break;
+            case 'LLMCallStartedEvent':   appendLog('[LLM] Chiamata LLM...', '#8b5cf6'); break;
+            case 'LLMStreamChunkEvent':   /* ignore granular chunks */ break;
+            case 'ToolUsageStartedEvent': appendLog('[Tool] ' + (ev.data?.tool_name||'tool'), '#f59e0b'); break;
+            case 'ToolUsageFinishedEvent': appendLog('[Tool] Completato', '#f59e0b'); break;
+            case 'done':                  appendLog('--- Fine esecuzione ---'); break;
+            case 'ping':                  break;
+            default:                      if (ev.msg) appendLog(ev.msg); break;
+          }
+        } catch(pe) { if (pe.name !== 'SyntaxError') throw pe; }
+      }
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') {
+      toast('❌ Crew run failed: ' + e.message, 'err');
+      if (logEl) {
+        const line = document.createElement('span');
+        line.style.color = '#dc2626';
+        line.textContent = '\n❌ ' + e.message + '\n';
+        logEl.appendChild(line);
+      }
+    }
+  }
+}
+
+async function crewDelete(name) {
+  if (!confirm('Eliminare la crew "' + name + '"?')) return;
+  await fetch(CREW_API + '/config/crews/' + encodeURIComponent(name), { method: 'DELETE' });
+  toast('🗑 Crew eliminata');
+  await _crewLoadCrews();
+}
+
+function crewCancelEdit() {
+  currentCrew = null;
+  const el = document.getElementById('crew-editor-el');
+  if (el) el.innerHTML = '';
+}
+
+function crewOutputClose() {
+  const outputEl = document.getElementById('crew-output-el');
+  const editorEl = document.getElementById('crew-editor-el');
+  if (outputEl) outputEl.style.display = 'none';
+  if (editorEl && currentCrew) renderCrewEditor();
+}
+
+// ── Providers ─────────────────────────────────────────────────
+
+const PROVIDER_TYPES_LIST = ['openai','ollama','anthropic','google','azure','groq','mistral','deepseek','litellm','other'];
+
+function renderProviderList() {
+  const el = document.getElementById('crew-providers-el');
+  if (!el) return;
+  if (!crewProviders.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px">Nessun provider configurato.</div>';
+    return;
+  }
+  el.innerHTML = crewProviders.map((p, i) => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg2)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="font-weight:600;font-size:13px">${esc(p.name)}</span>
+          <span style="margin-left:8px;font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 6px;border-radius:4px">${esc(p.type)}</span>
+        </div>
+        <button class="btn" onclick="crewProviderDelete('${esc(p.name)}')" style="font-size:11px;padding:2px 8px;color:#dc2626;border-color:#fca5a5">🗑</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">
+        ${p.base_url ? esc(p.base_url) + ' · ' : ''}${(p.models||[]).slice(0,3).map(m => esc(m)).join(', ')}${(p.models||[]).length > 3 ? ' +' + ((p.models||[]).length-3) : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function crewProviderShowAdd() {
+  const el = document.getElementById('crew-provider-add-form');
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+async function crewProviderAdd() {
+  const name    = document.getElementById('prov-f-name')?.value.trim();
+  const type    = document.getElementById('prov-f-type')?.value;
+  const api_key = document.getElementById('prov-f-key')?.value.trim();
+  const base_url = document.getElementById('prov-f-url')?.value.trim();
+  const models_raw = document.getElementById('prov-f-models')?.value.trim();
+  const models = models_raw ? models_raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  if (!name) { toast('Nome provider obbligatorio', 'err'); return; }
+  try {
+    const r = await fetch(CREW_API + '/providers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type, api_key, base_url, models }),
+    });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.detail || 'HTTP ' + r.status); }
+    toast('✅ Provider aggiunto', 'ok');
+    document.getElementById('crew-provider-add-form').style.display = 'none';
+    await _crewLoadProviders();
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+async function crewProviderTypeChange(sel) {
+  const type = sel.value;
+  try {
+    const r = await fetch(CREW_API + '/providers/defaults/' + encodeURIComponent(type));
+    const d = await r.json();
+    const urlEl = document.getElementById('prov-f-url');
+    const modEl = document.getElementById('prov-f-models');
+    if (urlEl && d.base_url) urlEl.value = d.base_url;
+    if (modEl && d.models?.length) modEl.value = d.models.join(', ');
+  } catch(e) {}
+}
+
+async function crewProviderDelete(name) {
+  if (!confirm('Eliminare il provider "' + name + '"?')) return;
+  await fetch(CREW_API + '/providers/' + encodeURIComponent(name), { method: 'DELETE' });
+  toast('🗑 Provider eliminato');
+  await _crewLoadProviders();
+}
+
+// ══════════════════════════════════════════════════════════════
+// END CREWAI STUDIO PANEL
 // ══════════════════════════════════════════════════════════════
 
 if (document.readyState === "loading") {
