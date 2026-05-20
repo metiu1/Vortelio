@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/vortelio/vortelio/internal/config"
 )
+
+//go:embed runners/crewai_server.py
+var crewaiServerScript []byte
 
 var validAgentID = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
@@ -48,6 +52,9 @@ type CatalogEntry struct {
 	Tags           []string      `json:"tags"`
 	RequiresAPIKey bool          `json:"requires_api_key"`
 	APIKeyHint     string        `json:"api_key_hint,omitempty"`
+	// Script-based agents: extract embedded script, run via python interpreter.
+	PipDeps        []string      `json:"pip_deps,omitempty"`   // multiple pip packages to install
+	ScriptName     string        `json:"script_name,omitempty"` // filename for extracted runner script
 }
 
 // vortURL returns the base URL of the local Vortelio server.
@@ -140,6 +147,28 @@ var Catalog = []CatalogEntry{
 		Tags:           []string{"flow", "agenti", "rag", "visual"},
 		RequiresAPIKey: false,
 	},
+	{
+		ID:          "crewai",
+		Name:        "CrewAI",
+		Description: "Orchestrazione multi-agente: crea team di agenti AI collaborativi per task complessi. Richiede Python 3.10+.",
+		Version:     "latest",
+		DefaultPort: 8500,
+		DefaultURL:  "http://localhost:8500",
+		InstallMethod: MethodPip,
+		NPMPackage:  "crewai",
+		BinCommand:  "python",
+		ScriptName:  "crewai_server.py",
+		PipDeps:     []string{"crewai", "crewai-tools", "fastapi", "uvicorn", "sse-starlette", "tomli-w"},
+		StartArgs:   []string{},
+		EnvVars: []string{
+			"VORTELIO_URL={{VORTELIO_URL}}",
+			"OPENAI_API_BASE={{VORTELIO_URL}}/v1",
+			"OPENAI_API_KEY=vortelio",
+		},
+		HealthPath:     "/v1/models",
+		Tags:           []string{"orchestration", "multi-agent", "crew", "automation"},
+		RequiresAPIKey: false,
+	},
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -181,9 +210,55 @@ func pipAvailable() bool {
 	return false
 }
 
+func pythonBin() string {
+	if cfg := config.Get(); cfg.PythonBin != "" {
+		return cfg.PythonBin
+	}
+	candidates := []string{"python3", "python"}
+	if runtime.GOOS == "windows" {
+		candidates = []string{"python", "python3"}
+	}
+	for _, bin := range candidates {
+		if _, err := exec.LookPath(bin); err == nil {
+			return bin
+		}
+	}
+	return "python"
+}
+
+func pipBin() string {
+	candidates := []string{"pip3", "pip"}
+	if runtime.GOOS == "windows" {
+		candidates = []string{"pip", "pip3"}
+	}
+	for _, bin := range candidates {
+		if _, err := exec.LookPath(bin); err == nil {
+			return bin
+		}
+	}
+	return "pip"
+}
+
 // isBinInstalled checks if the agent binary is available.
 func isBinInstalled(entry CatalogEntry) bool {
 	if entry.InstallMethod == MethodPip {
+		// Script-based pip agents: check python + primary pip dep importable
+		if entry.ScriptName != "" {
+			py := pythonBin()
+			if _, err := exec.LookPath(py); err != nil {
+				return false
+			}
+			pkg := entry.NPMPackage
+			if pkg == "" && len(entry.PipDeps) > 0 {
+				pkg = entry.PipDeps[0]
+			}
+			if pkg == "" {
+				return false
+			}
+			importName := strings.ReplaceAll(pkg, "-", "_")
+			cmd := exec.Command(py, "-c", "import "+importName)
+			return cmd.Run() == nil
+		}
 		_, err := exec.LookPath(entry.BinCommand)
 		if err == nil {
 			return true
@@ -279,6 +354,17 @@ func Install(ctx context.Context, id string, progress func(line string)) error {
 	case MethodNPM:
 		return installNPM(ctx, entry, progress)
 	case MethodPip:
+		if len(entry.PipDeps) > 0 {
+			for _, dep := range entry.PipDeps {
+				if progress != nil {
+					progress("Installazione " + dep + "…")
+				}
+				if err := installPipPackage(ctx, dep, progress); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		return installPip(ctx, entry, progress)
 	case MethodBinary:
 		return fmt.Errorf("installazione binaria non supportata per questo agente")
@@ -353,21 +439,61 @@ func installNPM(ctx context.Context, entry CatalogEntry, progress func(line stri
 	return nil
 }
 
-func installPip(ctx context.Context, entry CatalogEntry, progress func(line string)) error {
-	pipCmd := "pip"
-	if runtime.GOOS == "windows" {
-		if _, err := exec.LookPath("pip3"); err == nil {
-			pipCmd = "pip3"
-		}
-	} else {
-		if _, err := exec.LookPath("pip3"); err == nil {
-			pipCmd = "pip3"
-		}
-	}
+func installPipPackage(ctx context.Context, pkg string, progress func(line string)) error {
+	pipCmd := pipBin()
 	if _, err := exec.LookPath(pipCmd); err != nil {
 		return fmt.Errorf(
 			"pip non trovato nel PATH.\n" +
-				"Installa Python 3.11+ da https://python.org,\n" +
+				"Installa Python 3.10+ da https://python.org,\n" +
+				"poi riavvia Vortelio e riprova.",
+		)
+	}
+	args := []string{"install", "--upgrade", pkg}
+	cmd := exec.CommandContext(ctx, pipCmd, args...)
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("impossibile avviare pip: %w", err)
+	}
+	done := make(chan struct{}, 2)
+	streamLines := func(r io.Reader) {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 4096)
+		var partial string
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				chunk := partial + string(buf[:n])
+				lines := strings.Split(chunk, "\n")
+				partial = lines[len(lines)-1]
+				for _, l := range lines[:len(lines)-1] {
+					l = strings.TrimSpace(l)
+					if l != "" && progress != nil {
+						progress(l)
+					}
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+	go streamLines(stdout)
+	go streamLines(stderr)
+	<-done
+	<-done
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("pip install %s fallito: %w", pkg, err)
+	}
+	return nil
+}
+
+func installPip(ctx context.Context, entry CatalogEntry, progress func(line string)) error {
+	pipCmd := pipBin()
+	if _, err := exec.LookPath(pipCmd); err != nil {
+		return fmt.Errorf(
+			"pip non trovato nel PATH.\n" +
+				"Installa Python 3.10+ da https://python.org,\n" +
 				"poi riavvia Vortelio e riprova.",
 		)
 	}
@@ -440,7 +566,29 @@ func Start(id string) error {
 
 	args := append([]string{}, entry.StartArgs...)
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
+
+	if entry.ScriptName != "" {
+		// Script-based agent: extract embedded script and run via python
+		runnersDir := filepath.Join(config.HomeDir(), "runners")
+		if err := os.MkdirAll(runnersDir, 0755); err != nil {
+			return fmt.Errorf("impossibile creare directory runners: %w", err)
+		}
+		scriptPath := filepath.Join(runnersDir, entry.ScriptName)
+		var scriptData []byte
+		switch entry.ScriptName {
+		case "crewai_server.py":
+			scriptData = crewaiServerScript
+		}
+		if scriptData != nil {
+			if err := os.WriteFile(scriptPath, scriptData, 0644); err != nil {
+				return fmt.Errorf("impossibile estrarre script: %w", err)
+			}
+		}
+		portStr := fmt.Sprintf("%d", entry.DefaultPort)
+		pyArgs := []string{scriptPath, "--port", portStr, "--vortelio-url", vortURL(), "--home", config.HomeDir()}
+		pyArgs = append(pyArgs, args...)
+		cmd = exec.Command(pythonBin(), pyArgs...)
+	} else if runtime.GOOS == "windows" {
 		cmdArgs := append([]string{"/c", entry.BinCommand + ".cmd"}, args...)
 		cmd = exec.Command("cmd", cmdArgs...)
 	} else {

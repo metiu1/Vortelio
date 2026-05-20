@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/vortelio/vortelio/internal/config"
 )
 
 // IsServiceRunning checks if the Vortelio server is already running on the given port.
@@ -53,6 +55,48 @@ func LaunchServiceDetached(port string) error {
 	cmd.Stderr = nil
 	cmd.Stdin = nil
 	return cmd.Start()
+}
+
+// LaunchServiceDetachedWithArgs launches vortelio serve with the given args as a detached windowless process.
+// Returns the PID and writes it to ~/.vortelio/vortelio.pid.
+func LaunchServiceDetachedWithArgs(extraArgs []string) (int, error) {
+	self, err := os.Executable()
+	if err != nil {
+		return 0, err
+	}
+	dir := filepath.Dir(self)
+	candidates := []string{filepath.Join(dir, "vortelio-server.exe"), self}
+	serverExe := self
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			serverExe = c
+			break
+		}
+	}
+	cmdArgs := append([]string{"serve", "--no-browser"}, extraArgs...)
+	cmd := exec.Command(serverExe, cmdArgs...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000 | syscall.CREATE_NEW_PROCESS_GROUP,
+		HideWindow:    true,
+	}
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
+	if err := cmd.Start(); err != nil {
+		return 0, err
+	}
+	pid := cmd.Process.Pid
+	pidPath := filepath.Join(config.HomeDir(), "vortelio.pid")
+	os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", pid)), 0644)
+	return pid, nil
+}
+
+func killProcess(pid int) error {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return proc.Kill()
 }
 
 // EnsureServiceRunning ensures the server is running, starting it detached if needed.

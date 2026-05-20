@@ -177,19 +177,40 @@ func (c *ServeCommand) Run(args []string) error {
 	apiKey := ""
 	noBrowser := false
 	remote := false
+	background := false
+	var bgArgs []string
+
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--port", "-p":
-			if i+1 < len(args) { port = args[i+1]; i++ }
+			if i+1 < len(args) { port = args[i+1]; bgArgs = append(bgArgs, args[i], args[i+1]); i++ }
 		case "--host":
-			if i+1 < len(args) { host = args[i+1]; i++ }
+			if i+1 < len(args) { host = args[i+1]; bgArgs = append(bgArgs, args[i], args[i+1]); i++ }
 		case "--remote":
 			remote = true
+			bgArgs = append(bgArgs, args[i])
 		case "--api-key":
-			if i+1 < len(args) { apiKey = args[i+1]; i++ }
+			if i+1 < len(args) { apiKey = args[i+1]; bgArgs = append(bgArgs, args[i], args[i+1]); i++ }
 		case "--no-browser":
 			noBrowser = true
+		case "--bg", "--background":
+			background = true
 		}
+	}
+
+	if background {
+		pid, err := LaunchServiceDetachedWithArgs(bgArgs)
+		if err != nil {
+			return fmt.Errorf("avvio in background fallito: %w", err)
+		}
+		portDisp := port
+		if portDisp == "" {
+			portDisp = "11500"
+		}
+		fmt.Printf("Vortelio avviato in background (PID: %d)\n", pid)
+		fmt.Printf("GUI: http://localhost:%s\n", portDisp)
+		fmt.Printf("Ferma con: vortelio stop\n")
+		return nil
 	}
 
 	cfg := config.Load()
@@ -249,11 +270,14 @@ func (c *ServeCommand) Run(args []string) error {
 
 	srv := &http.Server{Handler: mux}
 
-	// Graceful shutdown su SIGINT/SIGTERM
+	// Graceful shutdown su SIGINT/SIGTERM o /api/shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-quit
+		select {
+		case <-quit:
+		case <-server.ShutdownCh():
+		}
 		fmt.Println("\n⏹️   Arresto server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -278,6 +302,48 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start()
+}
+
+// ─── STOP ─────────────────────────────────────────────────────────────────────
+
+type StopCommand struct{}
+
+func NewStopCommand() *StopCommand { return &StopCommand{} }
+func (c *StopCommand) Name() string { return "stop" }
+func (c *StopCommand) Run(args []string) error {
+	port := "11500"
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--port" || args[i] == "-p" {
+			port = args[i+1]
+		}
+	}
+
+	// Try graceful HTTP shutdown first
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Post("http://localhost:"+port+"/api/shutdown", "application/json", nil)
+	if err == nil {
+		resp.Body.Close()
+		fmt.Println("Vortelio fermato.")
+		return nil
+	}
+
+	// Fallback: PID file
+	pidPath := filepath.Join(config.HomeDir(), "vortelio.pid")
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return fmt.Errorf("server non in esecuzione (PID file non trovato)")
+	}
+	var pid int
+	fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
+	if pid == 0 {
+		return fmt.Errorf("PID non valido nel file %s", pidPath)
+	}
+	if err := killProcess(pid); err != nil {
+		return fmt.Errorf("impossibile fermare il processo (PID %d): %w", pid, err)
+	}
+	os.Remove(pidPath)
+	fmt.Printf("Vortelio fermato (PID %d)\n", pid)
+	return nil
 }
 
 func openDesktopWindow(url string) {
