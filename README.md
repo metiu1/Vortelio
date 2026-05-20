@@ -18,6 +18,10 @@
 
 [Install](#-install) • [Quickstart](#-quickstart) • [Features](#-features) • [Models](#-supported-models) • [API](#-api) • [CrewAI](#-crewai-orchestration) • [Contributing](#-contributing)
 
+<br/>
+
+<img src="assets/demo.gif" alt="Vortelio demo" width="100%" />
+
 </div>
 
 ---
