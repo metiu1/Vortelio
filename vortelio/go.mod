@@ -7,7 +7,7 @@ require (
 	firebase.google.com/go/v4 v4.20.0
 	github.com/stripe/stripe-go/v76 v76.25.0
 	golang.org/x/term v0.43.0
-	google.golang.org/api v0.279.0
+	google.golang.org/api v0.280.0
 	google.golang.org/grpc v1.81.1
 )
 
