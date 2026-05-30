@@ -221,6 +221,11 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/proxy/chat", withObservability(withCORS(withRateLimit(generateLimiter, handleProxyChat))))
 	mux.HandleFunc("/api/proxy/usage", ca(handleProxyUsage))
 
+	// ── BYOK cloud models (bring your own provider API key) ────────────────────
+	mux.HandleFunc("/api/cloud/providers", ca(handleCloudProviders))
+	mux.HandleFunc("/api/cloud/key", ca(handleCloudKey))
+	mux.HandleFunc("/api/cloud/chat", ca(handleCloudChat))
+
 	// ── Stripe payments ───────────────────────────────────────────────────────
 	mux.HandleFunc("/api/stripe/checkout", ca(handleStripeCheckout))
 	mux.HandleFunc("/api/stripe/webhook", withObservability(withCORS(handleStripeWebhook)))

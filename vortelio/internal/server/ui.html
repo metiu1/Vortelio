@@ -1411,14 +1411,14 @@ textarea.inp::placeholder { color: var(--text3); }
           <div class="dd-menu" id="cloud-model-dd" style="right:0;left:auto;min-width:240px;max-height:320px;overflow-y:auto"></div>
         </div>
         <div style="flex:1"></div>
-        <span style="font-size:11px;color:var(--text3)" id="cloud-usage-lbl"></span>
+        <span style="font-size:11px;color:var(--text3)" id="cloud-usage-lbl">🔑 Add provider keys in the model menu</span>
       </div>
       <!-- messages -->
       <div class="canvas" id="cloud-canvas" style="flex:1">
         <div class="welcome" id="cloud-welcome">
           <div class="welcome-logo" style="background:#6366f1;font-size:20px">☁️</div>
           <div class="welcome-title">Cloud Models</div>
-          <div class="welcome-sub">Select a model above and start typing.</div>
+          <div class="welcome-sub">Bring your own key: pick a model above, add your provider API key (🔑), and start typing. Keys stay on this machine.</div>
         </div>
         <div class="msgs" id="cloud-msgs" style="display:none"></div>
       </div>
@@ -4934,24 +4934,48 @@ const _CLOUD_PROVIDERS_REMOVED = [
   },
 ];
 
-// ── State ─────────────────────────────────────────────────────
-let cloudSelectedModel   = '';
-let cloudHistory         = [];
-let cloudAbortCtrl       = null;
-let _cloudProxyModels    = [];
+// ── State (BYOK — bring your own key) ─────────────────────────
+let cloudSelectedModel    = '';
+let cloudSelectedProvider = '';
+let cloudHistory          = [];
+let cloudAbortCtrl        = null;
+let _cloudProviders       = [];
 
 // ── Panel entry ───────────────────────────────────────────────
+// BYOK: no subscription. Anyone can use cloud models by entering their own
+// provider API keys. Always show the chat; load providers + key status.
 async function cloudPanelEnter() {
-  const s = authGetSession();
-  if (!s || s.guest) { cloudShowGate(false); return; }
+  document.getElementById('cloud-gate-screen').style.display = 'none';
+  document.getElementById('cloud-chat-screen').style.display = 'flex';
+  document.getElementById('cloud-newchat-btn').style.display = 'flex';
+  await cloudLoadProviders();
+}
+
+async function cloudLoadProviders() {
   try {
-    const r = await apiFetch('/api/proxy/models');
+    const r = await apiFetch('/api/cloud/providers');
     const d = await r.json();
-    _cloudProxyModels = (d.models || []).filter(m => m.type === 'llm');
-    const hasPaid = _cloudProxyModels.some(m => m.available);
-    if (!hasPaid) { cloudShowGate(true, s.plan || 'free'); return; }
-    cloudShowChat(s.plan || 'free');
-  } catch(_) { cloudShowGate(false); }
+    _cloudProviders = d.providers || [];
+  } catch(_) { _cloudProviders = []; }
+  cloudBuildModelDD();
+}
+
+// Prompt for an API key for a provider and store it server-side.
+async function cloudSetKey(provId, hint) {
+  const p = _cloudProviders.find(x => x.id === provId);
+  const name = p ? p.name : provId;
+  const cur = prompt('Enter your ' + name + ' API key' + (hint ? '\nGet one: ' + hint : '') + '\n\n(Leave empty to remove the saved key)');
+  if (cur === null) return;
+  try {
+    if (cur.trim() === '') {
+      await apiFetch('/api/cloud/key', { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: provId}) });
+      toast('🗑 Key removed for ' + name);
+    } else {
+      await apiFetch('/api/cloud/key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: provId, key: cur.trim()}) });
+      toast('✅ Key saved for ' + name);
+    }
+    await cloudLoadProviders();
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
 
 function cloudShowGate(loggedIn) {
@@ -4973,20 +4997,26 @@ function cloudShowChat(plan) {
 }
 
 function cloudBuildModelDD() {
-  const available = _cloudProxyModels.filter(m => m.available);
-  const locked    = _cloudProxyModels.filter(m => !m.available);
   const dd = document.getElementById('cloud-model-dd');
-  let html = '';
-  if (available.length) {
-    html += `<div style="padding:4px 10px;font-size:10px;color:var(--text3);text-transform:uppercase">Available</div>`;
-    html += available.map(m => `<div class="dd-item${m.id===cloudSelectedModel?' sel':''}" onclick="cloudSelectModel('${esc(m.id)}','${esc(m.display_name)}')">${esc(m.display_name)}</div>`).join('');
+  if (!_cloudProviders.length) {
+    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text3)">No providers available.</div>';
+    return;
   }
-  if (locked.length) {
-    html += `<div style="padding:4px 10px;font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:4px">Requires upgrade</div>`;
-    html += locked.map(m => `<div class="dd-item" style="opacity:.4;cursor:default">${esc(m.display_name)} <span style="font-size:10px;color:var(--text3);margin-left:auto">${m.min_plan}</span></div>`).join('');
+  let html = '';
+  for (const p of _cloudProviders) {
+    const dot = p.has_key ? '🟢' : '🔑';
+    const title = p.has_key ? 'Change API key' : 'Add your API key';
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">
+      <span>${esc(p.name)}</span>
+      <span style="cursor:pointer;font-size:12px" title="${title}" onclick="event.stopPropagation();cloudSetKey('${esc(p.id)}','${esc(p.key_hint||'')}')">${dot}</span>
+    </div>`;
+    for (const m of (p.models || [])) {
+      const sel = (p.id === cloudSelectedProvider && m.id === cloudSelectedModel) ? ' sel' : '';
+      const dim = p.has_key ? '' : 'opacity:.45;';
+      html += `<div class="dd-item${sel}" style="${dim}" onclick="cloudSelectModel('${esc(p.id)}','${esc(m.id)}','${esc(m.label)}')">${esc(m.label)}</div>`;
+    }
   }
   dd.innerHTML = html;
-  if (!cloudSelectedModel && available.length) cloudSelectModel(available[0].id, available[0].display_name);
 }
 
 async function cloudLoadUsage() {
@@ -5023,11 +5053,17 @@ function renderCloudProviderCards() { /* replaced by cloudPanelEnter */ }
 
 // cloudSaveKey / cloudDeleteKey removed — no longer needed (proxy model, no user API keys)
 
-function cloudSelectModel(id, label) {
-  cloudSelectedModel = id;
+function cloudSelectModel(provId, modelId, label) {
+  cloudSelectedProvider = provId;
+  cloudSelectedModel = modelId;
   document.getElementById('cloud-model-lbl').textContent = label;
   document.querySelectorAll('#cloud-model-dd .dd-item').forEach(x => x.classList.remove('sel'));
   closeAllDD();
+  const p = _cloudProviders.find(x => x.id === provId);
+  if (p && !p.has_key) {
+    toast('🔑 Add your ' + p.name + ' API key to use this model', 'err');
+    cloudSetKey(provId, p.key_hint || '');
+  }
 }
 
 function cloudNewChat() {
@@ -5063,7 +5099,7 @@ async function sendCloudMsg() {
   const inp  = document.getElementById('cloud-inp');
   const text = inp.value.trim();
   if (!text) return;
-  if (!cloudSelectedModel) { toast('Select a model first', 'err'); return; }
+  if (!cloudSelectedProvider || !cloudSelectedModel) { toast('Select a model first', 'err'); return; }
   inp.value = ''; autoSize(inp);
 
   // Build UI bubbles
@@ -5097,14 +5133,15 @@ async function sendCloudMsg() {
 
   try {
     // ════════════════════════════════════════════════════════
-    // Vortelio Cloud proxy — SSE from /api/proxy/chat
+    // BYOK — uniform SSE from /api/cloud/chat ({"delta":"..."})
+    // The server calls the provider directly with the user's own key.
     // ════════════════════════════════════════════════════════
     const payload = {
+      provider: cloudSelectedProvider,
       model: cloudSelectedModel,
-      stream: true,
       messages: [...cloudHistory.slice(0,-1), {role:'user', content:text}],
     };
-    const r = await apiFetch('/api/proxy/chat', {
+    const r = await apiFetch('/api/cloud/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload),
@@ -5125,17 +5162,13 @@ async function sendCloudMsg() {
         if (!line.startsWith('data: ')) continue;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') break outer;
-        try {
-          const ev = JSON.parse(raw);
-          const d = ev.choices?.[0]?.delta?.content || '';
-          if (d) { fullText += d; tn.innerHTML = renderMessage(fullText); canvas.scrollTop = 9999; }
-        } catch(_) {}
+        let ev;
+        try { ev = JSON.parse(raw); } catch(_) { continue; }
+        if (ev.error) throw new Error(ev.error);
+        const d = ev.delta || '';
+        if (d) { fullText += d; tn.innerHTML = renderMessage(fullText); canvas.scrollTop = 9999; }
       }
     }
-    // Update usage label after response
-    cloudLoadUsage();
-
-
 
     cloudHistory.push({role:'assistant', content:fullText||'(empty response)'});
     if (!fullText && content.querySelector('.dot-pulse')) { pulse.remove(); content.textContent='(empty response)'; }
