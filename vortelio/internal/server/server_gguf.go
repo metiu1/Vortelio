@@ -141,13 +141,13 @@ func parseGGUF(f *os.File) (map[string]interface{}, error) {
 
 	st, _ := f.Stat()
 	return map[string]interface{}{
-		"path":          f.Name(),
-		"file_size":     st.Size(),
-		"gguf_version":  version,
-		"tensor_count":  tensorCount,
+		"path":           f.Name(),
+		"file_size":      st.Size(),
+		"gguf_version":   version,
+		"tensor_count":   tensorCount,
 		"metadata_count": kvCount,
-		"metadata":      metadata,
-		"tensor_sample": tensors,
+		"metadata":       metadata,
+		"tensor_sample":  tensors,
 	}, nil
 }
 

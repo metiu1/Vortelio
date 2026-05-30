@@ -69,8 +69,12 @@ func TestSaveKey_overwrite(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("VORTELIO_HOME", tmp)
 
-	if err := SaveKey("openai", "sk-old"); err != nil { t.Fatal(err) }
-	if err := SaveKey("openai", "sk-new"); err != nil { t.Fatal(err) }
+	if err := SaveKey("openai", "sk-old"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveKey("openai", "sk-new"); err != nil {
+		t.Fatal(err)
+	}
 
 	got := LoadKey("openai")
 	if got != "sk-new" {

@@ -7,6 +7,10 @@ dist/*.whl
 dist/*.tar.gz
 vortelio/vortelio.exe
 vortelio/dist/
+# Built release binaries (large; produced by `make build`)
+vortelio/vortelio-windows-amd64.exe
+vortelio/vortelio-*-amd64
+vortelio/vortelio-*-amd64.exe
 vortelio-installer/build/*.exe
 vortelio-installer/*.exe
 .DS_Store

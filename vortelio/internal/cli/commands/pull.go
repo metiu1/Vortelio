@@ -19,15 +19,15 @@ func (c *PullCommand) Run(args []string) error {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: vortelio pull <model> [model2 ...] [--file <path> <type>]")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Singolo modello:")
+		fmt.Fprintln(os.Stderr, "Single model:")
 		fmt.Fprintln(os.Stderr, "  vortelio pull llm/mistral:7b")
 		fmt.Fprintln(os.Stderr, "  vortelio pull image/openjourney")
 		fmt.Fprintln(os.Stderr, "  vortelio pull llm/hf.co/unsloth/Qwen3.5-4B-Instruct-GGUF:Q4_K_M")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Più modelli insieme:")
+		fmt.Fprintln(os.Stderr, "Multiple models at once:")
 		fmt.Fprintln(os.Stderr, "  vortelio pull llm/mistral:7b image/openjourney audio/whisper:base")
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "Da file locale:")
+		fmt.Fprintln(os.Stderr, "From a local file:")
 		fmt.Fprintln(os.Stderr, "  vortelio pull --file ./my-model.gguf llm")
 		return nil
 	}
@@ -36,7 +36,7 @@ func (c *PullCommand) Run(args []string) error {
 	for i, a := range args {
 		if a == "--file" || a == "-f" {
 			if i+2 > len(args)-1 {
-				return fmt.Errorf("--file richiede: --file <percorso> <tipo>")
+				return fmt.Errorf("--file requires: --file <path> <type>")
 			}
 			return c.importLocal(args[i+1], args[i+2])
 		}
@@ -51,7 +51,7 @@ func (c *PullCommand) Run(args []string) error {
 	}
 
 	if len(refs) == 0 {
-		return fmt.Errorf("nessun modello specificato")
+		return fmt.Errorf("no model specified")
 	}
 
 	// Download each model
@@ -105,14 +105,14 @@ func (c *PullCommand) Run(args []string) error {
 		fmt.Printf("\n%d/%d models downloaded successfully.\n", len(refs)-failed, len(refs))
 	}
 	if failed > 0 {
-		return fmt.Errorf("%d download falliti", failed)
+		return fmt.Errorf("%d downloads failed", failed)
 	}
 	return nil
 }
 
 func (c *PullCommand) importLocal(path, modelType string) error {
 	if modelType == "" {
-		return fmt.Errorf("--file richiede il tipo come secondo argomento (llm, image, audio, video, 3d)")
+		return fmt.Errorf("--file requires the type as second argument (llm, image, audio, video, 3d)")
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", path)
@@ -120,7 +120,7 @@ func (c *PullCommand) importLocal(path, modelType string) error {
 	fmt.Printf("📦  Importing local model from %s (type=%s)...\n", path, modelType)
 	importer := hub.NewLocalImporter()
 	if err := importer.Import(path, modelType); err != nil {
-		return fmt.Errorf("import fallito: %w", err)
+		return fmt.Errorf("import failed: %w", err)
 	}
 	fmt.Println("✅  Model imported.")
 	fmt.Println("    Run: vortelio list")

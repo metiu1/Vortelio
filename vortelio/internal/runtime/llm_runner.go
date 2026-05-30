@@ -57,7 +57,7 @@ func (r *LLMRunner) Run(opts *RunOptions) error {
 	if opts.InputFile != "" {
 		data, err := os.ReadFile(opts.InputFile)
 		if err != nil {
-			return fmt.Errorf("lettura file fallita: %w", err)
+			return fmt.Errorf("file read failed: %w", err)
 		}
 		prompt = string(data)
 	}
@@ -134,7 +134,7 @@ func (r *LLMRunner) ensureServer() error {
 
 	port, err := freePort()
 	if err != nil {
-		return fmt.Errorf("impossibile trovare porta libera: %w", err)
+		return fmt.Errorf("could not find a free port: %w", err)
 	}
 	r.apiURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 
@@ -152,12 +152,16 @@ func (r *LLMRunner) ensureServer() error {
 	gpuLayers := fmt.Sprintf("%d", nGL)
 
 	ctxSize := 4096
-	if r.currentCtxSize > 0 { ctxSize = r.currentCtxSize }
+	if r.currentCtxSize > 0 {
+		ctxSize = r.currentCtxSize
+	}
 	if v, ok := r.model.ModelParameters["num_ctx"]; ok {
 		if n, err := fmt.Sscanf(v, "%d", new(int)); n == 1 && err == nil {
 			var parsed int
 			fmt.Sscanf(v, "%d", &parsed)
-			if parsed > 0 { ctxSize = parsed }
+			if parsed > 0 {
+				ctxSize = parsed
+			}
 		}
 	}
 
@@ -200,13 +204,13 @@ func (r *LLMRunner) ensureServer() error {
 	cmd.Stderr = nil
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("avvio llama-server fallito: %w\n    Percorso: %s", err, srv)
+		return fmt.Errorf("llama-server start failed: %w\n    Path: %s", err, srv)
 	}
 	r.proc = cmd
 
 	// Wait until /health returns {"status":"ok"} — NOT just any 200
 	// During loading it returns 200 {"status":"loading model"}, we must wait for "ok"
-	fmt.Printf("⏳  Caricamento modello")
+	fmt.Printf("⏳  Loading model")
 	deadline := time.Now().Add(120 * time.Second)
 	client := &http.Client{Timeout: 2 * time.Second}
 
@@ -215,7 +219,7 @@ func (r *LLMRunner) ensureServer() error {
 
 		// Check if process died unexpectedly
 		if r.proc.ProcessState != nil {
-			return fmt.Errorf("llama-server è uscito inaspettatamente (codice %d)", r.proc.ProcessState.ExitCode())
+			return fmt.Errorf("llama-server exited unexpectedly (code %d)", r.proc.ProcessState.ExitCode())
 		}
 
 		resp, err := client.Get(r.apiURL + "/health")
@@ -241,13 +245,13 @@ func (r *LLMRunner) ensureServer() error {
 			continue
 		}
 		if health.Status == "error" {
-			return fmt.Errorf("llama-server ha riportato errore: %s", string(body))
+			return fmt.Errorf("llama-server reported an error: %s", string(body))
 		}
 		fmt.Print(".")
 	}
 
 	r.proc.Process.Kill()
-	return fmt.Errorf("timeout (120s): il modello non si è caricato. Il modello potrebbe essere troppo grande per la VRAM disponibile (%s)", r.hw.String())
+	return fmt.Errorf("timeout (120s): the model did not load. It may be too large for the available VRAM (%s)", r.hw.String())
 }
 
 func (r *LLMRunner) stopServer() {
@@ -261,14 +265,14 @@ func (r *LLMRunner) stopServer() {
 func (r *LLMRunner) chatAPI(history []histEntry, userMsg string, opts *RunOptions) (string, error) {
 	messages := []map[string]string{
 		(func() map[string]string {
-		sysPrompt := "Sei un assistente AI utile e preciso."
-		if r.thinkMode {
-			sysPrompt = "Sei un assistente AI utile e preciso. " +
-				"Prima di rispondere, ragiona passo per passo racchiudendo il tuo ragionamento " +
-				"tra tag <think> e </think>. Poi fornisci la risposta finale."
-		}
-		return map[string]string{"role": "system", "content": sysPrompt}
-	}()),
+			sysPrompt := "You are a helpful and precise AI assistant."
+			if r.thinkMode {
+				sysPrompt = "You are a helpful and precise AI assistant. " +
+					"Before answering, reason step by step, wrapping your reasoning " +
+					"between <think> and </think> tags. Then give the final answer."
+			}
+			return map[string]string{"role": "system", "content": sysPrompt}
+		}()),
 	}
 	for _, h := range history {
 		messages = append(messages,
@@ -291,7 +295,7 @@ func (r *LLMRunner) chatAPI(history []histEntry, userMsg string, opts *RunOption
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Post(r.apiURL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("connessione al server fallita: %w", err)
+		return "", fmt.Errorf("server connection failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -339,7 +343,7 @@ func (r *LLMRunner) chatAPI(history []histEntry, userMsg string, opts *RunOption
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return full.String(), fmt.Errorf("errore lettura stream: %w", err)
+		return full.String(), fmt.Errorf("stream read error: %w", err)
 	}
 
 	return strings.TrimSpace(full.String()), nil
@@ -408,10 +412,10 @@ func gpuLayersForVRAM(vram int64) int {
 
 func (r *LLMRunner) fallbackPrint() error {
 	fmt.Println()
-	fmt.Println("⚠️   llama-server non trovato.")
+	fmt.Println("⚠️   llama-server not found.")
 	fmt.Println()
 	fmt.Println("    Le versioni recenti di llama.cpp includono llama-server.")
-	fmt.Println("    Scarica il pacchetto completo da:")
+	fmt.Println("    Download the full package from:")
 	fmt.Println("    https://github.com/ggerganov/llama.cpp/releases")
 	fmt.Println()
 	fmt.Println("    Oppure esegui: vortelio setup")
@@ -420,10 +424,10 @@ func (r *LLMRunner) fallbackPrint() error {
 }
 
 // NewLLMRunnerForServer creates an LLMRunner for use by the HTTP server.
-func (r *LLMRunner) SetContextSize(n int)    { r.currentCtxSize = n }
-func (r *LLMRunner) SetThink(v bool)         { r.thinkMode = v }
+func (r *LLMRunner) SetContextSize(n int)     { r.currentCtxSize = n }
+func (r *LLMRunner) SetThink(v bool)          { r.thinkMode = v }
 func (r *LLMRunner) SetHistory(h []HistEntry) { r.history = h }
-func (r *LLMRunner) SetToolsEnabled(v bool)  { r.toolsEnabled = v }
+func (r *LLMRunner) SetToolsEnabled(v bool)   { r.toolsEnabled = v }
 
 func NewLLMRunnerForServer(model *hub.Model, hw *Hardware) *LLMRunner {
 	return &LLMRunner{model: model, hw: hw}
@@ -453,14 +457,14 @@ func (r *LLMRunner) StreamToWriterWithTools(opts *RunOptions, emit func(string),
 	}
 
 	// Build messages: system + history + current prompt
-	sysPrompt := "Sei un assistente AI utile e preciso."
+	sysPrompt := "You are a helpful and precise AI assistant."
 	if r.thinkMode {
-		sysPrompt = "Sei un assistente AI utile e preciso. " +
-			"Prima di rispondere, ragiona passo per passo racchiudendo il tuo ragionamento " +
-			"tra tag <think> e </think>. Poi fornisci la risposta finale."
+		sysPrompt = "You are a helpful and precise AI assistant. " +
+			"Before answering, reason step by step, wrapping your reasoning " +
+			"between <think> and </think> tags. Then give the final answer."
 	}
 	if r.toolsEnabled {
-		sysPrompt += " Hai accesso a strumenti (tools). Quando è utile, usali per fornire risposte accurate."
+		sysPrompt += " You have access to tools. Use them when helpful to provide accurate answers."
 	}
 
 	// Use []interface{} for messages so we can include tool messages with extra fields
@@ -497,7 +501,7 @@ func (r *LLMRunner) StreamToWriterWithTools(opts *RunOptions, emit func(string),
 		client := &http.Client{Timeout: 120 * time.Second}
 		resp, err := client.Post(r.apiURL+"/v1/chat/completions", "application/json", bytes.NewReader(body))
 		if err != nil {
-			return fmt.Errorf("connessione al server fallita: %w", err)
+			return fmt.Errorf("server connection failed: %w", err)
 		}
 
 		// Accumulate tool calls from the streaming response
@@ -520,7 +524,7 @@ func (r *LLMRunner) StreamToWriterWithTools(opts *RunOptions, emit func(string),
 			var chunk struct {
 				Choices []struct {
 					Delta struct {
-						Content   string     `json:"content"`
+						Content   string `json:"content"`
 						ToolCalls []struct {
 							Index    int    `json:"index"`
 							ID       string `json:"id"`
@@ -678,13 +682,13 @@ type LLMOptions struct {
 	NumCtx        int
 	Seed          int
 	// Hardware options (may trigger server restart if different from loaded config)
-	NumGPU     int  // override GPU layers (-1 = full offload, 0 = CPU)
-	FlashAttn  bool // enable flash attention
-	Mmap       *bool // nil = default, true/false = explicit
-	Numa       bool // enable NUMA
-	NumThreads int  // number of CPU threads
-	TfsZ       float64 // tail free sampling
-	TypicalP   float64 // locally typical sampling
+	NumGPU           int     // override GPU layers (-1 = full offload, 0 = CPU)
+	FlashAttn        bool    // enable flash attention
+	Mmap             *bool   // nil = default, true/false = explicit
+	Numa             bool    // enable NUMA
+	NumThreads       int     // number of CPU threads
+	TfsZ             float64 // tail free sampling
+	TypicalP         float64 // locally typical sampling
 	PresencePenalty  float64
 	FrequencyPenalty float64
 }
@@ -790,10 +794,10 @@ type StreamOpts struct {
 	Images       []string                 // base64-encoded images for multimodal input
 	Raw          bool                     // skip system/chat-template wrapping
 	Think        bool
-	ThinkEmit    func(string)             // called with thinking tokens (separate from content)
-	ToolsEnabled bool                     // enable server-side builtin tool execution loop
-	ClientTools  json.RawMessage          // tool definitions from client forwarded to model as-is
-	ToolCallEmit func([]ToolCall)         // when set: emit tool_calls to client instead of executing server-side
+	ThinkEmit    func(string)     // called with thinking tokens (separate from content)
+	ToolsEnabled bool             // enable server-side builtin tool execution loop
+	ClientTools  json.RawMessage  // tool definitions from client forwarded to model as-is
+	ToolCallEmit func([]ToolCall) // when set: emit tool_calls to client instead of executing server-side
 	Options      LLMOptions
 	Format       string // "json" or raw JSON schema string
 }
@@ -856,9 +860,13 @@ func applyModelfileTemplate(tmplSrc string, sopts StreamOpts) (string, error) {
 // streamWithRawPrompt sends a pre-formatted raw string to llama-server's /completion endpoint.
 func (r *LLMRunner) streamWithRawPrompt(prompt string, sopts StreamOpts, emit func(string)) error {
 	maxTok := 512
-	if sopts.Options.MaxTokens > 0 { maxTok = sopts.Options.MaxTokens }
+	if sopts.Options.MaxTokens > 0 {
+		maxTok = sopts.Options.MaxTokens
+	}
 	temp := 0.7
-	if sopts.Options.Temperature > 0 { temp = sopts.Options.Temperature }
+	if sopts.Options.Temperature > 0 {
+		temp = sopts.Options.Temperature
+	}
 
 	payload := map[string]interface{}{
 		"prompt":      prompt,
@@ -866,11 +874,21 @@ func (r *LLMRunner) streamWithRawPrompt(prompt string, sopts StreamOpts, emit fu
 		"temperature": temp,
 		"stream":      true,
 	}
-	if sopts.Options.TopP > 0 { payload["top_p"] = sopts.Options.TopP }
-	if sopts.Options.TopK > 0 { payload["top_k"] = sopts.Options.TopK }
-	if sopts.Options.RepeatPenalty > 0 { payload["repeat_penalty"] = sopts.Options.RepeatPenalty }
-	if sopts.Options.Seed != 0 { payload["seed"] = sopts.Options.Seed }
-	if len(sopts.Options.Stop) > 0 { payload["stop"] = sopts.Options.Stop }
+	if sopts.Options.TopP > 0 {
+		payload["top_p"] = sopts.Options.TopP
+	}
+	if sopts.Options.TopK > 0 {
+		payload["top_k"] = sopts.Options.TopK
+	}
+	if sopts.Options.RepeatPenalty > 0 {
+		payload["repeat_penalty"] = sopts.Options.RepeatPenalty
+	}
+	if sopts.Options.Seed != 0 {
+		payload["seed"] = sopts.Options.Seed
+	}
+	if len(sopts.Options.Stop) > 0 {
+		payload["stop"] = sopts.Options.Stop
+	}
 
 	body, _ := json.Marshal(payload)
 	client := &http.Client{Timeout: 120 * time.Second}
@@ -892,18 +910,26 @@ func (r *LLMRunner) streamWithRawPrompt(prompt string, sopts StreamOpts, emit fu
 	sc.Buffer(make([]byte, 64*1024), 64*1024)
 	for sc.Scan() {
 		line := sc.Text()
-		if !strings.HasPrefix(line, "data: ") { continue }
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
 		data := strings.TrimPrefix(line, "data: ")
 		var chunk struct {
 			Content string `json:"content"`
 			Stop    bool   `json:"stop"`
 		}
 		if json.Unmarshal([]byte(data), &chunk) == nil {
-			if chunk.Content != "" { effectiveEmit(chunk.Content) }
-			if chunk.Stop { break }
+			if chunk.Content != "" {
+				effectiveEmit(chunk.Content)
+			}
+			if chunk.Stop {
+				break
+			}
 		}
 	}
-	if splitter != nil { splitter.flush() }
+	if splitter != nil {
+		splitter.flush()
+	}
 	return sc.Err()
 }
 
@@ -1278,30 +1304,40 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 func (r *LLMRunner) runWithTransformers(opts *RunOptions) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 non trovato")
+		return fmt.Errorf("Python 3 not found")
 	}
 	prompt := opts.Prompt
 	if opts.InputFile != "" {
 		data, _ := os.ReadFile(opts.InputFile)
 		prompt = string(data)
 	}
-	if prompt == "" { prompt = "Ciao!" }
+	if prompt == "" {
+		prompt = "Hello!"
+	}
 	if !CheckPythonPackage(pythonBin, "transformers") {
-		fmt.Println("📦  Installazione transformers...")
+		fmt.Println("📦  Installing transformers...")
 		_ = InstallPythonPackage(pythonBin, "transformers", "accelerate", "sentencepiece", "torch")
 	}
 	modelDir := filepath.Dir(r.model.LocalPath)
 	for {
-		if _, err := os.Stat(filepath.Join(modelDir, "config.json")); err == nil { break }
+		if _, err := os.Stat(filepath.Join(modelDir, "config.json")); err == nil {
+			break
+		}
 		p := filepath.Dir(modelDir)
-		if p == modelDir { break }
+		if p == modelDir {
+			break
+		}
 		modelDir = p
 	}
 	modelDirFwd := strings.ReplaceAll(modelDir, `\`, `/`)
 	hwDevice := "cuda"
-	if r.hw.Backend == BackendCPU || opts.ForceCPU { hwDevice = "cpu" }
+	if r.hw.Backend == BackendCPU || opts.ForceCPU {
+		hwDevice = "cpu"
+	}
 	maxNew := 512
-	if opts.ContextSize > 0 { maxNew = opts.ContextSize / 4 }
+	if opts.ContextSize > 0 {
+		maxNew = opts.ContextSize / 4
+	}
 
 	script := fmt.Sprintf(`import sys, os
 os.environ["PYTHONIOENCODING"] = "utf-8"
@@ -1315,7 +1351,7 @@ except ImportError as e:
     print(f"Dipendenza mancante: {e}")
     print("pip install transformers accelerate torch sentencepiece")
     sys.exit(1)
-print(f"Caricamento modello da {model_path}...")
+print(f"Loading model from {model_path}...")
 dtype = torch.float16 if device != "cpu" else torch.float32
 try:
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
@@ -1325,9 +1361,9 @@ try:
         trust_remote_code=True, low_cpu_mem_usage=True,
     )
 except Exception as e:
-    print(f"Errore caricamento: {e}")
+    print(f"Load error: {e}")
     sys.exit(1)
-print("Generazione risposta...")
+print("Generating response...")
 inputs = tokenizer(prompt, return_tensors="pt").to(device if device != "cpu" else "cpu")
 streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 with torch.no_grad():
@@ -1336,7 +1372,9 @@ with torch.no_grad():
 `, modelDirFwd, escapePy(prompt), hwDevice, maxNew)
 
 	tmp, err := os.CreateTemp("", "vortelio-llm-*.py")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tmp.Name())
 	tmp.WriteString(script)
 	tmp.Close()
@@ -1350,27 +1388,39 @@ with torch.no_grad():
 func (r *LLMRunner) streamWithTransformers(opts *RunOptions, emit func(string)) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 non trovato.\nInstalla Python 3.10+ da https://python.org/downloads")
+		return fmt.Errorf("Python 3 not found.\nInstall Python 3.10+ from https://python.org/downloads")
 	}
 
 	// Find the model directory (walk up to find config.json)
 	modelDir := filepath.Dir(r.model.LocalPath)
 	for {
-		if _, err := os.Stat(filepath.Join(modelDir, "config.json")); err == nil { break }
+		if _, err := os.Stat(filepath.Join(modelDir, "config.json")); err == nil {
+			break
+		}
 		parent := filepath.Dir(modelDir)
-		if parent == modelDir { break }
+		if parent == modelDir {
+			break
+		}
 		modelDir = parent
 	}
 	modelDirFwd := strings.ReplaceAll(modelDir, `\`, `/`)
 
 	hwDevice := "cuda"
-	if r.hw.Backend == BackendCPU || opts.ForceCPU { hwDevice = "cpu" }
+	if r.hw.Backend == BackendCPU || opts.ForceCPU {
+		hwDevice = "cpu"
+	}
 
 	ctxSize := 2048
-	if r.currentCtxSize > 0 { ctxSize = r.currentCtxSize }
+	if r.currentCtxSize > 0 {
+		ctxSize = r.currentCtxSize
+	}
 	maxNew := ctxSize / 4
-	if maxNew < 256 { maxNew = 256 }
-	if maxNew > 1024 { maxNew = 1024 }
+	if maxNew < 256 {
+		maxNew = 256
+	}
+	if maxNew > 1024 {
+		maxNew = 1024
+	}
 
 	// Build conversation from history + current prompt
 	conversation := ""
@@ -1401,18 +1451,18 @@ except ImportError:
         ok = subprocess.run(args, capture_output=True).returncode == 0
         if ok: break
     if not ok:
-        print("VORTELIO_ERROR: impossibile installare transformers. Esegui: pip install transformers torch")
+        print("VORTELIO_ERROR: could not install transformers. Run: pip install transformers torch")
         sys.exit(1)
     from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
     import torch
     from threading import Thread
 
-sys.stdout.write("VORTELIO_PROGRESS:10:Caricamento tokenizer...
+sys.stdout.write("VORTELIO_PROGRESS:10:Loading tokenizer...
 "); sys.stdout.flush()
 dtype = torch.float16 if device != "cpu" else torch.float32
 try:
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    sys.stdout.write("VORTELIO_PROGRESS:30:Caricamento modello...
+    sys.stdout.write("VORTELIO_PROGRESS:30:Loading model...
 "); sys.stdout.flush()
     model = AutoModelForCausalLM.from_pretrained(
         model_path, torch_dtype=dtype,
@@ -1423,7 +1473,7 @@ except Exception as e:
     print(f"VORTELIO_ERROR: {e}")
     sys.exit(1)
 
-sys.stdout.write("VORTELIO_PROGRESS:60:Generazione risposta...
+sys.stdout.write("VORTELIO_PROGRESS:60:Generating response...
 "); sys.stdout.flush()
 inputs = tokenizer(prompt, return_tensors="pt").to(device if device == "cuda" else "cpu")
 streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -1446,7 +1496,9 @@ VORTELIO_DONE
 `, modelDirFwd, escapePy(conversation), hwDevice, maxNew)
 
 	tmp, err := os.CreateTemp("", "vortelio-stream-*.py")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tmp.Name())
 	tmp.WriteString(script)
 	tmp.Close()
@@ -1455,9 +1507,13 @@ VORTELIO_DONE
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "PYTHONUTF8=1")
 
 	stdout, err := cmd.StdoutPipe()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil { return err }
+	if err := cmd.Start(); err != nil {
+		return err
+	}
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {

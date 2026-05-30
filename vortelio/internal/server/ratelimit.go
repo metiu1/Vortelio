@@ -54,7 +54,9 @@ func (tb *tokenBucket) allow(ip string) bool {
 	now := time.Now()
 	elapsed := now.Sub(b.lastRefil).Seconds()
 	b.tokens += elapsed * tb.rate
-	if b.tokens > tb.capacity { b.tokens = tb.capacity }
+	if b.tokens > tb.capacity {
+		b.tokens = tb.capacity
+	}
 	b.lastRefil = now
 
 	if b.tokens < 1 {
@@ -66,9 +68,9 @@ func (tb *tokenBucket) allow(ip string) bool {
 
 // rate limiters globali
 var (
-	generateLimiter = newTokenBucket(2, 5)   // 2 req/s, burst 5
-	pullLimiter     = newTokenBucket(1, 3)   // 1 req/s, burst 3
-	authLimiter     = newTokenBucket(5, 10)  // 5 req/s, burst 10 — covers auth verify flood
+	generateLimiter = newTokenBucket(2, 5)  // 2 req/s, burst 5
+	pullLimiter     = newTokenBucket(1, 3)  // 1 req/s, burst 3
+	authLimiter     = newTokenBucket(5, 10) // 5 req/s, burst 10 — covers auth verify flood
 )
 
 func withRateLimit(tb *tokenBucket, h http.HandlerFunc) http.HandlerFunc {
@@ -76,8 +78,12 @@ func withRateLimit(tb *tokenBucket, h http.HandlerFunc) http.HandlerFunc {
 		ip := r.RemoteAddr
 		// Strip port if present
 		if i := len(ip) - 1; i >= 0 {
-			for i >= 0 && ip[i] != ':' { i-- }
-			if i > 0 { ip = ip[:i] }
+			for i >= 0 && ip[i] != ':' {
+				i--
+			}
+			if i > 0 {
+				ip = ip[:i]
+			}
 		}
 		if !tb.allow(ip) {
 			jsonError(w, http.StatusTooManyRequests, "rate limit exceeded — riprova tra qualche secondo")

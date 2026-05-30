@@ -28,7 +28,7 @@ func (r *ImageRunner) Run(opts *RunOptions) error {
 	output := ResolveOutputPath(opts.OutputFile, "output.png")
 	device := r.deviceString(opts.ForceCPU)
 
-	fmt.Printf("🎨  Generazione immagine (%d step, device=%s)\n", opts.Steps, device)
+	fmt.Printf("🎨  Generating image (%d step, device=%s)\n", opts.Steps, device)
 	fmt.Printf("    Prompt: %q\n", opts.Prompt)
 	fmt.Printf("    Output: %s\n\n", output)
 
@@ -42,8 +42,8 @@ func (r *ImageRunner) Run(opts *RunOptions) error {
 
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		fmt.Println("\n⚠️   Python 3 non trovato.")
-		fmt.Println("    Installa Python 3.10+ da: https://python.org/downloads")
+		fmt.Println("\n⚠️   Python 3 not found.")
+		fmt.Println("    Install Python 3.10+ from: https://python.org/downloads")
 		return nil
 	}
 	return r.runDiffusers(pythonBin, opts.Prompt, output, device, opts.Steps)
@@ -58,22 +58,22 @@ func (r *ImageRunner) runGGUF(pythonBin, prompt, output, device string, steps in
 	}
 
 	// Not installed — offer to download
-	fmt.Println("📦  stable-diffusion.cpp non trovato. Scarico il binario...")
+	fmt.Println("📦  stable-diffusion.cpp not found. Downloading the binary...")
 	if err := InstallSDCpp(r.hw); err != nil {
-		fmt.Printf("⚠️   Download fallito (%v). Uso il backend Python...\n", err)
+		fmt.Printf("⚠️   Download failed (%v). Using the Python backend...\n", err)
 	} else if sdBin := SDCppBin(); sdBin != "" {
 		return r.runNativeSD(sdBin, prompt, output, steps, forceCPU)
 	}
 
 	// ── Fallback: stable-diffusion-cpp-python ───────────────────────────────
 	if pythonBin == "" {
-		return fmt.Errorf("né stable-diffusion.cpp né Python trovati\n  Scarica manualmente: https://github.com/leejet/stable-diffusion.cpp/releases")
+		return fmt.Errorf("neither stable-diffusion.cpp nor Python found\n  Download manually: https://github.com/leejet/stable-diffusion.cpp/releases")
 	}
 	if !CheckPythonPackage(pythonBin, "stable_diffusion_cpp") {
-		fmt.Println("📦  Installazione stable-diffusion-cpp-python (backend GGUF)...")
+		fmt.Println("📦  Installing stable-diffusion-cpp-python (backend GGUF)...")
 		_ = InstallPythonPackage(pythonBin, "stable-diffusion-cpp-python")
 		if !CheckPythonPackage(pythonBin, "stable_diffusion_cpp") {
-			fmt.Println("❌  Installazione fallita. Installa manualmente:")
+			fmt.Println("❌  Installation failed. Install manually:")
 			fmt.Println("    pip install stable-diffusion-cpp-python")
 			return nil
 		}
@@ -83,19 +83,19 @@ func (r *ImageRunner) runGGUF(pythonBin, prompt, output, device string, steps in
 	output = strings.ReplaceAll(output, `\`, `/`)
 	useCUDA := r.hw.Backend == BackendCUDA && !forceCPU
 
-		script := fmt.Sprintf(`import sys, warnings, inspect
+	script := fmt.Sprintf(`import sys, warnings, inspect
 warnings.filterwarnings("ignore")
 try:
     from stable_diffusion_cpp import StableDiffusion
 except ImportError:
-    print("Errore: stable-diffusion-cpp-python non trovato.")
+    print("Error: stable-diffusion-cpp-python not found.")
     print("  pip install stable-diffusion-cpp-python")
     sys.exit(1)
 
 model_path = r'''%s'''
 use_cuda   = %s
 
-print("Caricamento modello GGUF...")
+print("Loading model GGUF...")
 n_gpu = -1 if use_cuda else 0
 
 # Try construction — some versions need different params
@@ -111,17 +111,17 @@ except Exception as e1:
     try:
         sd = StableDiffusion(model_path=model_path, n_threads=-1, verbose=True)
     except Exception as e2:
-        print(f"Errore caricamento modello: {e2}")
+        print(f"Model load error: {e2}")
         print()
         print("Possibili cause:")
-        print("  - File GGUF corrotto o incompleto (riprova vortelio pull)")
-        print("  - Architettura non supportata (prova un modello safetensors)")
+        print("  - GGUF file corrupted or incomplete (retry vortelio pull)")
+        print("  - Architecture not supported (try a safetensors model)")
         print("  - Versione stable-diffusion-cpp-python incompatibile")
         print("    pip install --upgrade stable-diffusion-cpp-python")
         sys.exit(1)
 
 prompt_text = '''%s'''
-print("Generazione in corso...")
+print("Generating...")
 
 # stable_diffusion_cpp 0.4+: generate_image(prompt, negative_prompt, ...)
 # older: txt_to_img(prompt, negative_prompt, ...)
@@ -145,16 +145,16 @@ elif hasattr(sd, "text_to_image"):
     img = r[0] if isinstance(r, (list,tuple)) else r
 else:
     gen_methods = [m for m in dir(sd) if not m.startswith("_") and ("img" in m or "image" in m or "gen" in m)]
-    print(f"Errore: API non riconosciuta. Metodi trovati: {gen_methods}")
+    print(f"Error: API not recognized. Methods found: {gen_methods}")
     print("Aggiorna il pacchetto: pip install --upgrade stable-diffusion-cpp-python")
     sys.exit(1)
 
 if img is None:
-    print("Errore: nessuna immagine generata.")
+    print("Error: no image generated.")
     sys.exit(1)
 
 img.save(r'''%s''')
-print(f"\n\u2705  Immagine salvata: %s")
+print(f"\n\u2705  Image saved: %s")
 `, modelPath, boolPy(useCUDA), escapePy(prompt), steps, output, output)
 	return r.runPython(pythonBin, script)
 }
@@ -188,7 +188,7 @@ func (r *ImageRunner) runNativeSD(sdBin, prompt, output string, steps int, force
 // runDiffusers handles safetensors/diffusers format models
 func (r *ImageRunner) runDiffusers(pythonBin, prompt, output, device string, steps int) error {
 	if !CheckPythonPackage(pythonBin, "diffusers") {
-		fmt.Println("📦  diffusers non installato.")
+		fmt.Println("📦  diffusers not installed.")
 		if r.hw.Backend == BackendCUDA {
 			fmt.Println("    pip install diffusers transformers accelerate torch --index-url https://download.pytorch.org/whl/cu121")
 		} else {
@@ -229,7 +229,7 @@ model_path = r'''%s'''
 model_dir  = r'''%s'''
 dtype = torch.float16 if device != "cpu" else torch.float32
 
-print("Caricamento modello...")
+print("Loading model...")
 pipe = None
 has_index = os.path.exists(os.path.join(model_dir, "model_index.json"))
 
@@ -248,7 +248,7 @@ if pipe is None and os.path.isfile(model_path):
             continue
 
 if pipe is None:
-    print("Errore: impossibile caricare il modello.")
+    print("Error: could not load the model.")
     sys.exit(1)
 
 pipe = pipe.to(device)
@@ -257,20 +257,20 @@ if device != "cpu":
     try: pipe.enable_xformers_memory_efficient_attention()
     except: pass
 
-print("Generazione in corso...")
+print("Generating...")
 result = pipe(prompt='''%s''', num_inference_steps=%d, guidance_scale=7.5)
 result.images[0].save(r'''%s''')
-print(f"\n✅  Immagine salvata: %s")
+print(f"\n✅  Image saved: %s")
 `, device, modelPath, modelDir, escapePy(prompt), steps, output, output)
 
 	return r.runPython(pythonBin, script)
 }
 
-
-
 func (r *ImageRunner) runPython(pythonBin, script string) error {
 	tmp, err := os.CreateTemp("", "vortelio-img-*.py")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tmp.Name())
 	tmp.WriteString(script)
 	tmp.Close()
@@ -282,28 +282,31 @@ func (r *ImageRunner) runPython(pythonBin, script string) error {
 		"TF_CPP_MIN_LOG_LEVEL=3",
 	)
 	if err := RunWithOutput(cmd, os.Stdout, os.Stderr); err != nil {
-		return fmt.Errorf("generazione immagine fallita: %w", err)
+		return fmt.Errorf("image generation failed: %w", err)
 	}
 	return nil
 }
-
 
 // RunWithProgress runs image generation streaming progress events via channel.
 // Since our image scripts already emit VORTELIO_PROGRESS lines, we run them
 // through RunWithProgress which parses those lines into ProgressEvents.
 func (r *ImageRunner) RunWithProgress(opts *RunOptions, progress chan<- ProgressEvent) error {
 	if opts.Prompt == "" {
-		if progress != nil { close(progress) }
+		if progress != nil {
+			close(progress)
+		}
 		return fmt.Errorf("image generation requires a text prompt")
 	}
 	// Run normally but use RunCapture path which uses RunWithCapture for detailed errors
 	// For progress: just signal start and done via channel workaround
 	if progress != nil {
-		progress <- ProgressEvent{Percent: 5, Message: "Avvio generazione..."}
+		progress <- ProgressEvent{Percent: 5, Message: "Starting generation..."}
 	}
 	err := r.Run(opts)
 	if progress != nil {
-		if err == nil { progress <- ProgressEvent{Percent: 100, Message: "Completato!"} }
+		if err == nil {
+			progress <- ProgressEvent{Percent: 100, Message: "Done!"}
+		}
 		close(progress)
 	}
 	return err

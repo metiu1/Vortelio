@@ -54,7 +54,7 @@ func handleCrewAI() error {
 		return agent.CatalogEntry{}, false
 	}()
 	if !ok {
-		waitKey("  ❌  CrewAI non trovato nel catalogo.")
+		waitKey("  ❌  CrewAI not found in catalog.")
 		return nil
 	}
 
@@ -63,16 +63,16 @@ func handleCrewAI() error {
 
 		var items []string
 		if state.Running {
-			items = append(items, "🤖  Apri gestione Crew (Web GUI)")
+			items = append(items, "🤖  Open Crew management (Web GUI)")
 			items = append(items, "⏹  Stop CrewAI server")
 		} else if state.Installed {
-			items = append(items, "▶  Avvia CrewAI server (porta 8500)")
-			items = append(items, "🗑  Disinstalla CrewAI")
+			items = append(items, "▶  Start CrewAI server (port 8500)")
+			items = append(items, "🗑  Uninstall CrewAI")
 		} else {
 			if state.PipFound {
-				items = append(items, "⬇  Installa CrewAI (pip)")
+				items = append(items, "⬇  Install CrewAI (pip)")
 			} else {
-				items = append(items, "⚠  Python/pip non trovato")
+				items = append(items, "⚠  Python/pip not found")
 			}
 		}
 		items = append(items, "← Back")
@@ -88,28 +88,28 @@ func handleCrewAI() error {
 			return nil
 		case strings.HasPrefix(chosen, "▶"):
 			if err := agent.Start("crewai"); err != nil {
-				waitKey(fmt.Sprintf("  ❌  Avvio fallito: %s", err.Error()))
+				waitKey(fmt.Sprintf("  ❌  Start failed: %s", err.Error()))
 			} else {
-				waitKey("  ✅  CrewAI server avviato su http://localhost:8500\n  Apri la Web GUI per gestire le crew.")
+				waitKey("  ✅  CrewAI server started at http://localhost:8500\n  Open the Web GUI to manage your crews.")
 			}
 		case strings.HasPrefix(chosen, "⏹"):
 			agent.Stop("crewai")
-			waitKey("  ✅  CrewAI server fermato.")
+			waitKey("  ✅  CrewAI server stopped.")
 		case strings.HasPrefix(chosen, "🤖"):
 			vortURL := fmt.Sprintf("http://localhost:%d", config.Get().Port)
 			openBrowser(vortURL)
-			waitKey("  🌐  Aperta Web GUI. Vai su 🤖 CrewAI nel menu laterale.")
+			waitKey("  🌐  Web GUI opened. Go to 🤖 CrewAI in the side menu.")
 		case strings.HasPrefix(chosen, "⬇"):
 			if err := runAgentInstall(crewEntry); err != nil {
-				waitKey(fmt.Sprintf("  ❌  Installazione fallita: %s", err.Error()))
+				waitKey(fmt.Sprintf("  ❌  Installation failed: %s", err.Error()))
 			}
 		case strings.HasPrefix(chosen, "🗑"):
-			confirm := selectMenu("Conferma disinstallazione CrewAI", []string{"Sì, disinstalla", "Annulla"})
+			confirm := selectMenu("Confirm CrewAI uninstall", []string{"Yes, uninstall", "Cancel"})
 			if confirm == 0 {
 				if err := agent.Uninstall("crewai"); err != nil {
-					waitKey(fmt.Sprintf("  ❌  Disinstallazione fallita: %s", err.Error()))
+					waitKey(fmt.Sprintf("  ❌  Uninstall failed: %s", err.Error()))
 				} else {
-					waitKey("  ✅  CrewAI disinstallato.")
+					waitKey("  ✅  CrewAI uninstalled.")
 				}
 			}
 		}
@@ -185,7 +185,7 @@ func handleAgentDetail(entry agent.CatalogEntry) error {
 		case strings.HasPrefix(chosen, "🤖"):
 			vortURL := fmt.Sprintf("http://localhost:%d", config.Get().Port)
 			openBrowser(vortURL)
-			waitKey("  🌐  Aperta Web GUI. Vai su 🤖 CrewAI nel menu laterale.")
+			waitKey("  🌐  Web GUI opened. Go to 🤖 CrewAI in the side menu.")
 
 		case strings.HasPrefix(chosen, "⬇"):
 			if err := runAgentInstall(entry); err != nil {

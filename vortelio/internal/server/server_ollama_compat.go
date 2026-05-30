@@ -208,12 +208,20 @@ func convertOllamaMessages(msgs []map[string]interface{}) []map[string]interface
 			parts := []interface{}{map[string]string{"type": "text", "text": textStr}}
 			for _, img := range images {
 				b64, ok := img.(string)
-				if !ok { continue }
+				if !ok {
+					continue
+				}
 				// Detect image type from base64 header; default to jpeg
 				mime := "image/jpeg"
-				if strings.HasPrefix(b64, "iVBOR") { mime = "image/png" }
-				if strings.HasPrefix(b64, "R0lGO") { mime = "image/gif" }
-				if strings.HasPrefix(b64, "Qk0") { mime = "image/bmp" }
+				if strings.HasPrefix(b64, "iVBOR") {
+					mime = "image/png"
+				}
+				if strings.HasPrefix(b64, "R0lGO") {
+					mime = "image/gif"
+				}
+				if strings.HasPrefix(b64, "Qk0") {
+					mime = "image/bmp"
+				}
 				parts = append(parts, map[string]interface{}{
 					"type":      "image_url",
 					"image_url": map[string]string{"url": "data:" + mime + ";base64," + b64},
@@ -363,7 +371,7 @@ func handleOllamaChat(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	// Determine tool mode: client-side (pass tools to model, return tool_calls) vs server-side builtin
-	clientTools := req.Tools // may be nil
+	clientTools := req.Tools                     // may be nil
 	serverSideTools := req.Tools == nil && false // reserved for future: builtin tools via separate flag
 
 	// Convert Ollama messages: images field inside message → OpenAI vision content array
@@ -406,7 +414,9 @@ func handleOllamaChat(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s\n", line)
 	}
 	flushW := func() {
-		if f, ok := w.(http.Flusher); ok { f.Flush() }
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
 	}
 
 	buildDoneChunk := func(msg map[string]interface{}, reason string) map[string]interface{} {
@@ -414,7 +424,7 @@ func handleOllamaChat(w http.ResponseWriter, r *http.Request) {
 			"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
 			"message": msg, "done": true, "done_reason": reason,
 			"total_duration": time.Since(start).Nanoseconds(),
-			"load_duration": 0, "prompt_eval_count": 0,
+			"load_duration":  0, "prompt_eval_count": 0,
 			"eval_count": 0, "eval_duration": time.Since(start).Nanoseconds(),
 		}
 	}
@@ -464,7 +474,9 @@ func handleOllamaChat(w http.ResponseWriter, r *http.Request) {
 			writeNDJSON(buildDoneChunk(msg, "tool_calls"))
 		} else {
 			msg := map[string]interface{}{"role": "assistant", "content": ""}
-			if thinkBuf.Len() > 0 { msg["thinking"] = thinkBuf.String() }
+			if thinkBuf.Len() > 0 {
+				msg["thinking"] = thinkBuf.String()
+			}
 			writeNDJSON(buildDoneChunk(msg, "stop"))
 		}
 		flushW()
@@ -486,7 +498,9 @@ func handleOllamaChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := map[string]interface{}{"role": "assistant", "content": fullResp.String()}
-	if thinkBuf.Len() > 0 { msg["thinking"] = thinkBuf.String() }
+	if thinkBuf.Len() > 0 {
+		msg["thinking"] = thinkBuf.String()
+	}
 	respond(w, 200, buildDoneChunk(msg, "stop"))
 }
 
@@ -494,7 +508,7 @@ func handleOllamaChat(w http.ResponseWriter, r *http.Request) {
 
 type ollamaEmbedRequest struct {
 	Model     string          `json:"model"`
-	Input     json.RawMessage `json:"input"`    // string or []string
+	Input     json.RawMessage `json:"input"` // string or []string
 	Truncate  *bool           `json:"truncate"`
 	Options   json.RawMessage `json:"options"`
 	KeepAlive json.RawMessage `json:"keep_alive"`
@@ -769,7 +783,9 @@ func handleOllamaCreate(w http.ResponseWriter, r *http.Request) {
 			if v, ok := mfParams["num_gpu"]; ok {
 				var n int
 				fmt.Sscanf(v, "%d", &n)
-				if n > 0 { newModel.NumGPULayers = n }
+				if n > 0 {
+					newModel.NumGPULayers = n
+				}
 			}
 			// Apply stop tokens
 			if stop, ok := mfParams["stop"]; ok && stop != "" {
@@ -1144,7 +1160,9 @@ func handleOllamaQuantize(w http.ResponseWriter, r *http.Request) {
 		if stream {
 			w.Header().Set("Content-Type", "application/x-ndjson")
 			fmt.Fprintf(w, "%s\n", line)
-			if f, ok := w.(http.Flusher); ok { f.Flush() }
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
 		}
 	}
 
@@ -1162,10 +1180,14 @@ func handleOllamaQuantize(w http.ResponseWriter, r *http.Request) {
 	outBytes, runErr := cmd.CombinedOutput()
 	if runErr != nil {
 		errMsg := string(outBytes)
-		if errMsg == "" { errMsg = runErr.Error() }
+		if errMsg == "" {
+			errMsg = runErr.Error()
+		}
 		line, _ := json.Marshal(map[string]string{"status": "error", "error": errMsg})
 		fmt.Fprintf(w, "%s\n", line)
-		if f, ok := w.(http.Flusher); ok { f.Flush() }
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
 		return
 	}
 
@@ -1198,13 +1220,19 @@ func findLlamaQuantize() string {
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
 		for _, name := range names {
-			if p := filepath.Join(dir, name); fileExists(p) { return p }
-			if p := filepath.Join(dir, "bin", name); fileExists(p) { return p }
+			if p := filepath.Join(dir, name); fileExists(p) {
+				return p
+			}
+			if p := filepath.Join(dir, "bin", name); fileExists(p) {
+				return p
+			}
 		}
 	}
 	if home, _ := os.UserHomeDir(); home != "" {
 		for _, name := range names {
-			if p := filepath.Join(home, ".vortelio", "bin", name); fileExists(p) { return p }
+			if p := filepath.Join(home, ".vortelio", "bin", name); fileExists(p) {
+				return p
+			}
 		}
 	}
 	return ""
@@ -1226,16 +1254,22 @@ var contextSessions = struct {
 
 // contextToKey converts a []int context token array to a string key.
 func contextToKey(ctx []int) string {
-	if len(ctx) == 0 { return "" }
+	if len(ctx) == 0 {
+		return ""
+	}
 	parts := make([]string, len(ctx))
-	for i, v := range ctx { parts[i] = strconv.Itoa(v) }
+	for i, v := range ctx {
+		parts[i] = strconv.Itoa(v)
+	}
 	return strings.Join(parts, ",")
 }
 
 // contextFromHistory returns a stable []int "token array" representing a session.
 // We use a simple encoding: hash the history key and return a sequence of ints.
 func contextFromKey(key string) []int {
-	if key == "" { return nil }
+	if key == "" {
+		return nil
+	}
 	h := sha256.Sum256([]byte(key))
 	out := make([]int, 8)
 	for i := 0; i < 8; i++ {

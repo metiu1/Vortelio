@@ -49,16 +49,23 @@ var (
 )
 
 func registerPull(model string, cancel context.CancelFunc) {
-	activePullsMu.Lock(); defer activePullsMu.Unlock()
+	activePullsMu.Lock()
+	defer activePullsMu.Unlock()
 	activePulls[model] = cancel
 }
 func unregisterPull(model string) {
-	activePullsMu.Lock(); defer activePullsMu.Unlock()
+	activePullsMu.Lock()
+	defer activePullsMu.Unlock()
 	delete(activePulls, model)
 }
 func cancelPull(model string) bool {
-	activePullsMu.Lock(); defer activePullsMu.Unlock()
-	if fn, ok := activePulls[model]; ok { fn(); delete(activePulls, model); return true }
+	activePullsMu.Lock()
+	defer activePullsMu.Unlock()
+	if fn, ok := activePulls[model]; ok {
+		fn()
+		delete(activePulls, model)
+		return true
+	}
 	return false
 }
 
@@ -77,24 +84,24 @@ type ModelWithSize struct {
 type GenerateRequest struct {
 	Model        string          `json:"model"`
 	Prompt       string          `json:"prompt"`
-	System       string          `json:"system"`      // system prompt override
-	Template     string          `json:"template"`    // prompt template override
-	Context      []int           `json:"context"`     // conversation context tokens
-	Images       []string        `json:"images"`      // base64-encoded images
-	Raw          bool            `json:"raw"`         // skip template wrapping
+	System       string          `json:"system"`   // system prompt override
+	Template     string          `json:"template"` // prompt template override
+	Context      []int           `json:"context"`  // conversation context tokens
+	Images       []string        `json:"images"`   // base64-encoded images
+	Raw          bool            `json:"raw"`      // skip template wrapping
 	Messages     []ChatMessage   `json:"messages"`
 	InputFile    string          `json:"input_file"`
 	OutputFile   string          `json:"output_file"`
 	Steps        int             `json:"steps"`
-	Stream       *bool           `json:"stream"`      // nil = true (streaming default)
+	Stream       *bool           `json:"stream"` // nil = true (streaming default)
 	ForceCPU     bool            `json:"force_cpu"`
 	ContextSize  int             `json:"context_size"`
 	Think        bool            `json:"think"`
 	ToolsEnabled bool            `json:"tools_enabled"`
-	Format       json.RawMessage `json:"format"`      // "json" or JSON schema
-	Suffix       string          `json:"suffix"`      // FIM suffix
-	KeepAlive    json.RawMessage `json:"keep_alive"`  // duration string or seconds
-	Options      json.RawMessage `json:"options"`     // Ollama-style generation params
+	Format       json.RawMessage `json:"format"`     // "json" or JSON schema
+	Suffix       string          `json:"suffix"`     // FIM suffix
+	KeepAlive    json.RawMessage `json:"keep_alive"` // duration string or seconds
+	Options      json.RawMessage `json:"options"`    // Ollama-style generation params
 }
 
 type ChatMessage struct {
@@ -247,7 +254,10 @@ var shutdownCh = make(chan struct{}, 1)
 func ShutdownCh() <-chan struct{} { return shutdownCh }
 
 func handleShutdown(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	respond(w, 200, map[string]string{"status": "shutting down"})
 	select {
 	case shutdownCh <- struct{}{}:
@@ -265,13 +275,22 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	r.ParseMultipartForm(100 << 20)
 	file, header, err := r.FormFile("file")
-	if err != nil { jsonError(w, 400, "no file: "+err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, "no file: "+err.Error())
+		return
+	}
 	defer file.Close()
 	tmp, err := os.CreateTemp("", "vortelio-upload-*-"+header.Filename)
-	if err != nil { jsonError(w, 500, err.Error()); return }
+	if err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	defer tmp.Close()
 	io.Copy(tmp, file)
 	respond(w, 200, map[string]string{"path": tmp.Name()})
@@ -302,7 +321,10 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 			cfg := config.Get()
 			allowed := false
 			for _, o := range cfg.AllowOrigins {
-				if o == "*" || o == origin { allowed = true; break }
+				if o == "*" || o == origin {
+					allowed = true
+					break
+				}
 			}
 			if !allowed && (strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1")) {
 				allowed = true
@@ -317,7 +339,10 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, PATCH, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-Token")
-		if r.Method == "OPTIONS" { w.WriteHeader(204); return }
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(204)
+			return
+		}
 		h(w, r)
 		slog.Debug("request", "method", r.Method, "path", r.URL.Path, "dur", time.Since(start).Round(time.Millisecond))
 	}
@@ -326,7 +351,10 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 func withAuth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := config.Get().APIKey
-		if key == "" { h(w, r); return }
+		if key == "" {
+			h(w, r)
+			return
+		}
 		auth := r.Header.Get("Authorization")
 		if auth == "Bearer "+key || r.URL.Query().Get("api_key") == key {
 			h(w, r)

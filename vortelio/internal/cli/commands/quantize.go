@@ -61,11 +61,11 @@ func (c *QuantizeCommand) Run(args []string) error {
 	store := hub.NewModelStore()
 	ref, err := hub.ParseModelRef(modelRef)
 	if err != nil {
-		return fmt.Errorf("riferimento modello non valido: %w", err)
+		return fmt.Errorf("invalid model reference: %w", err)
 	}
 	model, err := store.Resolve(ref)
 	if err != nil {
-		return fmt.Errorf("modello not found: %w\n  Usa 'vortelio list' per vedere i modelli installati", err)
+		return fmt.Errorf("model not found: %w\n  Use 'vortelio list' to see installed models", err)
 	}
 
 	modelType := strings.ToLower(model.Type)
@@ -75,7 +75,7 @@ func (c *QuantizeCommand) Run(args []string) error {
 	case "image":
 		return c.quantizeImage(model, outputFormat, outputPath)
 	default:
-		return fmt.Errorf("quantizzazione supportata solo per: llm, image\nTipo attuale: %s", modelType)
+		return fmt.Errorf("quantization supported only for: llm, image\nCurrent type: %s", modelType)
 	}
 }
 
@@ -101,7 +101,7 @@ func (c *QuantizeCommand) quantizeLLM(model *hub.Model, format, outputPath strin
 		fmt.Println("⚠️   llama.cpp not found. Install with:")
 		fmt.Println("    vortelio setup")
 		fmt.Println()
-		fmt.Println("    Oppure usa Python con llama-cpp-python:")
+		fmt.Println("    Or use Python with llama-cpp-python:")
 		fmt.Println("    pip install llama-cpp-python")
 		return c.quantizeLLMPython(model, format, outputPath)
 	}
@@ -117,7 +117,7 @@ func (c *QuantizeCommand) quantizeLLM(model *hub.Model, format, outputPath strin
 		outFile = filepath.Join(filepath.Dir(modelDir), model.Name+"-"+format+".gguf")
 	}
 
-	fmt.Printf("    Conversione: %s → %s\n\n", modelDir, outFile)
+	fmt.Printf("    Converting: %s → %s\n\n", modelDir, outFile)
 	cmd := exec.Command("python3", convertScript,
 		modelDir,
 		"--outfile", outFile,
@@ -126,11 +126,11 @@ func (c *QuantizeCommand) quantizeLLM(model *hub.Model, format, outputPath strin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("conversione fallita: %w", err)
+		return fmt.Errorf("conversion failed: %w", err)
 	}
 
 	fmt.Printf("\n✅  Model quantized: %s\n", outFile)
-	fmt.Printf("    Importa con: vortelio pull --file %s llm\n", outFile)
+	fmt.Printf("    Import with: vortelio pull --file %s llm\n", outFile)
 	return nil
 }
 
@@ -150,7 +150,7 @@ var validQuantFormats = []string{
 func sourceCanBeQuantized(inputPath string) (bool, string) {
 	lower := strings.ToLower(filepath.Base(inputPath))
 	// Detect existing quantization from filename
-	quantTypes := []string{"q2_k","q3_k","q4_0","q4_1","q4_k","q5_0","q5_1","q5_k","q6_k","q8_0","iq1","iq2","iq3","iq4"}
+	quantTypes := []string{"q2_k", "q3_k", "q4_0", "q4_1", "q4_k", "q5_0", "q5_1", "q5_k", "q6_k", "q8_0", "iq1", "iq2", "iq3", "iq4"}
 	for _, qt := range quantTypes {
 		if strings.Contains(lower, qt) {
 			return false, strings.ToUpper(qt)
@@ -163,7 +163,7 @@ func sourceCanBeQuantized(inputPath string) (bool, string) {
 		return true, "F16/F32"
 	}
 	// Unknown — let llama-quantize decide (will fail if not supported)
-	return false, "sconosciuto"
+	return false, "unknown"
 }
 
 // promptQuantFormat shows a menu and returns the chosen format
@@ -172,7 +172,7 @@ func promptQuantFormat(current string) string {
 	fmt.Println("Choose quantization level:")
 	fmt.Println()
 	fmt.Println("  Low quality / small file:")
-	fmt.Println("    [1] IQ2_XXS  ~2.5 bpw  — minimo assoluto")
+	fmt.Println("    [1] IQ2_XXS  ~2.5 bpw  — absolute minimum")
 	fmt.Println("    [2] Q2_K     ~2.6 bpw  — highly compressed")
 	fmt.Println("    [3] IQ3_XS   ~3.3 bpw  — small with good quality")
 	fmt.Println("    [4] Q3_K_M   ~3.5 bpw  — balanced small")
@@ -196,25 +196,39 @@ func promptQuantFormat(current string) string {
 	var input string
 	fmt.Fscan(os.Stdin, &input)
 	input = strings.TrimSpace(input)
-	if input == "" { return "Q4_K_M" }
+	if input == "" {
+		return "Q4_K_M"
+	}
 	switch input {
-	case "1": return "IQ2_XXS"
-	case "2": return "Q2_K"
-	case "3": return "IQ3_XS"
-	case "4": return "Q3_K_M"
-	case "5": return "Q4_K_S"
-	case "6": return "Q4_K_M"
-	case "7": return "Q5_K_M"
-	case "8": return "Q6_K"
-	case "9": return "Q8_0"
-	case "10": return "F16"
+	case "1":
+		return "IQ2_XXS"
+	case "2":
+		return "Q2_K"
+	case "3":
+		return "IQ3_XS"
+	case "4":
+		return "Q3_K_M"
+	case "5":
+		return "Q4_K_S"
+	case "6":
+		return "Q4_K_M"
+	case "7":
+		return "Q5_K_M"
+	case "8":
+		return "Q6_K"
+	case "9":
+		return "Q8_0"
+	case "10":
+		return "F16"
 	default:
 		// User typed format name directly - validate it
 		upper := strings.ToUpper(input)
 		for _, f := range validQuantFormats {
-			if strings.ToUpper(f) == upper { return upper }
+			if strings.ToUpper(f) == upper {
+				return upper
+			}
 		}
-		fmt.Printf("⚠️   Formato %q non riconosciuto, uso Q4_K_M\n", input)
+		fmt.Printf("⚠️   Format %q not recognized, using Q4_K_M\n", input)
 		return "Q4_K_M"
 	}
 }
@@ -253,14 +267,14 @@ func (c *QuantizeCommand) requantizeGGUF(inputPath, format, outputPath string) e
 	}
 
 	fmt.Println()
-	fmt.Printf("🔄  Quantizzazione GGUF\n")
+	fmt.Printf("🔄  GGUF quantization\n")
 	fmt.Printf("    Input:  %s\n", inputPath)
 	fmt.Printf("    Output format: %s\n", format)
 
 	outFile := outputPath
 	if outFile == "" {
 		base := strings.TrimSuffix(inputPath, filepath.Ext(inputPath))
-		for _, q := range []string{"Q8_0","Q6_K","Q5_K_M","Q5_K_S","Q4_K_M","Q4_K_S","Q4_0","Q3_K_M","Q3_K_S","Q2_K","IQ4_XS","IQ3_XXS","IQ2_XXS","F16","BF16"} {
+		for _, q := range []string{"Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M", "Q3_K_S", "Q2_K", "IQ4_XS", "IQ3_XXS", "IQ2_XXS", "F16", "BF16"} {
 			base = strings.TrimSuffix(base, "-"+q)
 			base = strings.TrimSuffix(base, "_"+q)
 			base = strings.TrimSuffix(base, "-"+strings.ToLower(q))
@@ -284,7 +298,9 @@ func (c *QuantizeCommand) requantizeGGUF(inputPath, format, outputPath string) e
 
 	fmt.Printf("\n✅  Quantizzato: %s\n", outFile)
 	fmt.Printf("    Size: %.2f GB\n", func() float64 {
-		if fi, err := os.Stat(outFile); err == nil { return float64(fi.Size())/1e9 }
+		if fi, err := os.Stat(outFile); err == nil {
+			return float64(fi.Size()) / 1e9
+		}
 		return 0
 	}())
 	return nil
@@ -308,10 +324,10 @@ try:
     from llama_cpp import llama_model_quantize_params, llama_model_quantize
 except ImportError:
     print("pip install llama-cpp-python")
-    print("Oppure usa: https://github.com/ggerganov/llama.cpp")
+    print("Or use: https://github.com/ggerganov/llama.cpp")
     sys.exit(1)
-print("Quantizzazione tramite llama-cpp-python non ancora supportata.")
-print("Usa direttamente: llama-quantize input.gguf output.gguf %s")
+print("Quantization via llama-cpp-python not yet supported.")
+print("Use directly: llama-quantize input.gguf output.gguf %s")
 sys.exit(1)
 `, format)
 
@@ -345,10 +361,10 @@ fmt_str     = %q
 # Try gguf-py approach
 try:
     import gguf
-    print("Requantizzazione via gguf-py...")
+    print("Requantization via gguf-py...")
     # gguf-py doesn't support requantization directly
     # Need llama-quantize binary
-    raise NotImplementedError("gguf-py non supporta requantizzazione")
+    raise NotImplementedError("gguf-py does not support requantization")
 except (ImportError, NotImplementedError):
     pass
 
@@ -356,17 +372,17 @@ except (ImportError, NotImplementedError):
 import shutil
 lq = shutil.which("llama-quantize") or shutil.which("llama-quantize.exe")
 if lq:
-    print(f"llama-quantize trovato: {lq}")
+    print(f"llama-quantize found: {lq}")
     r = subprocess.run([lq, input_path, output_path, fmt_str], check=True)
     print(f"\n✅  Requantized: {output_path}")
     sys.exit(0)
 
 print("❌  llama-quantize not found.")
 print()
-print("Installa llama.cpp e aggiungi al PATH:")
+print("Install llama.cpp and add it to PATH:")
 print("  https://github.com/ggerganov/llama.cpp/releases")
 print()
-print("Oppure compila localmente:")
+print("Or build it locally:")
 print("  git clone https://github.com/ggerganov/llama.cpp")
 print("  cd llama.cpp && cmake -B build && cmake --build build")
 print("  build/bin/llama-quantize", input_path, output_path, fmt_str)
@@ -428,37 +444,37 @@ sd_format   = %q
 # Try sd-convert from stable-diffusion.cpp
 sd_convert = shutil.which("sd") or shutil.which("sd.exe")
 if sd_convert:
-    print(f"stable-diffusion.cpp trovato: {sd_convert}")
+    print(f"stable-diffusion.cpp found: {sd_convert}")
     cmd = [sd_convert, "--model", model_path, "--output", output_path,
            "--type", sd_format]
-    print(f"Esecuzione: {' '.join(cmd)}")
+    print(f"Running: {' '.join(cmd)}")
     r = subprocess.run(cmd)
     if r.returncode == 0:
         print(f"\n✅  Model quantized: {output_path}")
         sys.exit(0)
     else:
-        print(f"❌  Conversione fallita (exit {r.returncode})")
+        print(f"❌  Conversion failed (exit {r.returncode})")
         sys.exit(1)
 
 # Try via stable-diffusion-cpp-python
 try:
     from stable_diffusion_cpp import StableDiffusion
-    print("Conversione via stable-diffusion-cpp-python...")
+    print("Converting via stable-diffusion-cpp-python...")
     # stable-diffusion-cpp-python doesn't expose convert/quantize directly
     # It loads models at runtime but doesn't save
-    raise NotImplementedError("stable-diffusion-cpp-python non supporta conversione")
+    raise NotImplementedError("stable-diffusion-cpp-python does not support conversion")
 except (ImportError, NotImplementedError) as e:
     pass
 
-print("❌  Nessuno strumento di conversione trovato.")
+print("❌  No conversion tool found.")
 print()
-print("Opzioni per quantizzare modelli image:")
+print("Options to quantize image models:")
 print()
-print("1. stable-diffusion.cpp (raccomandato):")
+print("1. stable-diffusion.cpp (recommended):")
 print("   https://github.com/leejet/stable-diffusion.cpp/releases")
 print("   sd --model", model_path, "--output", output_path, "--type", sd_format)
 print()
-print("2. Usa direttamente modelli GGUF già quantizzati da HuggingFace:")
+print("2. Use pre-quantized GGUF models directly from HuggingFace:")
 print("   vortelio pull image/https://huggingface.co/second-state/stable-diffusion-v1-5-GGUF?show_file_info=stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf")
 sys.exit(1)
 `, modelPath, outFile, sdFormat)

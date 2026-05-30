@@ -25,25 +25,25 @@ type ProxyModel struct {
 
 var ProxyModels = []ProxyModel{
 	// ── Pro (€9.99/mese) ─────────────────────────────────────────
-	{ID: "anthropic/claude-sonnet-4-5",        DisplayName: "Claude Sonnet 4.5",  MinPlan: "pro",      Type: "llm"},
-	{ID: "openai/gpt-4o-mini",                 DisplayName: "GPT-4o Mini",        MinPlan: "pro",      Type: "llm"},
-	{ID: "google/gemini-2.0-flash-001",        DisplayName: "Gemini 2.0 Flash",   MinPlan: "pro",      Type: "llm"},
-	{ID: "meta-llama/llama-3.3-70b-instruct",  DisplayName: "Llama 3.3 70B",      MinPlan: "pro",      Type: "llm"},
-	{ID: "deepseek/deepseek-chat",             DisplayName: "DeepSeek Chat",      MinPlan: "pro",      Type: "llm"},
+	{ID: "anthropic/claude-sonnet-4-5", DisplayName: "Claude Sonnet 4.5", MinPlan: "pro", Type: "llm"},
+	{ID: "openai/gpt-4o-mini", DisplayName: "GPT-4o Mini", MinPlan: "pro", Type: "llm"},
+	{ID: "google/gemini-2.0-flash-001", DisplayName: "Gemini 2.0 Flash", MinPlan: "pro", Type: "llm"},
+	{ID: "meta-llama/llama-3.3-70b-instruct", DisplayName: "Llama 3.3 70B", MinPlan: "pro", Type: "llm"},
+	{ID: "deepseek/deepseek-chat", DisplayName: "DeepSeek Chat", MinPlan: "pro", Type: "llm"},
 	// ── Business (€20/mese) ──────────────────────────────────────
-	{ID: "openai/gpt-4o",                      DisplayName: "GPT-4o",             MinPlan: "business", Type: "llm"},
-	{ID: "anthropic/claude-3-5-haiku-20241022", DisplayName: "Claude Haiku 3.5",  MinPlan: "business", Type: "llm"},
-	{ID: "google/gemini-2.5-flash",            DisplayName: "Gemini 2.5 Flash",   MinPlan: "business", Type: "llm"},
-	{ID: "mistralai/mistral-large-2411",       DisplayName: "Mistral Large",      MinPlan: "business", Type: "llm"},
-	{ID: "qwen/qwen-2.5-72b-instruct",         DisplayName: "Qwen 2.5 72B",       MinPlan: "business", Type: "llm"},
-	{ID: "deepseek/deepseek-r1",               DisplayName: "DeepSeek R1",        MinPlan: "business", Type: "llm"},
+	{ID: "openai/gpt-4o", DisplayName: "GPT-4o", MinPlan: "business", Type: "llm"},
+	{ID: "anthropic/claude-3-5-haiku-20241022", DisplayName: "Claude Haiku 3.5", MinPlan: "business", Type: "llm"},
+	{ID: "google/gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", MinPlan: "business", Type: "llm"},
+	{ID: "mistralai/mistral-large-2411", DisplayName: "Mistral Large", MinPlan: "business", Type: "llm"},
+	{ID: "qwen/qwen-2.5-72b-instruct", DisplayName: "Qwen 2.5 72B", MinPlan: "business", Type: "llm"},
+	{ID: "deepseek/deepseek-r1", DisplayName: "DeepSeek R1", MinPlan: "business", Type: "llm"},
 	// ── Enterprise (€150/mese) ───────────────────────────────────
-	{ID: "anthropic/claude-opus-4-5",          DisplayName: "Claude Opus 4.5",    MinPlan: "enterprise", Type: "llm"},
-	{ID: "openai/o3",                          DisplayName: "OpenAI o3",          MinPlan: "enterprise", Type: "llm"},
-	{ID: "openai/o4-mini",                     DisplayName: "OpenAI o4-mini",     MinPlan: "enterprise", Type: "llm"},
-	{ID: "google/gemini-2.5-pro",              DisplayName: "Gemini 2.5 Pro",     MinPlan: "enterprise", Type: "llm"},
-	{ID: "x-ai/grok-3",                        DisplayName: "Grok 3",             MinPlan: "enterprise", Type: "llm"},
-	{ID: "anthropic/claude-sonnet-4-7",        DisplayName: "Claude Sonnet 4.7",  MinPlan: "enterprise", Type: "llm"},
+	{ID: "anthropic/claude-opus-4-5", DisplayName: "Claude Opus 4.5", MinPlan: "enterprise", Type: "llm"},
+	{ID: "openai/o3", DisplayName: "OpenAI o3", MinPlan: "enterprise", Type: "llm"},
+	{ID: "openai/o4-mini", DisplayName: "OpenAI o4-mini", MinPlan: "enterprise", Type: "llm"},
+	{ID: "google/gemini-2.5-pro", DisplayName: "Gemini 2.5 Pro", MinPlan: "enterprise", Type: "llm"},
+	{ID: "x-ai/grok-3", DisplayName: "Grok 3", MinPlan: "enterprise", Type: "llm"},
+	{ID: "anthropic/claude-sonnet-4-7", DisplayName: "Claude Sonnet 4.7", MinPlan: "enterprise", Type: "llm"},
 }
 
 // planRank maps plan names to a numeric rank for comparison.

@@ -24,17 +24,17 @@ func (r *AudioRunner) ensureDeps(pythonBin string) {
 	switch {
 	case strings.Contains(name, "whisper"):
 		if !CheckPythonPackage(pythonBin, "faster_whisper") {
-			fmt.Println("📦  Installazione faster-whisper...")
+			fmt.Println("📦  Installing faster-whisper...")
 			_ = InstallPythonPackage(pythonBin, "faster-whisper")
 			if !CheckPythonPackage(pythonBin, "faster_whisper") {
 				// fallback: openai-whisper
-				fmt.Println("📦  Installazione openai-whisper (fallback)...")
+				fmt.Println("📦  Installing openai-whisper (fallback)...")
 				_ = InstallPythonPackage(pythonBin, "openai-whisper")
 			}
 		}
 	case strings.Contains(name, "kokoro"):
 		if !CheckPythonPackage(pythonBin, "kokoro_onnx") && !CheckPythonPackage(pythonBin, "kokoro") {
-			fmt.Println("📦  Installazione kokoro-onnx soundfile...")
+			fmt.Println("📦  Installing kokoro-onnx soundfile...")
 			_ = InstallPythonPackage(pythonBin, "kokoro-onnx", "soundfile")
 		}
 		if !CheckPythonPackage(pythonBin, "soundfile") {
@@ -42,11 +42,11 @@ func (r *AudioRunner) ensureDeps(pythonBin string) {
 		}
 	case strings.Contains(name, "bark"):
 		if !CheckPythonPackage(pythonBin, "bark") {
-			fmt.Println("📦  Installazione bark (potrebbe richiedere qualche minuto)...")
+			fmt.Println("📦  Installing bark (this may take a few minutes)...")
 			_ = InstallPythonPackage(pythonBin, "git+https://github.com/suno-ai/bark.git", "scipy")
 		}
 		if !CheckPythonPackage(pythonBin, "torch") {
-			fmt.Println("📦  Installazione torch...")
+			fmt.Println("📦  Installing torch...")
 			_ = InstallPythonPackage(pythonBin, "torch")
 		}
 	}
@@ -55,15 +55,17 @@ func (r *AudioRunner) ensureDeps(pythonBin string) {
 func (r *AudioRunner) Run(opts *RunOptions) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		fmt.Println("\n⚠️   Python 3 non trovato.")
-		fmt.Println("    Installa Python 3.10+ da: https://python.org/downloads")
+		fmt.Println("\n⚠️   Python 3 not found.")
+		fmt.Println("    Install Python 3.10+ from: https://python.org/downloads")
 		return nil
 	}
 	r.ensureDeps(pythonBin)
 	name := strings.ToLower(r.model.Name)
 	switch {
 	case strings.Contains(name, "whisper"):
-		if opts.InputFile != "" { return r.runPython(pythonBin, r.buildWhisperScript(opts)) }
+		if opts.InputFile != "" {
+			return r.runPython(pythonBin, r.buildWhisperScript(opts))
+		}
 		fmt.Println("ℹ️   Whisper: Speech → Text")
 		fmt.Println("    vortelio run audio/whisper:large --input ./audio.mp3")
 		return nil
@@ -72,7 +74,9 @@ func (r *AudioRunner) Run(opts *RunOptions) error {
 	case strings.Contains(name, "bark"):
 		return r.runPython(pythonBin, r.buildBarkScript(opts))
 	default:
-		if opts.InputFile != "" { return r.runPython(pythonBin, r.buildWhisperScript(opts)) }
+		if opts.InputFile != "" {
+			return r.runPython(pythonBin, r.buildWhisperScript(opts))
+		}
 		return r.runPython(pythonBin, r.buildKokoroScript(opts))
 	}
 }
@@ -80,7 +84,7 @@ func (r *AudioRunner) Run(opts *RunOptions) error {
 func (r *AudioRunner) RunCapture(opts *RunOptions) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 non trovato — installa Python 3.10+")
+		return fmt.Errorf("Python 3 not found — install Python 3.10+")
 	}
 	r.ensureDeps(pythonBin)
 	name := strings.ToLower(r.model.Name)
@@ -99,8 +103,10 @@ func (r *AudioRunner) RunCapture(opts *RunOptions) error {
 func (r *AudioRunner) RunWithProgress(opts *RunOptions, progress chan<- ProgressEvent) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		if progress != nil { close(progress) }
-		return fmt.Errorf("Python 3 non trovato")
+		if progress != nil {
+			close(progress)
+		}
+		return fmt.Errorf("Python 3 not found")
 	}
 	r.ensureDeps(pythonBin)
 	name := strings.ToLower(r.model.Name)
@@ -115,7 +121,9 @@ func (r *AudioRunner) RunWithProgress(opts *RunOptions, progress chan<- Progress
 	}
 	tmp, err := os.CreateTemp("", "vortelio-audio-*.py")
 	if err != nil {
-		if progress != nil { close(progress) }
+		if progress != nil {
+			close(progress)
+		}
 		return err
 	}
 	defer os.Remove(tmp.Name())
@@ -132,30 +140,43 @@ func (r *AudioRunner) runPython(pythonBin, script string) error {
 
 func (r *AudioRunner) runPythonWith(pythonBin, script string, capture bool) error {
 	tmp, err := os.CreateTemp("", "vortelio-audio-*.py")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer os.Remove(tmp.Name())
 	tmp.WriteString(script)
 	tmp.Close()
 	cmd := HideWindow(exec.Command(pythonBin, tmp.Name()))
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "PYTHONUTF8=1")
-	if capture { return RunWithCapture(cmd) }
+	if capture {
+		return RunWithCapture(cmd)
+	}
 	return RunWithOutput(cmd, os.Stdout, os.Stderr)
 }
 
 func (r *AudioRunner) deviceString(forceCPU bool) string {
-	if forceCPU { return "cpu" }
+	if forceCPU {
+		return "cpu"
+	}
 	switch r.hw.Backend {
-	case BackendCUDA: return "cuda"
-	case BackendMetal: return "mps"
-	default: return "cpu"
+	case BackendCUDA:
+		return "cuda"
+	case BackendMetal:
+		return "mps"
+	default:
+		return "cpu"
 	}
 }
 
 func (r *AudioRunner) buildKokoroScript(opts *RunOptions) string {
 	text := opts.Prompt
-	if text == "" { text = "Ciao, sono Vortelio." }
+	if text == "" {
+		text = "Hi, I'm Vortelio."
+	}
 	outputPath := opts.OutputFile
-	if outputPath == "" { outputPath = ResolveOutputPath("", "output.wav") }
+	if outputPath == "" {
+		outputPath = ResolveOutputPath("", "output.wav")
+	}
 	outputPath = strings.ReplaceAll(outputPath, `\`, `/`)
 	device := r.deviceString(opts.ForceCPU)
 
@@ -184,9 +205,9 @@ func (r *AudioRunner) buildKokoroScript(opts *RunOptions) string {
 		`        pass`,
 		``,
 		`if _lib is None:`,
-		`    print("ERRORE: installa kokoro con:")`,
-		`    print("  pip install kokoro-onnx soundfile  (consigliato, Python 3.14)")`,
-		`    print("  pip install kokoro soundfile       (richiede Python <= 3.12)")`,
+		`    print("ERROR: install kokoro with:")`,
+		`    print("  pip install kokoro-onnx soundfile  (recommended, Python 3.14)")`,
+		`    print("  pip install kokoro soundfile       (requires Python <= 3.12)")`,
 		`    sys.exit(1)`,
 		``,
 		`import soundfile as sf`,
@@ -204,14 +225,14 @@ func (r *AudioRunner) buildKokoroScript(opts *RunOptions) string {
 		`_cache = pathlib.Path.home() / ".vortelio" / "models" / "audio" / "kokoro"`,
 		``,
 		`if _lib == "kokoro-onnx":`,
-		`    print("Caricamento Kokoro ONNX...")`,
+		`    print("Loading Kokoro ONNX...")`,
 		`    model_path  = _download_if_missing(_KOKORO_BASE + "/kokoro-v1.0.onnx",  _cache / "kokoro-v1.0.onnx")`,
 		`    voices_path = _download_if_missing(_KOKORO_BASE + "/voices-v1.0.bin",   _cache / "voices-v1.0.bin")`,
 		`    tts = kokoro_onnx.Kokoro(model_path, voices_path)`,
 		`    samples, sr = tts.create(text, voice="af_heart", speed=1.0, lang="en-us")`,
 		`    sf.write(output_path, samples, sr)`,
 		`else:`,
-		`    print("Caricamento Kokoro su " + device + "...")`,
+		`    print("Loading Kokoro on " + device + "...")`,
 		`    pipe = KPipeline(lang_code="a", device=device)`,
 		`    samples = []`,
 		`    for i, (gs, ps, audio) in enumerate(pipe(text, voice="af_heart", speed=1.0)):`,
@@ -219,16 +240,15 @@ func (r *AudioRunner) buildKokoroScript(opts *RunOptions) string {
 		`    audio = np.concatenate(samples)`,
 		`    sf.write(output_path, audio, 24000)`,
 		``,
-		`print("Audio salvato in: " + output_path)`,
+		`print("Audio saved to: " + output_path)`,
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
 
-
 func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string {
 	inputPath := strings.ReplaceAll(opts.InputFile, `\`, `/`)
-	device    := r.deviceString(opts.ForceCPU)
-	tag       := r.model.Tag
+	device := r.deviceString(opts.ForceCPU)
+	tag := r.model.Tag
 
 	lines := []string{
 		`import sys, os`,
@@ -249,7 +269,7 @@ func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string {
 		`        pass`,
 		``,
 		`if _lib is None:`,
-		`    print("ERRORE: pip install faster-whisper")`,
+		`    print("ERROR: pip install faster-whisper")`,
 		`    sys.exit(1)`,
 		``,
 		`try:`,
@@ -273,7 +293,7 @@ func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string {
 		``,
 		`if _lib == "faster-whisper":`,
 		`    _ct = "float16" if _dev == "cuda" else "int8"`,
-		`    print("Caricamento: " + _fw_model + " (" + _ct + ")")`,
+		`    print("Loading: " + _fw_model + " (" + _ct + ")")`,
 		`    _m = _FW(_fw_model, device=_dev, compute_type=_ct)`,
 		`    _segs, _ = _m.transcribe("""` + inputPath + `""", beam_size=5)`,
 		`    _text = "".join(seg.text for seg in _segs)`,
@@ -289,7 +309,7 @@ func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string {
 		outPath := strings.ReplaceAll(ResolveOutputPath(opts.OutputFile, ""), `\`, `/`)
 		script += "\nwith open(\"\"\"" + outPath + "\"\"\", \"w\", encoding=\"utf-8\") as f:\n"
 		script += "    f.write(_text)\n"
-		script += "print(\"Salvato in: " + outPath + "\")\n"
+		script += "print(\"Saved to: " + outPath + "\")\n"
 	}
 	return script
 }
@@ -319,7 +339,7 @@ func (r *AudioRunner) TranscribeText(inputFile string) (string, error) {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	// The last non-empty line is the transcribed text
 	for i := len(lines) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(lines[i]); l != "" && !strings.HasPrefix(l, "Caricamento") && !strings.HasPrefix(l, "Salvato") {
+		if l := strings.TrimSpace(lines[i]); l != "" && !strings.HasPrefix(l, "Loading") && !strings.HasPrefix(l, "Saved") {
 			return l, nil
 		}
 	}
@@ -345,7 +365,7 @@ except ImportError:
         import whisper as _W
         _lib = "openai-whisper"
     except Exception:
-        print("ERRORE: pip install faster-whisper")
+        print("ERROR: pip install faster-whisper")
         sys.exit(1)
 _tag_map = {"large":"large-v3","medium":"medium","small":"small","base":"base","tiny":"tiny","turbo":"large-v3-turbo"}
 _fw_model = _tag_map.get("%s", "large-v3")
@@ -404,9 +424,13 @@ func (r *AudioRunner) SynthesizeToBytes(text string) ([]byte, error) {
 
 func (r *AudioRunner) buildBarkScript(opts *RunOptions) string {
 	text := opts.Prompt
-	if text == "" { text = "Ciao." }
+	if text == "" {
+		text = "Hello."
+	}
 	outputPath := opts.OutputFile
-	if outputPath == "" { outputPath = ResolveOutputPath("", "output.wav") }
+	if outputPath == "" {
+		outputPath = ResolveOutputPath("", "output.wav")
+	}
 	outputPath = strings.ReplaceAll(outputPath, `\`, `/`)
 	device := r.deviceString(opts.ForceCPU)
 	return fmt.Sprintf(`import sys, os
@@ -424,11 +448,11 @@ try:
     import scipy.io.wavfile as wav
     import numpy as np
 except ImportError:
-    print('Bark non installato. pip install git+https://github.com/suno-ai/bark.git scipy')
+    print('Bark not installed. pip install git+https://github.com/suno-ai/bark.git scipy')
     sys.exit(1)
 preload_models()
 audio = generate_audio('''%s''')
 wav.write(r'''%s''', SAMPLE_RATE, audio.astype(np.float32))
-print('Audio salvato in: ' + r'''%s''')
+print('Audio saved to: ' + r'''%s''')
 `, device, escapePy(text), outputPath, outputPath)
 }

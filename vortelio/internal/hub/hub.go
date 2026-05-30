@@ -21,7 +21,8 @@ var validTypes = map[string]bool{
 }
 
 // HFDirectRef holds info for a direct HuggingFace pull like:
-//   llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS
+//
+//	llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS
 type HFDirectRef struct {
 	ModelType string
 	Owner     string
@@ -42,8 +43,9 @@ func (r *ModelRef) String() string {
 }
 
 // ParseModelRef parses both:
-//   llm/mistral:7b
-//   llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS
+//
+//	llm/mistral:7b
+//	llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS
 func ParseModelRef(raw string) (*ModelRef, error) {
 	raw = strings.TrimPrefix(raw, "pullai/")
 
@@ -92,7 +94,9 @@ func ParseModelRef(raw string) (*ModelRef, error) {
 						} else if part != "" {
 							hint = part
 						}
-						if hint != "" { break }
+						if hint != "" {
+							break
+						}
 					}
 				} else {
 					repo, hint, _ = strings.Cut(repoFull, ":")
@@ -107,12 +111,14 @@ func ParseModelRef(raw string) (*ModelRef, error) {
 				modeType = "llm" // default
 			}
 			if !validTypes[modeType] {
-				return nil, fmt.Errorf("tipo sconosciuto %q (validi: llm, image, audio, video, 3d)", modeType)
+				return nil, fmt.Errorf("unknown type %q (valid: llm, image, audio, video, 3d)", modeType)
 			}
 			localName := strings.ToLower(owner + "__" + repo)
 			localName = strings.NewReplacer(" ", "-", ".", "-", "_", "-").Replace(localName)
 			tag := strings.NewReplacer(" ", "-", ".", "-", "_", "-").Replace(strings.ToLower(hint))
-			if tag == "" { tag = "latest" }
+			if tag == "" {
+				tag = "latest"
+			}
 			return &ModelRef{
 				Type: modeType, Name: localName, Tag: tag,
 				HFDirect: &HFDirectRef{ModelType: modeType, Owner: owner, Repo: repo, FileHint: hint},
@@ -126,10 +132,10 @@ func ParseModelRef(raw string) (*ModelRef, error) {
 	if len(segments) >= 3 && segments[1] == "hf.co" {
 		modelType := segments[0]
 		if !validTypes[modelType] {
-			return nil, fmt.Errorf("tipo sconosciuto %q (validi: llm, image, audio, video, 3d)", modelType)
+			return nil, fmt.Errorf("unknown type %q (valid: llm, image, audio, video, 3d)", modelType)
 		}
 		if len(segments) < 4 {
-			return nil, fmt.Errorf("formato HF diretto incompleto.\nEsempio: llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS")
+			return nil, fmt.Errorf("incomplete direct HF format.\nExample: llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS")
 		}
 		owner := segments[2]
 		repoAndFile := segments[3]
@@ -182,18 +188,18 @@ func ParseModelRef(raw string) (*ModelRef, error) {
 	// ── Standard format: type/name[:tag] ────────────────────────────────────
 	slashIdx := strings.Index(raw, "/")
 	if slashIdx < 0 {
-		return nil, fmt.Errorf("manca il prefisso tipo.\nEsempio: llm/mistral:7b  oppure  llm/hf.co/owner/repo:file")
+		return nil, fmt.Errorf("missing type prefix.\nExample: llm/mistral:7b  or  llm/hf.co/owner/repo:file")
 	}
 	modelType := raw[:slashIdx]
 	rest := raw[slashIdx+1:]
 	if !validTypes[modelType] {
-		return nil, fmt.Errorf("tipo sconosciuto %q (validi: llm, image, audio, video, 3d)", modelType)
+		return nil, fmt.Errorf("unknown type %q (valid: llm, image, audio, video, 3d)", modelType)
 	}
 	// Detect if rest looks like a filename (contains a model extension)
 	// e.g. "image/stable-diffusion-v1-5-pruned-emaonly-Q5_0.gguf" — treat name as the model name and extension as tag
 	for _, ext := range []string{".gguf", ".safetensors", ".ckpt", ".pt", ".bin"} {
 		if strings.HasSuffix(strings.ToLower(rest), ext) {
-			return nil, fmt.Errorf("il nome %q sembra un file locale.\nUsa: vortelio pull --file <percorso> %s\nOppure: vortelio pull %s/hf.co/<owner>/<repo>:<file>", rest, modelType, modelType)
+			return nil, fmt.Errorf("the name %q looks like a local file.\nUse: vortelio pull --file <path> %s\nOr: vortelio pull %s/hf.co/<owner>/<repo>:<file>", rest, modelType, modelType)
 		}
 	}
 	name, tag, _ := strings.Cut(rest, ":")
@@ -201,7 +207,7 @@ func ParseModelRef(raw string) (*ModelRef, error) {
 		tag = "latest"
 	}
 	if name == "" {
-		return nil, fmt.Errorf("manca il nome del modello")
+		return nil, fmt.Errorf("missing model name")
 	}
 	return &ModelRef{Type: modelType, Name: name, Tag: tag}, nil
 }
@@ -222,14 +228,14 @@ type Model struct {
 	DownloadedAt time.Time `json:"downloaded_at"`
 	DisplayName  string    `json:"display_name,omitempty"`
 	// Chat template info (used by LLM runner for correct stop tokens)
-	ChatTemplate     string            `json:"chat_template,omitempty"`
-	StopTokens       []string          `json:"stop_tokens,omitempty"`
-	SystemOverride   string            `json:"system_override,omitempty"`   // custom system prompt from Modelfile
-	Modelfile        string            `json:"modelfile,omitempty"`         // raw Modelfile source
-	Template         string            `json:"template,omitempty"`          // Modelfile TEMPLATE (Go template)
-	MmProjPath       string            `json:"mmproj_path,omitempty"`       // path to multimodal projector (LLaVA)
-	NumGPULayers     int               `json:"num_gpu_layers,omitempty"`    // override auto-detected GPU layers
-	ModelParameters  map[string]string `json:"model_parameters,omitempty"`  // PARAMETER values from Modelfile
+	ChatTemplate    string            `json:"chat_template,omitempty"`
+	StopTokens      []string          `json:"stop_tokens,omitempty"`
+	SystemOverride  string            `json:"system_override,omitempty"`  // custom system prompt from Modelfile
+	Modelfile       string            `json:"modelfile,omitempty"`        // raw Modelfile source
+	Template        string            `json:"template,omitempty"`         // Modelfile TEMPLATE (Go template)
+	MmProjPath      string            `json:"mmproj_path,omitempty"`      // path to multimodal projector (LLaVA)
+	NumGPULayers    int               `json:"num_gpu_layers,omitempty"`   // override auto-detected GPU layers
+	ModelParameters map[string]string `json:"model_parameters,omitempty"` // PARAMETER values from Modelfile
 }
 
 func (m *Model) SizeHuman() string {
@@ -282,7 +288,7 @@ func (s *ModelStore) List() ([]*Model, error) {
 func (s *ModelStore) Resolve(ref *ModelRef) (*Model, error) {
 	m, err := s.loadManifest(s.manifestPath(ref))
 	if err != nil {
-		return nil, fmt.Errorf("modello %q non trovato localmente", ref.String())
+		return nil, fmt.Errorf("model %q not found locally", ref.String())
 	}
 	return m, nil
 }
@@ -293,7 +299,9 @@ func (s *ModelStore) Remove(ref *ModelRef) error {
 
 func (s *ModelStore) Rename(ref *ModelRef, displayName string) error {
 	m, err := s.loadManifest(s.manifestPath(ref))
-	if err != nil { return fmt.Errorf("modello non trovato: %w", err) }
+	if err != nil {
+		return fmt.Errorf("model not found: %w", err)
+	}
 	m.DisplayName = strings.TrimSpace(displayName)
 	return s.Save(m)
 }
@@ -343,33 +351,37 @@ func fetchHFModelInfoCtx(ctx context.Context, owner, repo string) (*hfModelInfo,
 	ctx30, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx30, "GET", apiURL, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Vortelio/1.0)")
 	req.Header.Set("Accept", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		if ctx.Err() != nil { return nil, fmt.Errorf("annullato") }
-		return nil, fmt.Errorf("HuggingFace API non raggiungibile: %w", err)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("cancelled")
+		}
+		return nil, fmt.Errorf("HuggingFace API unreachable: %w", err)
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case 200:
 		// ok
 	case 401, 403:
-		return nil, fmt.Errorf("repository %s/%s richiede autenticazione.\nAccedi su https://huggingface.co e accetta i termini del modello", owner, repo)
+		return nil, fmt.Errorf("repository %s/%s requires authentication.\nSign in at https://huggingface.co and accept the model terms", owner, repo)
 	case 404:
-		return nil, fmt.Errorf("repository %s/%s non trovato su HuggingFace.\nVerifica l'URL e riprova", owner, repo)
+		return nil, fmt.Errorf("repository %s/%s not found on HuggingFace.\nCheck the URL and try again", owner, repo)
 	default:
 		return nil, fmt.Errorf("HuggingFace API: %s", resp.Status)
 	}
 	var info hfModelInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return nil, fmt.Errorf("risposta HF non valida: %w", err)
+		return nil, fmt.Errorf("invalid HF response: %w", err)
 	}
 	if len(info.Files) == 0 {
-		return nil, fmt.Errorf("repository %s/%s non contiene file.\nPotrebbe essere vuoto o richiedere autenticazione", owner, repo)
+		return nil, fmt.Errorf("repository %s/%s contains no files.\nIt may be empty or require authentication", owner, repo)
 	}
 	return &info, nil
 }
@@ -419,7 +431,7 @@ func pickFile(files []hfFileInfo, fileHint string) (hfFileInfo, error) {
 
 	var ggufFiles []hfFileInfo // kept for error reporting below
 	if len(ggufFiles) == 0 {
-		return hfFileInfo{}, fmt.Errorf("nessun file modello trovato nel repository")
+		return hfFileInfo{}, fmt.Errorf("no model file found in the repository")
 	}
 
 	// If hint given, filter by it
@@ -435,7 +447,7 @@ func pickFile(files []hfFileInfo, fileHint string) (hfFileInfo, error) {
 			names[i] = "  " + f.Rfilename
 		}
 		return hfFileInfo{}, fmt.Errorf(
-			"file con pattern %q non trovato nel repository.\nFile disponibili:\n%s",
+			"no file matching pattern %q found in the repository.\nAvailable files:\n%s",
 			fileHint, strings.Join(names, "\n"),
 		)
 	}
@@ -455,215 +467,215 @@ func pickFile(files []hfFileInfo, fileHint string) (hfFileInfo, error) {
 var hfRegistry = map[string]HFEntry{
 	// ── LLM — GGUF ─────────────────────────────────────────────────────────
 	"llm/mistral:7b": {
-		Repo: "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
-		File: "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
+		Repo:   "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
+		File:   "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
 		Format: "gguf", Params: "7B", License: "Apache-2.0",
 		ChatTemplate: "mistral", StopTokens: []string{"[INST]", "[/INST]"},
 	},
 	"llm/llama3:8b": {
-		Repo: "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-		File: "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+		Repo:   "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+		File:   "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "8B", License: "Meta Llama 3",
 		ChatTemplate: "llama3", StopTokens: []string{"<|eot_id|>", "<|end_of_text|>"},
 	},
 	"llm/phi3:mini": {
-		Repo: "bartowski/Phi-3.5-mini-instruct-GGUF",
-		File: "Phi-3.5-mini-instruct-Q4_K_M.gguf",
+		Repo:   "bartowski/Phi-3.5-mini-instruct-GGUF",
+		File:   "Phi-3.5-mini-instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "3.8B", License: "MIT",
 		ChatTemplate: "phi3", StopTokens: []string{"<|end|>", "<|endoftext|>"},
 	},
 	"llm/qwen:0.5b": {
-		Repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-		File: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+		Repo:   "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+		File:   "qwen2.5-0.5b-instruct-q4_k_m.gguf",
 		Format: "gguf", Params: "0.5B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen:1.5b": {
-		Repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-		File: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+		Repo:   "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+		File:   "qwen2.5-1.5b-instruct-q4_k_m.gguf",
 		Format: "gguf", Params: "1.5B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/gemma:2b": {
-		Repo: "bartowski/gemma-2-2b-it-GGUF",
-		File: "gemma-2-2b-it-Q4_K_M.gguf",
+		Repo:   "bartowski/gemma-2-2b-it-GGUF",
+		File:   "gemma-2-2b-it-Q4_K_M.gguf",
 		Format: "gguf", Params: "2B", License: "Gemma",
 		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
 	},
 	"llm/llama3.3:70b": {
-		Repo: "bartowski/Meta-Llama-3.3-70B-Instruct-GGUF",
-		File: "Meta-Llama-3.3-70B-Instruct-Q4_K_M.gguf",
+		Repo:   "bartowski/Meta-Llama-3.3-70B-Instruct-GGUF",
+		File:   "Meta-Llama-3.3-70B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "70B", License: "Meta",
 		ChatTemplate: "llama3", StopTokens: []string{"<|eot_id|>", "<|end_of_text|>"},
 	},
 	"llm/llama3.2:3b": {
-		Repo: "bartowski/Llama-3.2-3B-Instruct-GGUF",
-		File: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+		Repo:   "bartowski/Llama-3.2-3B-Instruct-GGUF",
+		File:   "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "3B", License: "Meta",
 		ChatTemplate: "llama3", StopTokens: []string{"<|eot_id|>", "<|end_of_text|>"},
 	},
 	"llm/llama3.1:8b": {
-		Repo: "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
-		File: "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+		Repo:   "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+		File:   "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "8B", License: "Meta",
 		ChatTemplate: "llama3", StopTokens: []string{"<|eot_id|>", "<|end_of_text|>"},
 	},
 	"llm/qwen2.5:0.5b": {
-		Repo: "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-		File: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+		Repo:   "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+		File:   "qwen2.5-0.5b-instruct-q4_k_m.gguf",
 		Format: "gguf", Params: "0.5B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen2.5:7b": {
-		Repo: "Qwen/Qwen2.5-7B-Instruct-GGUF",
-		File: "qwen2.5-7b-instruct-q4_k_m.gguf",
+		Repo:   "Qwen/Qwen2.5-7B-Instruct-GGUF",
+		File:   "qwen2.5-7b-instruct-q4_k_m.gguf",
 		Format: "gguf", Params: "7B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen2.5:14b": {
-		Repo: "Qwen/Qwen2.5-14B-Instruct-GGUF",
-		File: "qwen2.5-14b-instruct-q4_k_m.gguf",
+		Repo:   "Qwen/Qwen2.5-14B-Instruct-GGUF",
+		File:   "qwen2.5-14b-instruct-q4_k_m.gguf",
 		Format: "gguf", Params: "14B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen2.5-coder:7b": {
-		Repo: "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
-		File: "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+		Repo:   "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+		File:   "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
 		Format: "gguf", Params: "7B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/phi4:latest": {
-		Repo: "bartowski/phi-4-GGUF",
-		File: "phi-4-Q4_K_M.gguf",
+		Repo:   "bartowski/phi-4-GGUF",
+		File:   "phi-4-Q4_K_M.gguf",
 		Format: "gguf", Params: "14B", License: "MIT",
 		ChatTemplate: "phi3", StopTokens: []string{"<|end|>", "<|endoftext|>"},
 	},
 	"llm/phi3.5:mini": {
-		Repo: "bartowski/Phi-3.5-mini-instruct-GGUF",
-		File: "Phi-3.5-mini-instruct-Q4_K_M.gguf",
+		Repo:   "bartowski/Phi-3.5-mini-instruct-GGUF",
+		File:   "Phi-3.5-mini-instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "3.8B", License: "MIT",
 		ChatTemplate: "phi3", StopTokens: []string{"<|end|>", "<|endoftext|>"},
 	},
 	"llm/mistral-nemo:12b": {
-		Repo: "bartowski/Mistral-Nemo-Instruct-2407-GGUF",
-		File: "Mistral-Nemo-Instruct-2407-Q4_K_M.gguf",
+		Repo:   "bartowski/Mistral-Nemo-Instruct-2407-GGUF",
+		File:   "Mistral-Nemo-Instruct-2407-Q4_K_M.gguf",
 		Format: "gguf", Params: "12B", License: "Apache-2.0",
 		ChatTemplate: "mistral", StopTokens: []string{"[INST]", "[/INST]"},
 	},
 	"llm/gemma3:4b": {
-		Repo: "bartowski/gemma-3-4b-it-GGUF",
-		File: "gemma-3-4b-it-Q4_K_M.gguf",
+		Repo:   "bartowski/gemma-3-4b-it-GGUF",
+		File:   "gemma-3-4b-it-Q4_K_M.gguf",
 		Format: "gguf", Params: "4B", License: "Gemma",
 		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
 	},
 	"llm/gemma3:12b": {
-		Repo: "bartowski/gemma-3-12b-it-GGUF",
-		File: "gemma-3-12b-it-Q4_K_M.gguf",
+		Repo:   "bartowski/gemma-3-12b-it-GGUF",
+		File:   "gemma-3-12b-it-Q4_K_M.gguf",
 		Format: "gguf", Params: "12B", License: "Gemma",
 		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
 	},
 	"llm/deepseek-r1:7b": {
-		Repo: "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF",
-		File: "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
+		Repo:   "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF",
+		File:   "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
 		Format: "gguf", Params: "7B", License: "MIT",
 		ChatTemplate: "deepseek", StopTokens: []string{"<|EOT|>"},
 	},
 	"llm/deepseek-r1:14b": {
-		Repo: "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF",
-		File: "DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
+		Repo:   "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF",
+		File:   "DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
 		Format: "gguf", Params: "14B", License: "MIT",
 		ChatTemplate: "deepseek", StopTokens: []string{"<|EOT|>"},
 	},
 	"llm/command-r:35b": {
-		Repo: "bartowski/c4ai-command-r-v01-GGUF",
-		File: "c4ai-command-r-v01-Q4_K_M.gguf",
+		Repo:   "bartowski/c4ai-command-r-v01-GGUF",
+		File:   "c4ai-command-r-v01-Q4_K_M.gguf",
 		Format: "gguf", Params: "35B", License: "CC-BY-NC-4.0",
 		ChatTemplate: "command-r", StopTokens: []string{"<|END_OF_TURN_TOKEN|>"},
 	},
 	// ── Image — GGUF (gpustack repos, public, no token) ───────────────────
 	"image/openjourney:latest": {
-		Repo: "gpustack/stable-diffusion-v1-5-GGUF",
-		File: "stable-diffusion-v1-5-Q4_1.gguf",
+		Repo:   "gpustack/stable-diffusion-v1-5-GGUF",
+		File:   "stable-diffusion-v1-5-Q4_1.gguf",
 		Format: "gguf", Params: "860M", License: "CreativeML",
 	},
 	"image/dreamshaper:latest": {
-		Repo: "gpustack/dreamshaper-8-GGUF",
-		File: "dreamshaper-8-Q5_0.gguf",
+		Repo:   "gpustack/dreamshaper-8-GGUF",
+		File:   "dreamshaper-8-Q5_0.gguf",
 		Format: "gguf", Params: "860M", License: "CreativeML",
 	},
 	"image/sdxl:latest": {
-		Repo: "gpustack/stable-diffusion-xl-base-1.0-GGUF",
-		File: "stable-diffusion-xl-base-1.0-Q4_1.gguf",
+		Repo:   "gpustack/stable-diffusion-xl-base-1.0-GGUF",
+		File:   "stable-diffusion-xl-base-1.0-Q4_1.gguf",
 		Format: "gguf", Params: "3.5B", License: "CreativeML",
 	},
 	"image/flux:schnell": {
-		Repo: "city96/FLUX.1-schnell-gguf",
-		File: "flux1-schnell-Q4_K_S.gguf",
+		Repo:   "city96/FLUX.1-schnell-gguf",
+		File:   "flux1-schnell-Q4_K_S.gguf",
 		Format: "gguf", Params: "12B", License: "Apache-2.0",
 	},
 	"image/flux:dev": {
-		Repo: "city96/FLUX.1-dev-gguf",
-		File: "flux1-dev-Q4_K_S.gguf",
+		Repo:   "city96/FLUX.1-dev-gguf",
+		File:   "flux1-dev-Q4_K_S.gguf",
 		Format: "gguf", Params: "12B", License: "NC",
 	},
 	"image/realvisxl:v4": {
-		Repo: "gpustack/RealVisXL_V4.0-GGUF",
-		File: "RealVisXL_V4.0-Q5_0.gguf",
+		Repo:   "gpustack/RealVisXL_V4.0-GGUF",
+		File:   "RealVisXL_V4.0-Q5_0.gguf",
 		Format: "gguf", Params: "3.5B", License: "CreativeML",
 	},
 	// ── Audio — Whisper GGUF (ggerganov, widely mirrored) ────────────────
 	"audio/whisper:large": {
-		Repo: "ggerganov/whisper.cpp",
-		File: "ggml-large-v3.bin",
+		Repo:   "ggerganov/whisper.cpp",
+		File:   "ggml-large-v3.bin",
 		Format: "bin", Params: "1.5B", License: "Apache-2.0",
 	},
 	"audio/whisper:large-v3": {
-		Repo: "ggerganov/whisper.cpp",
-		File: "ggml-large-v3.bin",
+		Repo:   "ggerganov/whisper.cpp",
+		File:   "ggml-large-v3.bin",
 		Format: "bin", Params: "1.5B", License: "Apache-2.0",
 	},
 	"audio/whisper:base": {
-		Repo: "ggerganov/whisper.cpp",
-		File: "ggml-base.bin",
+		Repo:   "ggerganov/whisper.cpp",
+		File:   "ggml-base.bin",
 		Format: "bin", Params: "74M", License: "Apache-2.0",
 	},
 	"audio/whisper:small": {
-		Repo: "ggerganov/whisper.cpp",
-		File: "ggml-small.bin",
+		Repo:   "ggerganov/whisper.cpp",
+		File:   "ggml-small.bin",
 		Format: "bin", Params: "244M", License: "Apache-2.0",
 	},
 	"audio/kokoro:latest": {
-		Repo: "hexgrad/Kokoro-82M",
-		File: "kokoro-v1_0.pth",
+		Repo:   "hexgrad/Kokoro-82M",
+		File:   "kokoro-v1_0.pth",
 		Format: "pt", Params: "82M", License: "Apache-2.0",
 	},
 	"audio/bark:latest": {
-		Repo: "suno/bark",
-		File: "pytorch_model.bin",
+		Repo:   "suno/bark",
+		File:   "pytorch_model.bin",
 		Format: "pt", Params: "1.2B", License: "MIT",
 	},
 	// ── Video ───────────────────────────────────────────────────────────────
 	"video/wan:1.3b": {
-		Repo:     "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
-		File:     "",
-		Format:   "diffusers", Params: "1.3B", License: "Apache-2.0",
+		Repo:   "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+		File:   "",
+		Format: "diffusers", Params: "1.3B", License: "Apache-2.0",
 		FullRepo: true,
 	},
 	"video/wan:14b": {
-		Repo:     "Wan-AI/Wan2.1-T2V-14B-Diffusers",
-		File:     "",
-		Format:   "diffusers", Params: "14B", License: "Apache-2.0",
+		Repo:   "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+		File:   "",
+		Format: "diffusers", Params: "14B", License: "Apache-2.0",
 		FullRepo: true,
 	},
 	"video/cogvideo:5b": {
-		Repo: "THUDM/CogVideoX-5b",
-		File: "transformer/diffusion_pytorch_model.safetensors",
+		Repo:   "THUDM/CogVideoX-5b",
+		File:   "transformer/diffusion_pytorch_model.safetensors",
 		Format: "safetensors", Params: "5B", License: "CogVideoX",
 	},
 	"video/animatediff:v3": {
-		Repo:     "guoyww/animatediff-motion-adapter-v1-5-3",
-		File:     "diffusion_pytorch_model.safetensors",
-		Format:   "safetensors", Params: "1.5B", License: "Apache-2.0",
+		Repo:   "guoyww/animatediff-motion-adapter-v1-5-3",
+		File:   "diffusion_pytorch_model.safetensors",
+		Format: "safetensors", Params: "1.5B", License: "Apache-2.0",
 		FullRepo: true, // needs config.json alongside the weights
 	},
 	// ── 3D ──────────────────────────────────────────────────────────────────
@@ -673,13 +685,13 @@ var hfRegistry = map[string]HFEntry{
 
 type HFEntry struct {
 	Repo         string
-	File         string   // empty = download full repo
+	File         string // empty = download full repo
 	Format       string
 	Params       string
 	License      string
 	ChatTemplate string
 	StopTokens   []string
-	FullRepo     bool     // true = download entire repo (diffusers/adapters)
+	FullRepo     bool // true = download entire repo (diffusers/adapters)
 }
 
 type ProgressCallback func(downloaded, total int64)
@@ -716,13 +728,13 @@ func (d *Downloader) Pull(ref *ModelRef, progress ProgressCallback) error {
 	}
 	if !ok {
 		return fmt.Errorf(
-			"modello %q non nel registro Vortelio.\n\n"+
-				"  Puoi scaricare qualsiasi modello da HuggingFace direttamente:\n"+
+			"model %q not in the Vortelio registry.\n\n"+
+				"  You can download any model directly from HuggingFace:\n"+
 				"    vortelio pull llm/hf.co/<owner>/<repo>:<file>\n\n"+
-				"  Esempi:\n"+
+				"  Examples:\n"+
 				"    vortelio pull llm/hf.co/unsloth/Qwen3.5-0.8B-GGUF:UD-IQ2_XXS\n"+
 				"    vortelio pull llm/hf.co/bartowski/Mistral-7B-v0.1-GGUF:Q4_K_M\n\n"+
-				"  Oppure usa un alias del registro:\n"+
+				"  Or use a registry alias:\n"+
 				"    vortelio pull llm/mistral:7b\n"+
 				"    vortelio pull llm/llama3:8b\n"+
 				"    vortelio pull llm/phi3:mini",
@@ -752,7 +764,7 @@ func (d *Downloader) Pull(ref *ModelRef, progress ProgressCallback) error {
 		return err
 	}
 	if d.alreadyDownloaded(destFile) {
-		fmt.Println("✓  File già presente, aggiornamento manifest...")
+		fmt.Println("✓  File already present, updating manifest...")
 		return d.saveManifest(ref, destDir, destFile, entry.Format, entry.Params, entry.License,
 			fmt.Sprintf("https://huggingface.co/%s", entry.Repo), entry.ChatTemplate, entry.StopTokens)
 	}
@@ -822,14 +834,17 @@ func transformersFilesToDownload(files []hfFileInfo) []hfFileInfo {
 	// Prefer fp16 over fp32 if both exist
 	hasFP16 := false
 	for _, f := range files {
-		if strings.Contains(strings.ToLower(f.Rfilename), "fp16") { hasFP16 = true; break }
+		if strings.Contains(strings.ToLower(f.Rfilename), "fp16") {
+			hasFP16 = true
+			break
+		}
 	}
 
 	var keep []hfFileInfo
 	for _, f := range files {
-		name  := f.Rfilename
+		name := f.Rfilename
 		lower := strings.ToLower(filepath.Base(name)) // base name for checks
-		path  := strings.ToLower(name)
+		path := strings.ToLower(name)
 
 		// Always keep essential config/tokenizer files
 		if keepNames[filepath.Base(name)] || keepNames[lower] {
@@ -839,23 +854,38 @@ func transformersFilesToDownload(files []hfFileInfo) []hfFileInfo {
 
 		skip := false
 		// Skip by exact name
-		if skipNames[name] || skipNames[strings.ToLower(name)] { skip = true }
+		if skipNames[name] || skipNames[strings.ToLower(name)] {
+			skip = true
+		}
 		// Skip by extension
 		for _, ext := range skipExts {
-			if strings.HasSuffix(path, ext) { skip = true; break }
+			if strings.HasSuffix(path, ext) {
+				skip = true
+				break
+			}
 		}
 		// Skip by directory prefix
 		for _, dir := range skipDirs {
-			if strings.HasPrefix(path, dir) { skip = true; break }
+			if strings.HasPrefix(path, dir) {
+				skip = true
+				break
+			}
 		}
 		// Skip by content pattern (TF/Flax weights)
 		for _, pat := range skipPatterns {
-			if strings.Contains(path, pat) { skip = true; break }
+			if strings.Contains(path, pat) {
+				skip = true
+				break
+			}
 		}
 		// Skip fp32 if fp16 exists
-		if hasFP16 && strings.Contains(path, "fp32") { skip = true }
+		if hasFP16 && strings.Contains(path, "fp32") {
+			skip = true
+		}
 
-		if !skip { keep = append(keep, f) }
+		if !skip {
+			keep = append(keep, f)
+		}
 	}
 	return keep
 }
@@ -898,7 +928,7 @@ func diffusersFilesToDownload(files []hfFileInfo) []hfFileInfo {
 // pullHFDirect downloads directly from HF using the API to find the file.
 func (d *Downloader) pullHFDirect(ref *ModelRef, progress ProgressCallback) error {
 	hfd := ref.HFDirect
-	fmt.Printf("🔍  Ricerca modello su HuggingFace: %s/%s\n", hfd.Owner, hfd.Repo)
+	fmt.Printf("🔍  Searching model on HuggingFace: %s/%s\n", hfd.Owner, hfd.Repo)
 
 	info, err := fetchHFModelInfo(hfd.Owner, hfd.Repo)
 	if err != nil {
@@ -930,9 +960,9 @@ func (d *Downloader) pullHFDirect(ref *ModelRef, progress ProgressCallback) erro
 		}
 	}
 	if fileSize > 0 {
-		fmt.Printf("📄  File selezionato: %s (%.2f GB)\n", chosen.Rfilename, float64(fileSize)/1e9)
+		fmt.Printf("📄  Selected file: %s (%.2f GB)\n", chosen.Rfilename, float64(fileSize)/1e9)
 	} else {
-		fmt.Printf("📄  File selezionato: %s\n", chosen.Rfilename)
+		fmt.Printf("📄  Selected file: %s\n", chosen.Rfilename)
 	}
 
 	destDir, destFile, err := d.prepareDestDir(ref, filepath.Base(chosen.Rfilename))
@@ -945,7 +975,7 @@ func (d *Downloader) pullHFDirect(ref *ModelRef, progress ProgressCallback) erro
 	source := fmt.Sprintf("https://huggingface.co/%s/%s", hfd.Owner, hfd.Repo)
 
 	if d.alreadyDownloaded(destFile) {
-		fmt.Println("✓  File già presente, aggiornamento manifest...")
+		fmt.Println("✓  File already present, updating manifest...")
 		// Always save manifest — it may be missing even if file exists
 		return d.saveManifest(ref, destDir, destFile, ext, "", "vedi HuggingFace", source, chatTemplate, stopTokens)
 	}
@@ -970,9 +1000,9 @@ func (d *Downloader) pullHFDiffusers(ref *ModelRef, hfd *HFDirectRef, allFiles [
 		totalBytes += f.Size
 	}
 	if totalBytes > 0 {
-		fmt.Printf("📦  Repo diffusers: %d file, %.2f GB totali\n", len(files), float64(totalBytes)/1e9)
+		fmt.Printf("📦  Diffusers repo: %d files, %.2f GB total\n", len(files), float64(totalBytes)/1e9)
 	} else {
-		fmt.Printf("📦  Repo diffusers: %d file\n", len(files))
+		fmt.Printf("📦  Diffusers repo: %d files\n", len(files))
 	}
 
 	destRoot := filepath.Join(config.HomeDir(), "models", ref.Type, ref.Name, ref.Tag)
@@ -992,7 +1022,7 @@ func (d *Downloader) pullHFDiffusers(ref *ModelRef, hfd *HFDirectRef, allFiles [
 
 		// Skip if already downloaded and non-empty
 		if fi, err := os.Stat(destFile); err == nil && fi.Size() > 0 {
-			fmt.Printf("  ✓  [%d/%d] %s (già presente)\n", i+1, len(files), f.Rfilename)
+			fmt.Printf("  ✓  [%d/%d] %s (already present)\n", i+1, len(files), f.Rfilename)
 			downloadedBytes += fi.Size()
 			continue
 		}
@@ -1009,7 +1039,7 @@ func (d *Downloader) pullHFDiffusers(ref *ModelRef, hfd *HFDirectRef, allFiles [
 				progress(downloadedBytes+dl, totalBytes)
 			}
 		}); err != nil {
-			return fmt.Errorf("download %s fallito: %w", f.Rfilename, err)
+			return fmt.Errorf("download of %s failed: %w", f.Rfilename, err)
 		}
 		downloadedBytes += f.Size
 	}
@@ -1027,7 +1057,7 @@ func (d *Downloader) pullHFDiffusers(ref *ModelRef, hfd *HFDirectRef, allFiles [
 		}
 	}
 
-	fmt.Printf("\n✅  Modello scaricato in: %s\n", destRoot)
+	fmt.Printf("\n✅  Model downloaded to: %s\n", destRoot)
 	return d.saveManifest(ref, destRoot, manifestPath, "diffusers", "", "vedi HuggingFace", source, "", nil)
 }
 
@@ -1036,20 +1066,24 @@ func (d *Downloader) pullHFDiffusers(ref *ModelRef, hfd *HFDirectRef, allFiles [
 func (d *Downloader) pullHFTransformers(ref *ModelRef, hfd *HFDirectRef, allFiles []hfFileInfo, progress ProgressCallback) error {
 	files := transformersFilesToDownload(allFiles)
 	if len(files) == 0 {
-		return fmt.Errorf("nessun file da scaricare nel repository %s/%s", hfd.Owner, hfd.Repo)
+		return fmt.Errorf("no files to download in repository %s/%s", hfd.Owner, hfd.Repo)
 	}
 
 	var totalBytes int64
-	for _, f := range files { totalBytes += f.Size }
+	for _, f := range files {
+		totalBytes += f.Size
+	}
 
 	if totalBytes > 0 {
-		fmt.Printf("📦  %s/%s — %d file, %.2f GB totali\n", hfd.Owner, hfd.Repo, len(files), float64(totalBytes)/1e9)
+		fmt.Printf("📦  %s/%s — %d files, %.2f GB total\n", hfd.Owner, hfd.Repo, len(files), float64(totalBytes)/1e9)
 	} else {
-		fmt.Printf("📦  %s/%s — %d file\n", hfd.Owner, hfd.Repo, len(files))
+		fmt.Printf("📦  %s/%s — %d files\n", hfd.Owner, hfd.Repo, len(files))
 	}
 
 	destRoot := filepath.Join(config.HomeDir(), "models", ref.Type, ref.Name, ref.Tag)
-	if err := os.MkdirAll(destRoot, 0755); err != nil { return err }
+	if err := os.MkdirAll(destRoot, 0755); err != nil {
+		return err
+	}
 
 	source := fmt.Sprintf("https://huggingface.co/%s/%s", hfd.Owner, hfd.Repo)
 	var downloadedBytes int64
@@ -1058,13 +1092,15 @@ func (d *Downloader) pullHFTransformers(ref *ModelRef, hfd *HFDirectRef, allFile
 		if d.ctx != nil {
 			select {
 			case <-d.ctx.Done():
-				return fmt.Errorf("download annullato")
+				return fmt.Errorf("download cancelled")
 			default:
 			}
 		}
 
 		destFile := filepath.Join(destRoot, filepath.FromSlash(f.Rfilename))
-		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil { return err }
+		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
+			return err
+		}
 
 		if fi, err := os.Stat(destFile); err == nil && fi.Size() > 0 {
 			downloadedBytes += fi.Size()
@@ -1076,17 +1112,25 @@ func (d *Downloader) pullHFTransformers(ref *ModelRef, hfd *HFDirectRef, allFile
 
 		shortName := filepath.Base(f.Rfilename)
 		fileMsg := fmt.Sprintf("[%d/%d] %s", i+1, len(files), shortName)
-		if f.Size > 0 { fileMsg += fmt.Sprintf(" (%.0f MB)", float64(f.Size)/1e6) }
+		if f.Size > 0 {
+			fileMsg += fmt.Sprintf(" (%.0f MB)", float64(f.Size)/1e6)
+		}
 		fmt.Printf("  ⬇️   %s\n", fileMsg)
-		if progress != nil { progress(downloadedBytes, max64(totalBytes, 1)) }
+		if progress != nil {
+			progress(downloadedBytes, max64(totalBytes, 1))
+		}
 
 		url := fmt.Sprintf("https://huggingface.co/%s/%s/resolve/main/%s", hfd.Owner, hfd.Repo, f.Rfilename)
 		if err := d.downloadWithProgress(url, destFile, func(dl, total int64) {
 			if progress != nil {
 				eff := totalBytes
-				if eff == 0 { eff = total }
+				if eff == 0 {
+					eff = total
+				}
 				pct := downloadedBytes + dl
-				if eff > 0 && pct > eff { pct = eff }
+				if eff > 0 && pct > eff {
+					pct = eff
+				}
 				progress(pct, max64(eff, 1))
 			}
 		}); err != nil {
@@ -1108,11 +1152,16 @@ func (d *Downloader) pullHFTransformers(ref *ModelRef, hfd *HFDirectRef, allFile
 		}
 	}
 	chatTemplate, stopTokens := detectChatTemplate(hfd.Repo)
-	fmt.Printf("\n✅  Scaricato: %s\n", destRoot)
+	fmt.Printf("\n✅  Downloaded: %s\n", destRoot)
 	return d.saveManifest(ref, destRoot, manifestPath, "safetensors", "", "vedi HuggingFace", source, chatTemplate, stopTokens)
 }
 
-func max64(a, b int64) int64 { if a > b { return a }; return b }
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 // detectChatTemplate guesses the chat template from the repo/model name.
 func detectChatTemplate(repoName string) (string, []string) {
@@ -1162,28 +1211,36 @@ func (d *Downloader) alreadyDownloaded(destFile string) bool {
 
 func (d *Downloader) downloadWithProgress(url, destFile string, progress ProgressCallback) error {
 	ctx := context.Background()
-	if d.ctx != nil { ctx = d.ctx }
+	if d.ctx != nil {
+		ctx = d.ctx
+	}
 
 	// Use a simple client — HuggingFace public files redirect to CDN
 	client := &http.Client{
 		Timeout: 0, // no timeout for large files
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) > 15 { return fmt.Errorf("troppi redirect (%d)", len(via)) }
+			if len(via) > 15 {
+				return fmt.Errorf("troppi redirect (%d)", len(via))
+			}
 			req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Vortelio/1.0)")
 			return nil
 		},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil { return fmt.Errorf("errore richiesta: %w", err) }
+	if err != nil {
+		return fmt.Errorf("request error: %w", err)
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Vortelio/1.0)")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Accept-Encoding", "identity") // disable gzip to get real Content-Length
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if ctx.Err() != nil { return fmt.Errorf("download annullato") }
-		return fmt.Errorf("connessione fallita: %w", err)
+		if ctx.Err() != nil {
+			return fmt.Errorf("download cancelled")
+		}
+		return fmt.Errorf("connection failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -1191,18 +1248,20 @@ func (d *Downloader) downloadWithProgress(url, destFile string, progress Progres
 	case http.StatusOK, http.StatusPartialContent:
 		// proceed
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("accesso negato (HTTP %d) — il modello potrebbe richiedere un token HuggingFace", resp.StatusCode)
+		return fmt.Errorf("access denied (HTTP %d) — the model may require a HuggingFace token", resp.StatusCode)
 	case http.StatusNotFound:
-		return fmt.Errorf("file non trovato (404)\nURL: %s", url)
+		return fmt.Errorf("file not found (404)\nURL: %s", url)
 	default:
 		return fmt.Errorf("server: %s\nURL: %s", resp.Status, url)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
-		return fmt.Errorf("creazione directory: %w", err)
+		return fmt.Errorf("create directory: %w", err)
 	}
 	f, err := os.Create(destFile)
-	if err != nil { return fmt.Errorf("creazione file: %w", err) }
+	if err != nil {
+		return fmt.Errorf("create file: %w", err)
+	}
 	defer f.Close()
 
 	total := resp.ContentLength
@@ -1210,30 +1269,48 @@ func (d *Downloader) downloadWithProgress(url, destFile string, progress Progres
 	buf := make([]byte, 512*1024) // 512 KB buffer
 
 	for {
-		if ctx.Err() != nil { return fmt.Errorf("download annullato") }
+		if ctx.Err() != nil {
+			return fmt.Errorf("download cancelled")
+		}
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			if _, werr := f.Write(buf[:n]); werr != nil { return werr }
+			if _, werr := f.Write(buf[:n]); werr != nil {
+				return werr
+			}
 			downloaded += int64(n)
-			if progress != nil { progress(downloaded, total) }
+			if progress != nil {
+				progress(downloaded, total)
+			}
 		}
-		if readErr == io.EOF { break }
+		if readErr == io.EOF {
+			break
+		}
 		if readErr != nil {
-			if ctx.Err() != nil { return fmt.Errorf("download annullato") }
-			return fmt.Errorf("errore lettura: %w", readErr)
+			if ctx.Err() != nil {
+				return fmt.Errorf("download cancelled")
+			}
+			return fmt.Errorf("read error: %w", readErr)
 		}
 	}
-	if downloaded == 0 { return fmt.Errorf("file vuoto ricevuto da HuggingFace") }
+	if downloaded == 0 {
+		return fmt.Errorf("empty file received from HuggingFace")
+	}
 	return nil
 }
 
 func dirOrFileSize(path string) int64 {
 	fi, err := os.Stat(path)
-	if err != nil { return 0 }
-	if !fi.IsDir() { return fi.Size() }
+	if err != nil {
+		return 0
+	}
+	if !fi.IsDir() {
+		return fi.Size()
+	}
 	var total int64
 	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() { total += info.Size() }
+		if err == nil && !info.IsDir() {
+			total += info.Size()
+		}
 		return nil
 	})
 	return total
@@ -1242,7 +1319,9 @@ func dirOrFileSize(path string) int64 {
 func (d *Downloader) saveManifest(ref *ModelRef, dir, localPath, format, params, license, source, chatTemplate string, stopTokens []string) error {
 	// Use directory size for multi-file models (diffusers/transformers)
 	size := dirOrFileSize(dir)
-	if size == 0 { size = dirOrFileSize(localPath) }
+	if size == 0 {
+		size = dirOrFileSize(localPath)
+	}
 	m := &Model{
 		Type:         ref.Type,
 		Name:         ref.Name,
@@ -1344,4 +1423,6 @@ func copyFile(src, dst string) error {
 }
 
 // TestTransformersFiles is exported for testing only
-func TestTransformersFiles(files []hfFileInfo) []hfFileInfo { return transformersFilesToDownload(files) }
+func TestTransformersFiles(files []hfFileInfo) []hfFileInfo {
+	return transformersFilesToDownload(files)
+}

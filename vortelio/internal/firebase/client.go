@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 	"sync"
 
+	"cloud.google.com/go/firestore"
 	fb "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
-	"cloud.google.com/go/firestore"
 	"google.golang.org/api/option"
 )
 
 var (
-	once      sync.Once
-	fbApp     *fb.App
-	fbAuth    *auth.Client
-	fbStore   *firestore.Client
-	initErr   error
+	once    sync.Once
+	fbApp   *fb.App
+	fbAuth  *auth.Client
+	fbStore *firestore.Client
+	initErr error
 )
 
 // Init initializes Firebase using the service account key from ~/.vortelio/firebase-credentials.json.

@@ -19,18 +19,32 @@ import (
 // ── Agent proxy ───────────────────────────────────────────────────────────────
 
 func handleAgentCheck(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	var req struct {
 		URL    string `json:"url"`
 		APIKey string `json:"api_key"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
-	if req.URL == "" { jsonError(w, 400, "url is required"); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
+	if req.URL == "" {
+		jsonError(w, 400, "url is required")
+		return
+	}
 
 	target := strings.TrimRight(req.URL, "/") + "/v1/models"
 	hreq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
-	if err != nil { jsonError(w, 400, "invalid url: "+err.Error()); return }
-	if req.APIKey != "" { hreq.Header.Set("Authorization", "Bearer "+req.APIKey) }
+	if err != nil {
+		jsonError(w, 400, "invalid url: "+err.Error())
+		return
+	}
+	if req.APIKey != "" {
+		hreq.Header.Set("Authorization", "Bearer "+req.APIKey)
+	}
 	hreq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 8 * time.Second}
@@ -45,7 +59,10 @@ func handleAgentCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAgentProxy(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	var req struct {
 		URL          string                 `json:"url"`
 		APIKey       string                 `json:"api_key"`
@@ -54,21 +71,37 @@ func handleAgentProxy(w http.ResponseWriter, r *http.Request) {
 		Endpoint     string                 `json:"endpoint"`
 		ExtraHeaders map[string]string      `json:"extra_headers"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
-	if req.URL == "" { jsonError(w, 400, "url is required"); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
+	if req.URL == "" {
+		jsonError(w, 400, "url is required")
+		return
+	}
 
 	endpoint := "/v1/chat/completions"
-	if req.Endpoint != "" { endpoint = req.Endpoint }
+	if req.Endpoint != "" {
+		endpoint = req.Endpoint
+	}
 	target := strings.TrimRight(req.URL, "/") + endpoint
 
-	if req.Payload == nil { req.Payload = map[string]interface{}{} }
+	if req.Payload == nil {
+		req.Payload = map[string]interface{}{}
+	}
 	req.Payload["stream"] = req.Stream
 
 	payloadBytes, err := json.Marshal(req.Payload)
-	if err != nil { jsonError(w, 400, "payload not serializable"); return }
+	if err != nil {
+		jsonError(w, 400, "payload not serializable")
+		return
+	}
 
 	hreq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(payloadBytes))
-	if err != nil { jsonError(w, 400, "invalid url: "+err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, "invalid url: "+err.Error())
+		return
+	}
 	hreq.Header.Set("Content-Type", "application/json")
 
 	if req.APIKey != "" {
@@ -81,7 +114,9 @@ func handleAgentProxy(w http.ResponseWriter, r *http.Request) {
 			hreq.Header.Set("Authorization", "Bearer "+req.APIKey)
 		}
 	}
-	for k, v := range req.ExtraHeaders { hreq.Header.Set(k, v) }
+	for k, v := range req.ExtraHeaders {
+		hreq.Header.Set(k, v)
+	}
 	if strings.Contains(req.URL, "anthropic.com") && hreq.Header.Get("anthropic-version") == "" {
 		hreq.Header.Set("anthropic-version", "2023-06-01")
 	}
@@ -91,7 +126,10 @@ func handleAgentProxy(w http.ResponseWriter, r *http.Request) {
 		Transport: &http.Transport{DisableCompression: true},
 	}
 	resp, err := client.Do(hreq)
-	if err != nil { jsonError(w, 502, "cannot contact provider: "+err.Error()); return }
+	if err != nil {
+		jsonError(w, 502, "cannot contact provider: "+err.Error())
+		return
+	}
 	defer resp.Body.Close()
 
 	for k, v := range resp.Header {
@@ -112,9 +150,13 @@ func handleAgentProxy(w http.ResponseWriter, r *http.Request) {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {
 			w.Write(buf[:n])
-			if canFlush { flusher.Flush() }
+			if canFlush {
+				flusher.Flush()
+			}
 		}
-		if rerr != nil { break }
+		if rerr != nil {
+			break
+		}
 	}
 }
 
@@ -126,9 +168,17 @@ func handleAgentCatalog(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAgentInstall(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ ID string `json:"id"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -136,10 +186,12 @@ func handleAgentInstall(w http.ResponseWriter, r *http.Request) {
 	flusher, canFlush := w.(http.Flusher)
 	sseEvent := func(typ, data string) {
 		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", typ, data)
-		if canFlush { flusher.Flush() }
+		if canFlush {
+			flusher.Flush()
+		}
 	}
 
-	progJSON, _ := json.Marshal(map[string]interface{}{"msg": "Avvio npm install…"})
+	progJSON, _ := json.Marshal(map[string]interface{}{"msg": "Starting npm install…"})
 	sseEvent("progress", string(progJSON))
 
 	ctx, cancel := context.WithCancel(r.Context())
@@ -149,7 +201,9 @@ func handleAgentInstall(w http.ResponseWriter, r *http.Request) {
 	err := agent.Install(ctx, req.ID, func(line string) {
 		lineCount++
 		pct := lineCount * 3
-		if pct > 90 { pct = 90 }
+		if pct > 90 {
+			pct = 90
+		}
 		progJSON, _ := json.Marshal(map[string]interface{}{"pct": pct, "msg": line})
 		sseEvent("progress", string(progJSON))
 	})
@@ -163,10 +217,21 @@ func handleAgentInstall(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleAgentStart(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ ID string `json:"id"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
-	if err := agent.Start(req.ID); err != nil { jsonError(w, 500, err.Error()); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
+	if err := agent.Start(req.ID); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 
 	// Poll health endpoint for up to 15s instead of fixed sleep
 	deadline := time.Now().Add(15 * time.Second)
@@ -175,30 +240,54 @@ func handleAgentStart(w http.ResponseWriter, r *http.Request) {
 	for time.Now().Before(deadline) {
 		time.Sleep(500 * time.Millisecond)
 		ok, body = agent.Health(req.ID)
-		if ok { break }
+		if ok {
+			break
+		}
 	}
 	respond(w, 200, map[string]interface{}{"started": true, "healthy": ok, "body": body})
 }
 
 func handleAgentStop(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ ID string `json:"id"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	agent.Stop(req.ID)
 	respond(w, 200, map[string]string{"status": "stopped"})
 }
 
 func handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ ID string `json:"id"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
-	if err := agent.Uninstall(req.ID); err != nil { jsonError(w, 500, err.Error()); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
+	if err := agent.Uninstall(req.ID); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	respond(w, 200, map[string]string{"status": "uninstalled"})
 }
 
 func handleAgentHealth(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-	if id == "" { jsonError(w, 400, "id required"); return }
+	if id == "" {
+		jsonError(w, 400, "id required")
+		return
+	}
 	ok, body := agent.Health(id)
 	respond(w, 200, map[string]interface{}{"ok": ok, "body": body})
 }
@@ -210,7 +299,10 @@ func crewsDir() string {
 }
 
 func handleCrewList(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet { jsonError(w, 405, "GET only"); return }
+	if r.Method != http.MethodGet {
+		jsonError(w, 405, "GET only")
+		return
+	}
 	os.MkdirAll(crewsDir(), 0755)
 	entries, _ := os.ReadDir(crewsDir())
 	crews := []map[string]interface{}{}
@@ -238,13 +330,19 @@ func handleCrewDispatch(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasSuffix(path, "/run") {
 		name := strings.TrimSuffix(path, "/run")
-		if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+		if r.Method != http.MethodPost {
+			jsonError(w, 405, "POST only")
+			return
+		}
 		handleCrewRun(w, r, name)
 		return
 	}
 
 	name := path
-	if name == "" { jsonError(w, 400, "name required"); return }
+	if name == "" {
+		jsonError(w, 400, "name required")
+		return
+	}
 
 	switch r.Method {
 	case http.MethodGet:
@@ -259,16 +357,25 @@ func handleCrewDispatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCrewGet(w http.ResponseWriter, r *http.Request, name string) {
-	if !validCrewName(name) { jsonError(w, 400, "nome non valido"); return }
+	if !validCrewName(name) {
+		jsonError(w, 400, "invalid name")
+		return
+	}
 	data, err := os.ReadFile(filepath.Join(crewsDir(), name+".json"))
-	if err != nil { jsonError(w, 404, "crew non trovata"); return }
+	if err != nil {
+		jsonError(w, 404, "crew not found")
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
 
 func handleCrewSave(w http.ResponseWriter, r *http.Request, name string) {
 	var body map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	// Allow name from URL to override body
 	if name != "" {
 		body["name"] = name
@@ -276,7 +383,10 @@ func handleCrewSave(w http.ResponseWriter, r *http.Request, name string) {
 		n, _ := body["name"].(string)
 		name = strings.TrimSpace(n)
 	}
-	if !validCrewName(name) { jsonError(w, 400, "nome crew non valido"); return }
+	if !validCrewName(name) {
+		jsonError(w, 400, "invalid crew name")
+		return
+	}
 	os.MkdirAll(crewsDir(), 0755)
 	data, _ := json.MarshalIndent(body, "", "  ")
 	os.WriteFile(filepath.Join(crewsDir(), name+".json"), data, 0644)
@@ -284,13 +394,19 @@ func handleCrewSave(w http.ResponseWriter, r *http.Request, name string) {
 }
 
 func handleCrewDelete(w http.ResponseWriter, r *http.Request, name string) {
-	if !validCrewName(name) { jsonError(w, 400, "nome non valido"); return }
+	if !validCrewName(name) {
+		jsonError(w, 400, "invalid name")
+		return
+	}
 	os.Remove(filepath.Join(crewsDir(), name+".json"))
 	respond(w, 200, map[string]interface{}{"ok": true})
 }
 
 func handleCrewRun(w http.ResponseWriter, r *http.Request, name string) {
-	if !validCrewName(name) { jsonError(w, 400, "nome non valido"); return }
+	if !validCrewName(name) {
+		jsonError(w, 400, "invalid name")
+		return
+	}
 
 	// Proxy run to CrewAI Python server (port 8500)
 	var reqBody map[string]interface{}
@@ -299,13 +415,16 @@ func handleCrewRun(w http.ResponseWriter, r *http.Request, name string) {
 
 	target := "http://localhost:8500/api/crews/" + name + "/run"
 	hreq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(bodyBytes))
-	if err != nil { jsonError(w, 500, "cannot build request: "+err.Error()); return }
+	if err != nil {
+		jsonError(w, 500, "cannot build request: "+err.Error())
+		return
+	}
 	hreq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Minute, Transport: &http.Transport{DisableCompression: true}}
 	resp, err := client.Do(hreq)
 	if err != nil {
-		jsonError(w, 503, "CrewAI server non disponibile — avvia prima l'agente CrewAI: "+err.Error())
+		jsonError(w, 503, "CrewAI server not available — start the CrewAI agent first: "+err.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -324,9 +443,13 @@ func handleCrewRun(w http.ResponseWriter, r *http.Request, name string) {
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {
 			w.Write(buf[:n])
-			if canFlush { flusher.Flush() }
+			if canFlush {
+				flusher.Flush()
+			}
 		}
-		if rerr != nil { break }
+		if rerr != nil {
+			break
+		}
 	}
 }
 
@@ -363,7 +486,7 @@ func handleCrewStudioProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := client.Do(hreq)
 	if err != nil {
-		jsonError(w, 503, "CrewAI Studio non disponibile — avvia prima l'agente CrewAI: "+err.Error())
+		jsonError(w, 503, "CrewAI Studio not available — start the CrewAI agent first: "+err.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -397,7 +520,9 @@ func handleCrewStudioProxy(w http.ResponseWriter, r *http.Request) {
 
 func handleOllamaModels(w http.ResponseWriter, r *http.Request) {
 	base := r.URL.Query().Get("url")
-	if base == "" { base = "http://localhost:11434" }
+	if base == "" {
+		base = "http://localhost:11434"
+	}
 	base = strings.TrimRight(base, "/")
 
 	client := &http.Client{Timeout: 4 * time.Second}
@@ -414,7 +539,7 @@ func handleOllamaModels(w http.ResponseWriter, r *http.Request) {
 		} `json:"models"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
-		respond(w, 200, map[string]interface{}{"models": []interface{}{}, "error": "risposta Ollama non valida: " + err.Error()})
+		respond(w, 200, map[string]interface{}{"models": []interface{}{}, "error": "invalid Ollama response: " + err.Error()})
 		return
 	}
 

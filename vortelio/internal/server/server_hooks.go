@@ -26,8 +26,8 @@ type Webhook struct {
 }
 
 var (
-	hooksMu sync.RWMutex
-	hooks   []Webhook
+	hooksMu     sync.RWMutex
+	hooks       []Webhook
 	hooksLoaded bool
 )
 
@@ -137,7 +137,9 @@ func handleHooks(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		id := strings.TrimPrefix(r.URL.Path, "/api/hooks/")
 		if id == "" || id == "/api/hooks" {
-			var body struct{ ID string `json:"id"` }
+			var body struct {
+				ID string `json:"id"`
+			}
 			json.NewDecoder(r.Body).Decode(&body)
 			id = body.ID
 		}

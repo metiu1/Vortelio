@@ -12,25 +12,37 @@ import (
 func FindPython() string {
 	candidates := pythonCandidates()
 	for _, p := range candidates {
-		if isRealPython(p) { return p }
+		if isRealPython(p) {
+			return p
+		}
 	}
 	return ""
 }
 
 func isRealPython(path string) bool {
-	if path == "" { return false }
+	if path == "" {
+		return false
+	}
 	// Skip uv-managed / StabilityMatrix / conda base envs — can't pip install freely
 	lower := strings.ToLower(path)
 	for _, skip := range []string{"stabilitymatrix", "uv", "conda", "anaconda", "miniconda", "windowsapps"} {
-		if strings.Contains(lower, skip) { return false }
+		if strings.Contains(lower, skip) {
+			return false
+		}
 	}
 	cmd := HideWindow(exec.Command(path, "--version"))
 	out, err := cmd.CombinedOutput()
-	if err != nil { return false }
-	if !strings.HasPrefix(strings.TrimSpace(string(out)), "Python 3") { return false }
+	if err != nil {
+		return false
+	}
+	if !strings.HasPrefix(strings.TrimSpace(string(out)), "Python 3") {
+		return false
+	}
 	// Make sure pip is usable (not externally managed without --break-system-packages)
 	pipTest := HideWindow(exec.Command(path, "-m", "pip", "--version"))
-	if err := pipTest.Run(); err != nil { return false }
+	if err := pipTest.Run(); err != nil {
+		return false
+	}
 	return true
 }
 
@@ -101,14 +113,20 @@ func InstallPythonPackage(pythonBin string, packages ...string) error {
 	// Try normal install first
 	args := append(append([]string{}, baseArgs...), packages...)
 	cmd := HideWindow(exec.Command(pythonBin, args...))
-	cmd.Stdout = os.Stdout; cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err == nil { return nil }
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err == nil {
+		return nil
+	}
 	// Try --break-system-packages (handles PEP 668 externally-managed envs)
 	args2 := append(append([]string{}, baseArgs...), "--break-system-packages")
 	args2 = append(args2, packages...)
 	cmd2 := HideWindow(exec.Command(pythonBin, args2...))
-	cmd2.Stdout = os.Stdout; cmd2.Stderr = os.Stderr
-	if err := cmd2.Run(); err == nil { return nil }
+	cmd2.Stdout = os.Stdout
+	cmd2.Stderr = os.Stderr
+	if err := cmd2.Run(); err == nil {
+		return nil
+	}
 	// Try uv pip install (StabilityMatrix uses uv)
 	uvPath, _ := exec.LookPath("uv")
 	if uvPath == "" {
@@ -117,8 +135,11 @@ func InstallPythonPackage(pythonBin string, packages ...string) error {
 	if uvPath != "" {
 		uvArgs := append([]string{"pip", "install", "--quiet"}, packages...)
 		cmd3 := HideWindow(exec.Command(uvPath, uvArgs...))
-		cmd3.Stdout = os.Stdout; cmd3.Stderr = os.Stderr
-		if err := cmd3.Run(); err == nil { return nil }
+		cmd3.Stdout = os.Stdout
+		cmd3.Stderr = os.Stderr
+		if err := cmd3.Run(); err == nil {
+			return nil
+		}
 	}
 	// Final attempt with user install
 	args3 := append(append([]string{}, baseArgs...), "--user")

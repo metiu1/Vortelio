@@ -9,19 +9,19 @@ import (
 
 // Config contiene tutte le opzioni configurabili a runtime.
 type Config struct {
-	Port               int      `json:"port"`                 // porta server HTTP (default 11500)
-	BindAddr           string   `json:"bind_addr"`            // indirizzo bind (default "127.0.0.1"; usa "0.0.0.0" per accesso remoto)
-	APIKey             string   `json:"api_key"`              // chiave API opzionale per autenticazione (vuota = nessuna auth)
-	AllowOrigins       []string `json:"allow_origins"`        // origini CORS aggiuntive ("*" = tutte)
-	OllamaPort         int      `json:"ollama_port"`          // porta Ollama locale (default 11434)
-	CloudTimeoutSec    int      `json:"cloud_timeout_sec"`    // timeout chiamate cloud in secondi (default 120)
-	PythonBin          string   `json:"python_bin"`           // percorso Python custom (default: auto-detect)
-	OpenRouterKey      string   `json:"openrouter_key"`       // master OpenRouter API key per proxy cloud premium
-	StripeSecretKey    string   `json:"stripe_secret_key"`    // Stripe secret key (sk_live_... o sk_test_...)
-	StripeWebhookSec   string   `json:"stripe_webhook_secret"`// Stripe webhook signing secret (whsec_...)
-	StripePricePro     string   `json:"stripe_price_pro"`     // Stripe Price ID per piano Pro (€9.99/mese)
-	StripePriceBusiness string  `json:"stripe_price_business"`// Stripe Price ID per piano Business (€20/mese)
-	StripePriceEnterprise string `json:"stripe_price_enterprise"` // Stripe Price ID per piano Enterprise (€150/mese)
+	Port                  int      `json:"port"`                    // porta server HTTP (default 11500)
+	BindAddr              string   `json:"bind_addr"`               // indirizzo bind (default "127.0.0.1"; usa "0.0.0.0" per accesso remoto)
+	APIKey                string   `json:"api_key"`                 // chiave API opzionale per autenticazione (vuota = nessuna auth)
+	AllowOrigins          []string `json:"allow_origins"`           // origini CORS aggiuntive ("*" = tutte)
+	OllamaPort            int      `json:"ollama_port"`             // porta Ollama locale (default 11434)
+	CloudTimeoutSec       int      `json:"cloud_timeout_sec"`       // timeout chiamate cloud in secondi (default 120)
+	PythonBin             string   `json:"python_bin"`              // percorso Python custom (default: auto-detect)
+	OpenRouterKey         string   `json:"openrouter_key"`          // master OpenRouter API key per proxy cloud premium
+	StripeSecretKey       string   `json:"stripe_secret_key"`       // Stripe secret key (sk_live_... o sk_test_...)
+	StripeWebhookSec      string   `json:"stripe_webhook_secret"`   // Stripe webhook signing secret (whsec_...)
+	StripePricePro        string   `json:"stripe_price_pro"`        // Stripe Price ID per piano Pro (€9.99/mese)
+	StripePriceBusiness   string   `json:"stripe_price_business"`   // Stripe Price ID per piano Business (€20/mese)
+	StripePriceEnterprise string   `json:"stripe_price_enterprise"` // Stripe Price ID per piano Enterprise (€150/mese)
 }
 
 var (

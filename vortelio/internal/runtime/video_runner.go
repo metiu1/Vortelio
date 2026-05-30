@@ -22,15 +22,17 @@ func NewVideoRunner(model *hub.Model, hw *Hardware) *VideoRunner {
 
 func (r *VideoRunner) Run(opts *RunOptions) error {
 	if opts.Prompt == "" {
-		return fmt.Errorf("prompt richiesto per la generazione video\n  Esempio: vortelio run video/wan:1.3b \"un gatto che vola\"")
+		return fmt.Errorf("a text prompt is required for video generation\n  Example: vortelio run video/wan:1.3b \"a flying cat\"")
 	}
 
 	output := opts.OutputFile
-	if output == "" { output = "output.mp4" }
+	if output == "" {
+		output = "output.mp4"
+	}
 
-	name   := strings.ToLower(r.model.Name)
-	fmt2   := strings.ToLower(r.model.Format)
-	local  := strings.ToLower(r.model.LocalPath)
+	name := strings.ToLower(r.model.Name)
+	fmt2 := strings.ToLower(r.model.Format)
+	local := strings.ToLower(r.model.LocalPath)
 
 	fmt.Printf("🎬  Generating video (%d steps)\n", opts.Steps)
 	fmt.Printf("    Prompt: %q\n", opts.Prompt)
@@ -91,7 +93,7 @@ except ImportError:
     if uv: pip_cmds.append([uv, "pip", "install", "--quiet", "diffusers[torch]", "transformers", "accelerate", "imageio", "imageio-ffmpeg"])
     ok = any(subprocess.run(cmd, capture_output=True).returncode == 0 for cmd in pip_cmds)
     if not ok:
-        print("ERROR: impossibile installare diffusers. Installa manualmente: pip install diffusers torch")
+        print("ERROR: could not install diffusers. Install manually: pip install diffusers torch")
         sys.exit(1)
 
 import imageio, numpy as np, os
@@ -145,7 +147,7 @@ try:
     from diffusers.utils import export_to_video
     import torch
 except ImportError:
-    print("VORTELIO_PROGRESS:0:Installazione diffusers...")
+    print("VORTELIO_PROGRESS:0:Installing diffusers...")
     import subprocess
     # Try normal pip first, then --break-system-packages, then uv
     pip_ok = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet",
@@ -181,13 +183,13 @@ if not os.path.exists(config_path):
                     repo_id="guoyww/animatediff-motion-adapter-v1-5-3",
                     filename=fname, local_dir=model_path
                 )
-                print(f"  scaricato: {fname}")
+                print(f"  downloaded: {fname}")
             except Exception:
                 pass
     except ImportError:
         pass
 
-print("VORTELIO_PROGRESS:10:Caricamento adapter...")
+print("VORTELIO_PROGRESS:10:Loading adapter...")
 adapter = MotionAdapter.from_pretrained(model_path, torch_dtype=%s)
 print("VORTELIO_PROGRESS:30:Creazione pipeline...")
 pipe = AnimateDiffPipeline.from_pretrained(
@@ -196,17 +198,17 @@ pipe = AnimateDiffPipeline.from_pretrained(
     torch_dtype=%s,
 )
 pipe = pipe.to("%s")
-print("VORTELIO_PROGRESS:50:Generazione video...")
+print("VORTELIO_PROGRESS:50:Generating video...")
 frames = pipe(
     prompt=r"""%s""",
     num_frames=16,
     num_inference_steps=%d,
     guidance_scale=7.5,
 ).frames[0]
-print("VORTELIO_PROGRESS:90:Salvataggio...")
+print("VORTELIO_PROGRESS:90:Saving...")
 export_to_video(frames, r"""%s""", fps=8)
 print("VORTELIO_DONE:" + r"""%s""")
-print("VORTELIO_PROGRESS:100:Completato!")
+print("VORTELIO_PROGRESS:100:Done!")
 `,
 		modelDir, dtype, dtype, device,
 		escapePy(prompt), steps,
@@ -230,7 +232,9 @@ func (r *VideoRunner) modelDir() string {
 			return dir
 		}
 		parent := filepath.Dir(dir)
-		if parent == dir { break }
+		if parent == dir {
+			break
+		}
 		dir = parent
 	}
 	return strings.ReplaceAll(filepath.Dir(r.model.LocalPath), `\`, `/`)
@@ -257,8 +261,8 @@ func (r *VideoRunner) runPythonScript(script string) error {
 func (r *VideoRunner) runPythonScriptProg(script string, onProgress func(ProgressEvent)) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 non trovato.\n\nInstalla Python 3.10+ da https://python.org/downloads\n" +
-			"Assicurati di spuntare \"Add Python to PATH\" durante l'installazione")
+		return fmt.Errorf("Python 3 not found.\n\nInstall Python 3.10+ from https://python.org/downloads\n" +
+			"Make sure to check \"Add Python to PATH\" during installation")
 	}
 
 	tmp, err := os.CreateTemp("", "vortelio-video-*.py")
@@ -274,7 +278,9 @@ func (r *VideoRunner) runPythonScriptProg(script string, onProgress func(Progres
 	if onProgress != nil {
 		ch := make(chan ProgressEvent, 32)
 		go func() {
-			for ev := range ch { onProgress(ev) }
+			for ev := range ch {
+				onProgress(ev)
+			}
 		}()
 		return RunWithProgress(cmd, ch)
 	}
@@ -284,11 +290,15 @@ func (r *VideoRunner) runPythonScriptProg(script string, onProgress func(Progres
 // RunWithProgress for video — streams VORTELIO_PROGRESS lines as channel events
 func (r *VideoRunner) RunWithProgress(opts *RunOptions, progress chan<- ProgressEvent) error {
 	if opts.Prompt == "" {
-		if progress != nil { close(progress) }
-		return fmt.Errorf("prompt richiesto per la generazione video")
+		if progress != nil {
+			close(progress)
+		}
+		return fmt.Errorf("a text prompt is required for video generation")
 	}
 	output := opts.OutputFile
-	if output == "" { output = "output.mp4" }
+	if output == "" {
+		output = "output.mp4"
+	}
 	name := strings.ToLower(r.model.Name)
 	var script string
 	if strings.Contains(name, "cogvideo") {
@@ -298,12 +308,16 @@ func (r *VideoRunner) RunWithProgress(opts *RunOptions, progress chan<- Progress
 	}
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		if progress != nil { close(progress) }
-		return fmt.Errorf("Python 3 non trovato")
+		if progress != nil {
+			close(progress)
+		}
+		return fmt.Errorf("Python 3 not found")
 	}
 	tmp, err := os.CreateTemp("", "vortelio-video-*.py")
 	if err != nil {
-		if progress != nil { close(progress) }
+		if progress != nil {
+			close(progress)
+		}
 		return err
 	}
 	defer os.Remove(tmp.Name())
@@ -330,7 +344,7 @@ output_path = r"""%s"""
 device = "%s"
 steps = %d
 
-print("VORTELIO_PROGRESS:5:Verifica dipendenze...")
+print("VORTELIO_PROGRESS:5:Checking dependencies...")
 
 def pip_run(*args):
     """Try multiple pip invocation strategies."""
@@ -355,14 +369,14 @@ try:
         pip_run("diffusers[torch]>=0.33.0", "transformers", "accelerate")
         import importlib; importlib.reload(diffusers)
 except ImportError:
-    print("VORTELIO_PROGRESS:8:Installazione diffusers...")
+    print("VORTELIO_PROGRESS:8:Installing diffusers...")
     pip_run("diffusers[torch]>=0.33.0", "transformers", "accelerate")
 
 # Check if model_dir has the full diffusers structure
 # If it only contains a .gguf file, auto-download the full model
 model_index = os.path.join(model_dir, "model_index.json")
 if not os.path.exists(model_index):
-    print("VORTELIO_PROGRESS:12:Download modello Wan 2.1 completo (mancano file diffusers)...")
+    print("VORTELIO_PROGRESS:12:Downloading full Wan 2.1 model (diffusers files missing)...")
     # Find if there's a .gguf file to determine the size (1.3B vs 14B)
     gguf_files = [f for f in os.listdir(model_dir) if f.endswith(".gguf")]
     repo_id = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
@@ -380,12 +394,12 @@ if not os.path.exists(model_index):
             local_dir_use_symlinks=False,  # copy files directly, no symlinks
             ignore_patterns=["*.gguf", "*.bin", "flax_*", "tf_*", "*.msgpack"],
         )
-        print(f"VORTELIO_PROGRESS:45:Download completato!")
+        print(f"VORTELIO_PROGRESS:45:Download complete!")
     except Exception as e:
-        print(f"VORTELIO_ERROR:Download automatico fallito: {e}\nRiscarica il modello con: vortelio pull video/wan:1.3b")
+        print(f"VORTELIO_ERROR:Automatic download failed: {e}\nRe-download the model with: vortelio pull video/wan:1.3b")
         sys.exit(1)
 
-print("VORTELIO_PROGRESS:50:Caricamento WanPipeline...")
+print("VORTELIO_PROGRESS:50:Loading WanPipeline...")
 try:
     from diffusers import AutoencoderKLWan, WanPipeline
     from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
@@ -395,7 +409,7 @@ try:
     if device == "cuda":
         pipe.enable_model_cpu_offload()
         pipe.vae.enable_slicing()
-    print("VORTELIO_PROGRESS:50:Generazione video...")
+    print("VORTELIO_PROGRESS:50:Generating video...")
     output_frames = pipe(
         prompt=prompt,
         negative_prompt="blurry, low quality, watermark",
@@ -403,13 +417,13 @@ try:
         num_frames=49, num_inference_steps=steps,
         guidance_scale=5.0,
     ).frames[0]
-    print("VORTELIO_PROGRESS:90:Salvataggio video...")
+    print("VORTELIO_PROGRESS:90:Saving video...")
     from diffusers.utils import export_to_video
     export_to_video(output_frames, output_path, fps=16)
     print("VORTELIO_DONE:" + output_path)
-    print("VORTELIO_PROGRESS:100:Completato!")
+    print("VORTELIO_PROGRESS:100:Done!")
 except AttributeError:
-    print("VORTELIO_ERROR:WanPipeline non disponibile in questa versione di diffusers.\nEsegui: pip install diffusers>=0.33.0")
+    print("VORTELIO_ERROR:WanPipeline not available in this diffusers version.\nRun: pip install diffusers>=0.33.0")
     sys.exit(1)
 except Exception as e:
     print(f"VORTELIO_ERROR:{e}")
@@ -440,10 +454,10 @@ def pip_install(*pkgs):
             return True
     return False
 
-print("VORTELIO_PROGRESS:10:Installazione diffusers...")
+print("VORTELIO_PROGRESS:10:Installing diffusers...")
 pip_install("diffusers[torch]", "transformers", "accelerate")
 
-print("VORTELIO_PROGRESS:25:Caricamento WanPipeline...")
+print("VORTELIO_PROGRESS:25:Loading WanPipeline...")
 try:
     from diffusers import WanPipeline
     import torch
@@ -451,13 +465,13 @@ try:
     pipe = WanPipeline.from_pretrained(model_dir, torch_dtype=dtype)
     if device == "cuda":
         pipe.enable_model_cpu_offload()
-    print("VORTELIO_PROGRESS:55:Generazione video...")
+    print("VORTELIO_PROGRESS:55:Generating video...")
     output = pipe(prompt=prompt, num_inference_steps=steps, num_frames=49).frames[0]
-    print("VORTELIO_PROGRESS:90:Salvataggio...")
+    print("VORTELIO_PROGRESS:90:Saving...")
     from diffusers.utils import export_to_video
     export_to_video(output, output_path, fps=16)
     print("VORTELIO_DONE:" + output_path)
-    print("VORTELIO_PROGRESS:100:Completato!")
+    print("VORTELIO_PROGRESS:100:Done!")
 except Exception as e:
     print(f"VORTELIO_ERROR:{e}")
     sys.exit(1)
@@ -472,8 +486,12 @@ func (r *VideoRunner) hunyuanScript(prompt, output string, steps int, forceCPU b
 	outputFwd := strings.ReplaceAll(output, `\`, `/`)
 
 	pipelineClass := "HunyuanVideoPipeline"
-	if strings.Contains(name, "ltx") { pipelineClass = "LTXPipeline" }
-	if strings.Contains(name, "mochi") { pipelineClass = "MochiPipeline" }
+	if strings.Contains(name, "ltx") {
+		pipelineClass = "LTXPipeline"
+	}
+	if strings.Contains(name, "mochi") {
+		pipelineClass = "MochiPipeline"
+	}
 
 	return fmt.Sprintf(`import sys, os, subprocess
 os.environ["PYTHONIOENCODING"] = "utf-8"
@@ -484,10 +502,10 @@ device = "%s"
 steps = %d
 pipeline_class = "%s"
 
-print("VORTELIO_PROGRESS:10:Installazione diffusers...")
+print("VORTELIO_PROGRESS:10:Installing diffusers...")
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "diffusers[torch]", "transformers", "accelerate"], capture_output=True)
 
-print(f"VORTELIO_PROGRESS:25:Caricamento {pipeline_class}...")
+print(f"VORTELIO_PROGRESS:25:Loading {pipeline_class}...")
 try:
     import diffusers, torch
     PipeClass = getattr(diffusers, pipeline_class)
@@ -495,13 +513,13 @@ try:
     pipe = PipeClass.from_pretrained(model_dir, torch_dtype=dtype)
     if device == "cuda":
         pipe.enable_model_cpu_offload()
-    print("VORTELIO_PROGRESS:55:Generazione video...")
+    print("VORTELIO_PROGRESS:55:Generating video...")
     frames = pipe(prompt=prompt, num_inference_steps=steps).frames[0]
-    print("VORTELIO_PROGRESS:90:Salvataggio...")
+    print("VORTELIO_PROGRESS:90:Saving...")
     from diffusers.utils import export_to_video
     export_to_video(frames, output_path, fps=24)
     print("VORTELIO_DONE:" + output_path)
-    print("VORTELIO_PROGRESS:100:Completato!")
+    print("VORTELIO_PROGRESS:100:Done!")
 except Exception as e:
     print(f"VORTELIO_ERROR:{e}")
     sys.exit(1)

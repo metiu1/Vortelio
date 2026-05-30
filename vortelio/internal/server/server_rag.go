@@ -32,7 +32,7 @@ type ragChunk struct {
 }
 
 var (
-	ragMu    sync.Mutex
+	ragMu sync.Mutex
 )
 
 func ragDir() string {

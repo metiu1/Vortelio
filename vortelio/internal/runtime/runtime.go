@@ -72,14 +72,14 @@ func DetectHardware() *Hardware {
 }
 
 type RunOptions struct {
-	Prompt     string
-	InputFile  string
-	OutputFile string
-	Steps      int
-	GPU        int
+	Prompt      string
+	InputFile   string
+	OutputFile  string
+	Steps       int
+	GPU         int
 	ForceCPU    bool
 	Stream      bool
-	ContextSize int  // max context tokens for LLM (0 = use default)
+	ContextSize int // max context tokens for LLM (0 = use default)
 }
 
 type Runner interface {

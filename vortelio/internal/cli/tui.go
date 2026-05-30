@@ -150,9 +150,10 @@ func handleScarica() error {
 	var ref string
 	fmt.Scanln(&ref)
 	if ref != "" {
-		// se l'utente non ha già il prefisso tipo, aggiungilo
-		if len(ref) < 3 || ref[:len(chosen.key)+1] != chosen.key+"/" {
-			ref = chosen.key + "/" + ref
+		// if the user didn't already include the type prefix, add it
+		prefix := chosen.key + "/"
+		if !strings.HasPrefix(ref, prefix) {
+			ref = prefix + ref
 		}
 		return reExec("pull", ref)
 	}
@@ -291,7 +292,21 @@ func apiCall(method, endpoint string, payload interface{}) (map[string]interface
 	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	if decErr := json.NewDecoder(resp.Body).Decode(&result); decErr != nil {
+		// Non-JSON body (e.g. a plain-text error page). Surface the HTTP status
+		// instead of silently returning an empty map.
+		if resp.StatusCode >= 400 {
+			return nil, fmt.Errorf("server returned HTTP %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("invalid server response: %w", decErr)
+	}
+	// If the call failed but the body carried no "error" field, synthesize one
+	// so callers (which check result["error"]) report the failure.
+	if resp.StatusCode >= 400 {
+		if _, ok := result["error"].(string); !ok {
+			result["error"] = fmt.Sprintf("server returned HTTP %d", resp.StatusCode)
+		}
+	}
 	return result, nil
 }
 
@@ -791,31 +806,30 @@ func handleTUIServerConfig() {
 	waitKey("  ✅ Config saved. Restart Vortelio for port/bind changes to take effect.")
 }
 
+// readLineSimple reads a line from stdin in normal (cooked) terminal mode.
+// The terminal driver already echoes typed characters and handles backspace,
+// so we must NOT echo again here (doing so caused every keystroke to appear
+// twice). We read byte-by-byte — rather than buffering — so that any extra
+// bytes the user pastes remain in the OS buffer for the next read (important
+// for the multi-line paste in the summarize flow). CR is skipped so Windows
+// CRLF line endings don't produce spurious empty fields.
 func readLineSimple() string {
 	var line strings.Builder
 	buf := make([]byte, 1)
 	for {
-		n, _ := os.Stdin.Read(buf)
-		if n == 0 {
+		n, err := os.Stdin.Read(buf)
+		if n == 0 || err != nil {
 			break
 		}
-		c := buf[0]
-		if c == '\n' || c == '\r' {
-			break
+		switch buf[0] {
+		case '\n':
+			return line.String()
+		case '\r':
+			// ignore — CRLF on Windows
+		default:
+			line.WriteByte(buf[0])
 		}
-		if c == 8 || c == 127 { // backspace
-			s := line.String()
-			if len(s) > 0 {
-				line.Reset()
-				line.WriteString(s[:len(s)-1])
-				fmt.Print("\b \b")
-			}
-			continue
-		}
-		line.WriteByte(c)
-		fmt.Printf("%c", c)
 	}
-	fmt.Println()
 	return line.String()
 }
 

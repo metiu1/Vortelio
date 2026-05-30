@@ -117,6 +117,12 @@ func runCloudChat(p cloud.Provider) error {
 	return nil
 }
 
+// stdinReader is a single shared buffered reader. Allocating a new
+// bufio.Scanner per readLine() call (the previous approach) discarded any bytes
+// it buffered past the newline, losing input on multi-line paste. One shared
+// reader keeps that remainder for the next call.
+var stdinReader = bufio.NewReader(os.Stdin)
+
 // readLine reads a full line in normal (non-raw) terminal mode.
 func readLine() string {
 	fd := int(os.Stdin.Fd())
@@ -127,11 +133,11 @@ func readLine() string {
 			term.Restore(fd, old)
 		}
 	}
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		return scanner.Text()
+	line, err := stdinReader.ReadString('\n')
+	if line == "" && err != nil {
+		return ""
 	}
-	return ""
+	return strings.TrimRight(line, "\r\n")
 }
 
 // maskKey shows only the first 4 and last 4 chars.

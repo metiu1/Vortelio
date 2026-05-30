@@ -17,7 +17,7 @@ new_func = r'''func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string
 	s += "try:\n    from faster_whisper import WhisperModel as _FW\n    _lib = 'faster-whisper'\n"
 	s += "except ImportError:\n    pass\n\n"
 	s += "if _lib is None:\n    try:\n        import whisper as _W\n        _lib = 'openai-whisper'\n    except Exception:\n        pass\n\n"
-	s += "if _lib is None:\n    print('ERRORE: pip install faster-whisper')\n    sys.exit(1)\n\n"
+	s += "if _lib is None:\n    print('ERROR: pip install faster-whisper')\n    sys.exit(1)\n\n"
 	s += "try:\n    import torch as _t\n    _cuda_ok = _t.cuda.is_available()\n    del _t\nexcept ImportError:\n    _cuda_ok = False\n\n"
 	s += "_dev = 'cuda' if _cuda_ok and '" + device + "' != 'cpu' else 'cpu'\n\n"
 	s += "_tag_map = {\n"
@@ -31,7 +31,7 @@ new_func = r'''func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string
 	s += "_fw_model = _tag_map.get(_base, _tag_map.get('" + tag + "'.lower(), 'large-v3'))\n\n"
 	s += "if _lib == 'faster-whisper':\n"
 	s += "    _ct = 'float16' if _dev == 'cuda' else 'int8'\n"
-	s += "    print('Caricamento: ' + _fw_model + ' (' + _ct + ')')\n"
+	s += "    print('Loading: ' + _fw_model + ' (' + _ct + ')')\n"
 	s += "    _m = _FW(_fw_model, device=_dev, compute_type=_ct)\n"
 	s += "    _segs, _ = _m.transcribe(r'" + inputPath + "', beam_size=5)\n"
 	s += "    _text = ''.join(seg.text for seg in _segs)\n"
@@ -44,7 +44,7 @@ new_func = r'''func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string
 		outPath := strings.ReplaceAll(ResolveOutputPath(opts.OutputFile, ""), `\`, `/`)
 		s += "\nwith open(r'" + outPath + "', 'w', encoding='utf-8') as f:\n"
 		s += "    f.write(_text)\n"
-		s += "print('Salvato in: " + outPath + "')\n"
+		s += "print('Saved to: " + outPath + "')\n"
 	}
 	return s
 }'''

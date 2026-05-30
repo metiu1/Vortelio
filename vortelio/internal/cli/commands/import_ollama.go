@@ -16,7 +16,7 @@ import (
 type ImportOllamaCommand struct{}
 
 func NewImportOllamaCommand() *ImportOllamaCommand { return &ImportOllamaCommand{} }
-func (c *ImportOllamaCommand) Name() string         { return "import-ollama" }
+func (c *ImportOllamaCommand) Name() string        { return "import-ollama" }
 
 func (c *ImportOllamaCommand) Run(args []string) error {
 	dryRun := false
@@ -49,7 +49,7 @@ func (c *ImportOllamaCommand) Run(args []string) error {
 	})
 	resp, err := http.Post("http://127.0.0.1:"+port+"/api/import/ollama", "application/json", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("server non in esecuzione — avvia 'vortelio serve' prima: %w", err)
+		return fmt.Errorf("server not running — start 'vortelio serve' first: %w", err)
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(resp.Body)

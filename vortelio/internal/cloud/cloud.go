@@ -242,13 +242,13 @@ func chatOpenAI(p Provider, apiKey string, messages []Message, onToken func(stri
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("errore di rete: %w", err)
+		return "", fmt.Errorf("network error: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("errore API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var sb strings.Builder
@@ -321,13 +321,13 @@ func chatAnthropic(p Provider, apiKey string, messages []Message, onToken func(s
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("errore di rete: %w", err)
+		return "", fmt.Errorf("network error: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("errore API %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 
 	var sb strings.Builder
@@ -377,11 +377,11 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 
 	for round := 0; round < maxRounds; round++ {
 		body := map[string]interface{}{
-			"model":        p.DefaultModel,
-			"messages":     msgs,
-			"stream":       true,
-			"tools":        opts.Tools,
-			"tool_choice":  "auto",
+			"model":       p.DefaultModel,
+			"messages":    msgs,
+			"stream":      true,
+			"tools":       opts.Tools,
+			"tool_choice": "auto",
 		}
 		data, _ := json.Marshal(body)
 
@@ -399,12 +399,12 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 		client := &http.Client{Timeout: 120 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			return "", fmt.Errorf("errore di rete: %w", err)
+			return "", fmt.Errorf("network error: %w", err)
 		}
 		if resp.StatusCode != 200 {
 			b, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			return "", fmt.Errorf("errore API %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+			return "", fmt.Errorf("API error %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 		}
 
 		type toolCallAccum struct {
@@ -630,12 +630,12 @@ func chatAnthropicWithTools(p Provider, apiKey string, messages []Message, opts 
 		client := &http.Client{Timeout: 120 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			return "", fmt.Errorf("errore di rete: %w", err)
+			return "", fmt.Errorf("network error: %w", err)
 		}
 		if resp.StatusCode != 200 {
 			b, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			return "", fmt.Errorf("errore API %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+			return "", fmt.Errorf("API error %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 		}
 
 		// Accumulate tool_use blocks by index.
@@ -659,8 +659,8 @@ func chatAnthropicWithTools(p Provider, apiKey string, messages []Message, opts 
 			payload := strings.TrimPrefix(line, "data: ")
 
 			var ev struct {
-				Type  string `json:"type"`
-				Index int    `json:"index"`
+				Type         string `json:"type"`
+				Index        int    `json:"index"`
 				ContentBlock struct {
 					Type string `json:"type"`
 					ID   string `json:"id"`
@@ -798,7 +798,7 @@ func openaiToolsToGemini(tools interface{}) []map[string]interface{} {
 
 func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *ToolCallOptions, onToken func(string)) (string, error) {
 	type part struct {
-		Text         string                 `json:"text,omitempty"`
+		Text         string                  `json:"text,omitempty"`
 		FunctionCall *map[string]interface{} `json:"functionCall,omitempty"`
 		FunctionResp *map[string]interface{} `json:"functionResponse,omitempty"`
 	}
@@ -842,12 +842,12 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 
 		resp, err := client.Do(req)
 		if err != nil {
-			return "", fmt.Errorf("errore di rete: %w", err)
+			return "", fmt.Errorf("network error: %w", err)
 		}
 		if resp.StatusCode != 200 {
 			b, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			return "", fmt.Errorf("errore API %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+			return "", fmt.Errorf("API error %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 		}
 
 		var result struct {
@@ -866,7 +866,7 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			resp.Body.Close()
-			return "", fmt.Errorf("errore parsing risposta: %w", err)
+			return "", fmt.Errorf("response parse error: %w", err)
 		}
 		resp.Body.Close()
 
@@ -997,13 +997,13 @@ func chatGemini(p Provider, apiKey string, messages []Message, onToken func(stri
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("errore di rete: %w", err)
+		return "", fmt.Errorf("network error: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("errore API %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return "", fmt.Errorf("API error %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 
 	var result struct {
@@ -1016,7 +1016,7 @@ func chatGemini(p Provider, apiKey string, messages []Message, onToken func(stri
 		} `json:"candidates"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("errore parsing risposta: %w", err)
+		return "", fmt.Errorf("response parse error: %w", err)
 	}
 
 	var sb strings.Builder

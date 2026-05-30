@@ -60,9 +60,9 @@ func EnsureServiceRunning(port string) (bool, error) {
 	if IsServiceRunning(port) {
 		return true, nil
 	}
-	fmt.Printf("Avvio servizio Vortelio in background (porta %s)...\n", port)
+	fmt.Printf("Starting Vortelio service in background (port %s)...\n", port)
 	if err := LaunchServiceDetached(port); err != nil {
-		return false, fmt.Errorf("impossibile avviare il servizio: %w", err)
+		return false, fmt.Errorf("could not start service: %w", err)
 	}
 	for i := 0; i < 20; i++ {
 		time.Sleep(500 * time.Millisecond)
@@ -71,5 +71,5 @@ func EnsureServiceRunning(port string) (bool, error) {
 			return false, nil
 		}
 	}
-	return false, fmt.Errorf("il servizio non risponde dopo l'avvio")
+	return false, fmt.Errorf("service did not respond after startup")
 }
