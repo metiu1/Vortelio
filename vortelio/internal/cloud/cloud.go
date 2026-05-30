@@ -40,7 +40,7 @@ type Provider struct {
 var Providers = []Provider{
 	{
 		ID:           "openai",
-		Name:         "OpenAI  (GPT-4o-mini)",
+		Name:         "OpenAI",
 		DefaultModel: "gpt-4o-mini",
 		BaseURL:      "https://api.openai.com/v1/chat/completions",
 		AuthHeader:   "Authorization",
@@ -50,7 +50,7 @@ var Providers = []Provider{
 	},
 	{
 		ID:           "anthropic",
-		Name:         "Anthropic  (Claude Haiku)",
+		Name:         "Anthropic",
 		DefaultModel: "claude-3-5-haiku-20241022",
 		BaseURL:      "https://api.anthropic.com/v1/messages",
 		AuthHeader:   "x-api-key",
@@ -60,7 +60,7 @@ var Providers = []Provider{
 	},
 	{
 		ID:           "gemini",
-		Name:         "Google Gemini  (2.0 Flash)",
+		Name:         "Google Gemini",
 		DefaultModel: "gemini-2.0-flash",
 		BaseURL:      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
 		Format:       FormatGemini,
@@ -68,7 +68,7 @@ var Providers = []Provider{
 	},
 	{
 		ID:           "groq",
-		Name:         "Groq  (LLaMA ultra-veloce)",
+		Name:         "Groq",
 		DefaultModel: "llama3-8b-8192",
 		BaseURL:      "https://api.groq.com/openai/v1/chat/completions",
 		AuthHeader:   "Authorization",
@@ -78,7 +78,7 @@ var Providers = []Provider{
 	},
 	{
 		ID:           "mistral",
-		Name:         "Mistral AI  (Small)",
+		Name:         "Mistral AI",
 		DefaultModel: "mistral-small-latest",
 		BaseURL:      "https://api.mistral.ai/v1/chat/completions",
 		AuthHeader:   "Authorization",
@@ -88,7 +88,7 @@ var Providers = []Provider{
 	},
 	{
 		ID:           "openrouter",
-		Name:         "OpenRouter  (multi-provider)",
+		Name:         "OpenRouter",
 		DefaultModel: "meta-llama/llama-3.1-8b-instruct:free",
 		BaseURL:      "https://openrouter.ai/api/v1/chat/completions",
 		AuthHeader:   "Authorization",
@@ -169,6 +169,30 @@ func SaveKey(providerID, key string) error {
 	return os.WriteFile(path, data, 0600)
 }
 
+// HasKey reports whether a stored API key exists for the provider.
+func HasKey(providerID string) bool {
+	return LoadKey(providerID) != ""
+}
+
+// DeleteKey removes the stored API key for the provider.
+func DeleteKey(providerID string) error {
+	path := keysPath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil // nothing stored
+	}
+	var m map[string]string
+	if json.Unmarshal(data, &m) != nil || m == nil {
+		return nil
+	}
+	delete(m, providerID)
+	out, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, out, 0600)
+}
+
 // ── Streaming chat ────────────────────────────────────────────────────────────
 
 type Message struct {
@@ -196,7 +220,7 @@ func Chat(p Provider, apiKey string, messages []Message, onToken func(string)) (
 	case FormatGemini:
 		return chatGemini(p, apiKey, messages, onToken)
 	default:
-		return "", fmt.Errorf("formato API sconosciuto")
+		return "", fmt.Errorf("unknown API format")
 	}
 }
 
@@ -214,7 +238,7 @@ func ChatWithTools(p Provider, apiKey string, messages []Message, opts *ToolCall
 	case FormatGemini:
 		return chatGeminiWithTools(p, apiKey, messages, opts, onToken)
 	default:
-		return "", fmt.Errorf("formato API sconosciuto")
+		return "", fmt.Errorf("unknown API format")
 	}
 }
 
