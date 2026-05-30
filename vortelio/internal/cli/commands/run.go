@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/vortelio/vortelio/internal/hub"
-	"github.com/vortelio/vortelio/pkg/progress"
 	"github.com/vortelio/vortelio/internal/runtime"
+	"github.com/vortelio/vortelio/pkg/progress"
 )
 
 // RunCommand executes a model with given input.
@@ -99,19 +99,19 @@ func (c *RunCommand) Run(args []string) error {
 	store := hub.NewModelStore()
 	model, err := store.Resolve(ref)
 	if err != nil {
-		fmt.Printf("📦  Modello %q not found locally. Auto-downloading...\n\n", modelRef)
+		fmt.Printf("📦  Model %q not found locally. Auto-downloading...\n\n", modelRef)
 		dl := hub.NewDownloader()
 		bar := progress.NewBar(modelRef)
 		pullErr := dl.Pull(ref, func(downloaded, total int64) {
 			bar.Update(downloaded, total)
 		})
 		if pullErr != nil {
-			return fmt.Errorf("download fallito: %w\n  Prova manualmente: vortelio pull %s", pullErr, modelRef)
+			return fmt.Errorf("download failed: %w\n  Try manually: vortelio pull %s", pullErr, modelRef)
 		}
 		bar.Done()
 		model, err = store.Resolve(ref)
 		if err != nil {
-			return fmt.Errorf("modello non disponibile dopo il download: %w", err)
+			return fmt.Errorf("model unavailable after download: %w", err)
 		}
 	}
 

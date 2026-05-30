@@ -110,7 +110,7 @@ func sdcppExtract(zipPath, dest string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("✅  stable-diffusion.cpp installato: %s\n", dest)
+		fmt.Printf("✅  stable-diffusion.cpp installed: %s\n", dest)
 		return nil
 	}
 	return fmt.Errorf("sd binary not found in zip archive")

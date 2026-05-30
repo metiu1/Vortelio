@@ -9,9 +9,9 @@ import (
 
 	"github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/webhook"
+	"github.com/vortelio/vortelio/internal/config"
 	fb "github.com/vortelio/vortelio/internal/firebase"
 	stripeutil "github.com/vortelio/vortelio/internal/stripe"
-	"github.com/vortelio/vortelio/internal/config"
 )
 
 // POST /api/stripe/checkout

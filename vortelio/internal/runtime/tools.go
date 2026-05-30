@@ -18,7 +18,7 @@ import (
 
 // ToolDef describes a tool that can be offered to the LLM.
 type ToolDef struct {
-	Type     string      `json:"type"`     // always "function"
+	Type     string      `json:"type"` // always "function"
 	Function ToolFuncDef `json:"function"`
 }
 
@@ -141,9 +141,9 @@ func toolGetCurrentTime(argsJSON string) (string, error) {
 	}
 
 	result := map[string]string{
-		"datetime":  now.Format(layout),
-		"unix":      strconv.FormatInt(now.Unix(), 10),
-		"timezone":  now.Location().String(),
+		"datetime":    now.Format(layout),
+		"unix":        strconv.FormatInt(now.Unix(), 10),
+		"timezone":    now.Location().String(),
 		"day_of_week": now.Weekday().String(),
 	}
 	b, _ := json.Marshal(result)
@@ -278,46 +278,74 @@ func evalNode(node ast.Expr) (float64, error) {
 func evalFunc(name string, args []float64) (float64, error) {
 	switch name {
 	case "sqrt":
-		if len(args) != 1 { return 0, fmt.Errorf("sqrt requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("sqrt requires 1 argument")
+		}
 		return math.Sqrt(args[0]), nil
 	case "pow":
-		if len(args) != 2 { return 0, fmt.Errorf("pow requires 2 arguments") }
+		if len(args) != 2 {
+			return 0, fmt.Errorf("pow requires 2 arguments")
+		}
 		return math.Pow(args[0], args[1]), nil
 	case "abs":
-		if len(args) != 1 { return 0, fmt.Errorf("abs requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("abs requires 1 argument")
+		}
 		return math.Abs(args[0]), nil
 	case "sin":
-		if len(args) != 1 { return 0, fmt.Errorf("sin requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("sin requires 1 argument")
+		}
 		return math.Sin(args[0]), nil
 	case "cos":
-		if len(args) != 1 { return 0, fmt.Errorf("cos requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("cos requires 1 argument")
+		}
 		return math.Cos(args[0]), nil
 	case "tan":
-		if len(args) != 1 { return 0, fmt.Errorf("tan requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("tan requires 1 argument")
+		}
 		return math.Tan(args[0]), nil
 	case "log":
-		if len(args) != 1 { return 0, fmt.Errorf("log requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("log requires 1 argument")
+		}
 		return math.Log(args[0]), nil
 	case "log10":
-		if len(args) != 1 { return 0, fmt.Errorf("log10 requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("log10 requires 1 argument")
+		}
 		return math.Log10(args[0]), nil
 	case "exp":
-		if len(args) != 1 { return 0, fmt.Errorf("exp requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("exp requires 1 argument")
+		}
 		return math.Exp(args[0]), nil
 	case "floor":
-		if len(args) != 1 { return 0, fmt.Errorf("floor requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("floor requires 1 argument")
+		}
 		return math.Floor(args[0]), nil
 	case "ceil":
-		if len(args) != 1 { return 0, fmt.Errorf("ceil requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("ceil requires 1 argument")
+		}
 		return math.Ceil(args[0]), nil
 	case "round":
-		if len(args) != 1 { return 0, fmt.Errorf("round requires 1 argument") }
+		if len(args) != 1 {
+			return 0, fmt.Errorf("round requires 1 argument")
+		}
 		return math.Round(args[0]), nil
 	case "max":
-		if len(args) != 2 { return 0, fmt.Errorf("max requires 2 arguments") }
+		if len(args) != 2 {
+			return 0, fmt.Errorf("max requires 2 arguments")
+		}
 		return math.Max(args[0], args[1]), nil
 	case "min":
-		if len(args) != 2 { return 0, fmt.Errorf("min requires 2 arguments") }
+		if len(args) != 2 {
+			return 0, fmt.Errorf("min requires 2 arguments")
+		}
 		return math.Min(args[0], args[1]), nil
 	default:
 		return 0, fmt.Errorf("unknown function: %s", name)
@@ -393,9 +421,9 @@ func toolListDirectory(argsJSON string) (string, error) {
 		return "", fmt.Errorf("cannot list directory %q: %w", dir, err)
 	}
 	type entry struct {
-		Name  string `json:"name"`
-		Type  string `json:"type"`
-		Size  int64  `json:"size,omitempty"`
+		Name string `json:"name"`
+		Type string `json:"type"`
+		Size int64  `json:"size,omitempty"`
 	}
 	var list []entry
 	for _, e := range entries {

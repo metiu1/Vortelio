@@ -18,7 +18,7 @@ import (
 type APIKey struct {
 	ID        string    `firestore:"id"         json:"id"`
 	Name      string    `firestore:"name"       json:"name"`
-	KeyHash   string    `firestore:"key_hash"   json:"-"`        // SHA-256 of raw key — never returned
+	KeyHash   string    `firestore:"key_hash"   json:"-"`          // SHA-256 of raw key — never returned
 	KeyPrefix string    `firestore:"key_prefix" json:"key_prefix"` // first 8 chars for display
 	CreatedAt time.Time `firestore:"created_at" json:"created_at"`
 	LastUsed  time.Time `firestore:"last_used"  json:"last_used,omitempty"`

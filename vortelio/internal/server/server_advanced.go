@@ -23,10 +23,10 @@ func handleRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Task        string   `json:"task"`        // "chat" | "code" | "vision" | "embed" | "image" | "audio" | "video" | "3d"
-		MinParams   string   `json:"min_params"`  // e.g. "7B"
-		MaxParams   string   `json:"max_params"`  // e.g. "70B"
-		Prompt      string   `json:"prompt"`      // optional, used for heuristic detect
+		Task         string   `json:"task"`       // "chat" | "code" | "vision" | "embed" | "image" | "audio" | "video" | "3d"
+		MinParams    string   `json:"min_params"` // e.g. "7B"
+		MaxParams    string   `json:"max_params"` // e.g. "70B"
+		Prompt       string   `json:"prompt"`     // optional, used for heuristic detect
 		Capabilities []string `json:"capabilities"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -172,10 +172,10 @@ func handleCompare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type result struct {
-		Model    string  `json:"model"`
-		Response string  `json:"response"`
-		Error    string  `json:"error,omitempty"`
-		DurMS    int64   `json:"duration_ms"`
+		Model    string `json:"model"`
+		Response string `json:"response"`
+		Error    string `json:"error,omitempty"`
+		DurMS    int64  `json:"duration_ms"`
 	}
 
 	results := make([]result, len(req.Models))
@@ -483,9 +483,9 @@ func handleThink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond(w, 200, map[string]interface{}{
-		"model":     req.Model,
-		"thinking":  strings.TrimSpace(thinkBuf.String()),
-		"answer":    strings.TrimSpace(answerBuf.String()),
+		"model":    req.Model,
+		"thinking": strings.TrimSpace(thinkBuf.String()),
+		"answer":   strings.TrimSpace(answerBuf.String()),
 	})
 }
 
@@ -503,46 +503,46 @@ func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 		},
 		"servers": []map[string]string{{"url": "/"}},
 		"paths": map[string]interface{}{
-			"/api/status":           opSpec("GET", "Server status, version, hardware"),
-			"/api/version":          opSpec("GET", "Server version (Ollama-compat)"),
-			"/api/ps":               opSpec("GET", "List loaded models"),
-			"/api/tags":             opSpec("GET", "List installed models"),
-			"/api/models":           opSpec("GET", "List models with sizes"),
-			"/api/show":             opSpec("POST", "Model details (modelfile, template, parameters, capabilities)"),
-			"/api/pull":             opSpec("POST", "Download model (NDJSON stream)"),
-			"/api/push":             opSpec("POST", "Push to registry (501 stub)"),
-			"/api/copy":             opSpec("POST", "Copy/duplicate a model"),
-			"/api/delete":           opSpec("DELETE", "Delete a model"),
-			"/api/create":           opSpec("POST", "Create model from Modelfile"),
-			"/api/quantize":         opSpec("POST", "Quantize a model"),
-			"/api/blobs/{digest}":   opSpec("HEAD/POST", "Blob storage management"),
-			"/api/generate":         opSpec("POST", "Generate text (NDJSON stream)"),
-			"/api/chat":             opSpec("POST", "Chat with messages + tools"),
-			"/api/embed":            opSpec("POST", "Generate embeddings (batch)"),
-			"/api/embeddings":       opSpec("POST", "Legacy single-prompt embedding"),
-			"/api/route":            opSpec("POST", "Heuristic model router"),
-			"/api/compare":          opSpec("POST", "A/B compare N models on same prompt"),
-			"/api/structured":       opSpec("POST", "JSON-schema-forced output"),
-			"/api/summarize":        opSpec("POST", "Map-reduce summarization"),
-			"/api/think":            opSpec("POST", "Forced chain-of-thought with separated reasoning"),
-			"/api/gguf/inspect":     opSpec("POST", "Parse GGUF file metadata"),
-			"/api/hooks":            opSpec("GET/POST/DELETE", "Webhook management"),
-			"/api/audit":            opSpec("GET", "Recent audit log entries"),
-			"/api/rag/ingest":       opSpec("POST", "Add documents to RAG store"),
-			"/api/rag/query":        opSpec("POST", "Retrieve similar chunks"),
-			"/api/import/ollama":    opSpec("POST", "Import models from local Ollama install"),
-			"/api/models/mmproj":    opSpec("POST", "Set multimodal projector for a model"),
-			"/api/agents/catalog":   opSpec("GET", "List installable AI agents"),
-			"/api/agents/install":   opSpec("POST", "Install an agent"),
-			"/api/agents/start":     opSpec("POST", "Start an agent"),
-			"/api/agents/stop":      opSpec("POST", "Stop an agent"),
-			"/v1/chat/completions":  opSpec("POST", "OpenAI-compatible chat"),
-			"/v1/completions":       opSpec("POST", "OpenAI-compatible completions"),
-			"/v1/embeddings":        opSpec("POST", "OpenAI-compatible embeddings"),
+			"/api/status":              opSpec("GET", "Server status, version, hardware"),
+			"/api/version":             opSpec("GET", "Server version (Ollama-compat)"),
+			"/api/ps":                  opSpec("GET", "List loaded models"),
+			"/api/tags":                opSpec("GET", "List installed models"),
+			"/api/models":              opSpec("GET", "List models with sizes"),
+			"/api/show":                opSpec("POST", "Model details (modelfile, template, parameters, capabilities)"),
+			"/api/pull":                opSpec("POST", "Download model (NDJSON stream)"),
+			"/api/push":                opSpec("POST", "Push to registry (501 stub)"),
+			"/api/copy":                opSpec("POST", "Copy/duplicate a model"),
+			"/api/delete":              opSpec("DELETE", "Delete a model"),
+			"/api/create":              opSpec("POST", "Create model from Modelfile"),
+			"/api/quantize":            opSpec("POST", "Quantize a model"),
+			"/api/blobs/{digest}":      opSpec("HEAD/POST", "Blob storage management"),
+			"/api/generate":            opSpec("POST", "Generate text (NDJSON stream)"),
+			"/api/chat":                opSpec("POST", "Chat with messages + tools"),
+			"/api/embed":               opSpec("POST", "Generate embeddings (batch)"),
+			"/api/embeddings":          opSpec("POST", "Legacy single-prompt embedding"),
+			"/api/route":               opSpec("POST", "Heuristic model router"),
+			"/api/compare":             opSpec("POST", "A/B compare N models on same prompt"),
+			"/api/structured":          opSpec("POST", "JSON-schema-forced output"),
+			"/api/summarize":           opSpec("POST", "Map-reduce summarization"),
+			"/api/think":               opSpec("POST", "Forced chain-of-thought with separated reasoning"),
+			"/api/gguf/inspect":        opSpec("POST", "Parse GGUF file metadata"),
+			"/api/hooks":               opSpec("GET/POST/DELETE", "Webhook management"),
+			"/api/audit":               opSpec("GET", "Recent audit log entries"),
+			"/api/rag/ingest":          opSpec("POST", "Add documents to RAG store"),
+			"/api/rag/query":           opSpec("POST", "Retrieve similar chunks"),
+			"/api/import/ollama":       opSpec("POST", "Import models from local Ollama install"),
+			"/api/models/mmproj":       opSpec("POST", "Set multimodal projector for a model"),
+			"/api/agents/catalog":      opSpec("GET", "List installable AI agents"),
+			"/api/agents/install":      opSpec("POST", "Install an agent"),
+			"/api/agents/start":        opSpec("POST", "Start an agent"),
+			"/api/agents/stop":         opSpec("POST", "Stop an agent"),
+			"/v1/chat/completions":     opSpec("POST", "OpenAI-compatible chat"),
+			"/v1/completions":          opSpec("POST", "OpenAI-compatible completions"),
+			"/v1/embeddings":           opSpec("POST", "OpenAI-compatible embeddings"),
 			"/v1/audio/transcriptions": opSpec("POST", "Whisper-compat STT"),
-			"/v1/audio/speech":      opSpec("POST", "OpenAI-compat TTS"),
-			"/v1/images/generations": opSpec("POST", "OpenAI-compat image generation"),
-			"/metrics":              opSpec("GET", "Prometheus metrics"),
+			"/v1/audio/speech":         opSpec("POST", "OpenAI-compat TTS"),
+			"/v1/images/generations":   opSpec("POST", "OpenAI-compat image generation"),
+			"/metrics":                 opSpec("GET", "Prometheus metrics"),
 		},
 	}
 	respond(w, 200, spec)

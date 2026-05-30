@@ -15,7 +15,7 @@ import (
 
 type openAIMessage struct {
 	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content"`    // string, null, or array of content parts
+	Content    json.RawMessage `json:"content"` // string, null, or array of content parts
 	ToolCallID string          `json:"tool_call_id,omitempty"`
 	ToolCalls  json.RawMessage `json:"tool_calls,omitempty"`
 	Name       string          `json:"name,omitempty"`
@@ -182,8 +182,12 @@ func handleOpenAIChatCompletions(w http.ResponseWriter, r *http.Request) {
 				m["content"] = string(msg.Content)
 			}
 		}
-		if msg.ToolCallID != "" { m["tool_call_id"] = msg.ToolCallID }
-		if msg.Name != "" { m["name"] = msg.Name }
+		if msg.ToolCallID != "" {
+			m["tool_call_id"] = msg.ToolCallID
+		}
+		if msg.Name != "" {
+			m["name"] = msg.Name
+		}
 		if len(msg.ToolCalls) > 0 {
 			var tc interface{}
 			if json.Unmarshal(msg.ToolCalls, &tc) == nil {
@@ -247,7 +251,9 @@ func handleOpenAIChatCompletions(w http.ResponseWriter, r *http.Request) {
 					_ = tc
 					data, _ := json.Marshal(chunk)
 					fmt.Fprintf(w, "data: %s\n\n", data)
-					if canFlush { flusher.Flush() }
+					if canFlush {
+						flusher.Flush()
+					}
 				}
 			} else {
 				capturedToolCalls = oaiCalls
@@ -263,8 +269,12 @@ func handleOpenAIChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 		sendChunk := func(content string, finishReason *string) {
 			delta := map[string]interface{}{}
-			if content != "" { delta["content"] = content }
-			if finishReason == nil && content == "" { delta["role"] = "assistant" }
+			if content != "" {
+				delta["content"] = content
+			}
+			if finishReason == nil && content == "" {
+				delta["role"] = "assistant"
+			}
 			chunk := map[string]interface{}{
 				"id": reqID, "object": "chat.completion.chunk",
 				"created": created, "model": modelID,
@@ -274,7 +284,9 @@ func handleOpenAIChatCompletions(w http.ResponseWriter, r *http.Request) {
 			}
 			data, _ := json.Marshal(chunk)
 			fmt.Fprintf(w, "data: %s\n\n", data)
-			if canFlush { flusher.Flush() }
+			if canFlush {
+				flusher.Flush()
+			}
 		}
 
 		sendChunk("", nil) // role chunk
@@ -291,7 +303,9 @@ func handleOpenAIChatCompletions(w http.ResponseWriter, r *http.Request) {
 			sendChunk("", &stop)
 		}
 		fmt.Fprintf(w, "data: [DONE]\n\n")
-		if canFlush { flusher.Flush() }
+		if canFlush {
+			flusher.Flush()
+		}
 		return
 	}
 
@@ -327,8 +341,8 @@ func handleOpenAIChatCompletions(w http.ResponseWriter, r *http.Request) {
 		"id": reqID, "object": "chat.completion",
 		"created": created, "model": modelID,
 		"choices": []map[string]interface{}{{
-			"index": 0,
-			"message": map[string]string{"role": "assistant", "content": fullResp.String()},
+			"index":         0,
+			"message":       map[string]string{"role": "assistant", "content": fullResp.String()},
 			"finish_reason": "stop",
 		}},
 		"usage": map[string]int{"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},

@@ -19,7 +19,9 @@ func (c *CleanupCommand) Name() string   { return "cleanup" }
 func (c *CleanupCommand) Run(args []string) error {
 	doDelete := false
 	for _, a := range args {
-		if a == "--delete" || a == "-d" { doDelete = true }
+		if a == "--delete" || a == "-d" {
+			doDelete = true
+		}
 	}
 	return RunCleanup(!doDelete)
 }
@@ -61,10 +63,14 @@ func RunCleanup(dryRun bool) error {
 		typeDir := filepath.Join(modelsDir, mtype)
 		names, _ := os.ReadDir(typeDir)
 		for _, name := range names {
-			if !name.IsDir() { continue }
+			if !name.IsDir() {
+				continue
+			}
 			tags, _ := os.ReadDir(filepath.Join(typeDir, name.Name()))
 			for _, tag := range tags {
-				if !tag.IsDir() { continue }
+				if !tag.IsDir() {
+					continue
+				}
 				tagDir := filepath.Join(typeDir, name.Name(), tag.Name())
 				manifest := filepath.Join(tagDir, "manifest.json")
 				if _, err := os.Stat(manifest); err != nil {
@@ -92,13 +98,17 @@ func RunCleanup(dryRun bool) error {
 		byName[key] = append(byName[key], m)
 	}
 	for key, group := range byName {
-		if len(group) <= 1 { continue }
+		if len(group) <= 1 {
+			continue
+		}
 		sort.Slice(group, func(i, j int) bool {
 			return group[i].DownloadedAt.After(group[j].DownloadedAt)
 		})
 		for _, old := range group[1:] {
 			dir := filepath.Dir(old.LocalPath)
-			if !strings.HasPrefix(dir, modelsDir) { dir = old.LocalPath }
+			if !strings.HasPrefix(dir, modelsDir) {
+				dir = old.LocalPath
+			}
 			size := dirSize(dir)
 			issues = append(issues, cleanupIssue{
 				Path: dir,
@@ -112,9 +122,13 @@ func RunCleanup(dryRun bool) error {
 
 	// ── 4. File .bin/.pt quando esiste .safetensors equivalente ───────────
 	_ = filepath.Walk(modelsDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() { return nil }
+		if err != nil || info.IsDir() {
+			return nil
+		}
 		lower := strings.ToLower(path)
-		if !strings.HasSuffix(lower, ".bin") && !strings.HasSuffix(lower, ".pt") { return nil }
+		if !strings.HasSuffix(lower, ".bin") && !strings.HasSuffix(lower, ".pt") {
+			return nil
+		}
 		base := strings.TrimSuffix(strings.TrimSuffix(path, ".bin"), ".pt")
 		base = strings.TrimSuffix(base, ".PT")
 		if _, err := os.Stat(base + ".safetensors"); err == nil {
@@ -137,7 +151,9 @@ func RunCleanup(dryRun bool) error {
 		matches, _ := filepath.Glob(pattern)
 		for _, m := range matches {
 			fi, err := os.Stat(m)
-			if err != nil { continue }
+			if err != nil {
+				continue
+			}
 			issues = append(issues, cleanupIssue{
 				Path: m, Size: fi.Size(),
 				Desc: "Python temp: " + filepath.Base(m),
@@ -164,12 +180,18 @@ func RunCleanup(dryRun bool) error {
 	}
 
 	safeSize := int64(0)
-	for _, issue := range issues { if issue.Safe { safeSize += issue.Size } }
+	for _, issue := range issues {
+		if issue.Safe {
+			safeSize += issue.Size
+		}
+	}
 
 	fmt.Printf("⚠️   Found %d issues — %.2f  GB recoverable\n\n", len(issues), float64(totalFound)/1e9)
 	for i, issue := range issues {
 		mark := "🟡"
-		if issue.Safe { mark = "🔴" }
+		if issue.Safe {
+			mark = "🔴"
+		}
 		fmt.Printf("  %s [%d] %s\n       %s (%s)\n\n",
 			mark, i+1, issue.Desc, issue.Path, humanSize(issue.Size))
 	}
@@ -183,9 +205,13 @@ func RunCleanup(dryRun bool) error {
 
 	deleted := int64(0)
 	for _, issue := range issues {
-		if !issue.Safe { continue }
+		if !issue.Safe {
+			continue
+		}
 		fi, err := os.Stat(issue.Path)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		fmt.Printf("  🗑  %s (%s)\n", issue.Path, humanSize(issue.Size))
 		if fi.IsDir() {
 			os.RemoveAll(issue.Path)
@@ -208,14 +234,20 @@ type cleanupIssue struct {
 func dirSize(path string) int64 {
 	var size int64
 	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() { size += info.Size() }
+		if err == nil && !info.IsDir() {
+			size += info.Size()
+		}
 		return nil
 	})
 	return size
 }
 
 func humanSize(b int64) string {
-	if b >= 1<<30 { return fmt.Sprintf("%.2f GB", float64(b)/(1<<30)) }
-	if b >= 1<<20 { return fmt.Sprintf("%.0f MB", float64(b)/(1<<20)) }
+	if b >= 1<<30 {
+		return fmt.Sprintf("%.2f GB", float64(b)/(1<<30))
+	}
+	if b >= 1<<20 {
+		return fmt.Sprintf("%.0f MB", float64(b)/(1<<20))
+	}
 	return fmt.Sprintf("%.0f KB", float64(b)/(1<<10))
 }

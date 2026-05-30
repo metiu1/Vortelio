@@ -32,7 +32,7 @@ func (c *SetupCommand) Run(args []string) error {
 	fmt.Println()
 
 	// ── Step 1: Verifica llama.cpp ───────────────────────────
-	fmt.Print("1. Verifica llama.cpp... ")
+	fmt.Print("1. Checking llama.cpp... ")
 	llamaBin := findLlamaCLI()
 	if llamaBin != "" && !force {
 		fmt.Printf("✅  found at %s\n", llamaBin)
@@ -44,7 +44,7 @@ func (c *SetupCommand) Run(args []string) error {
 		}
 		fmt.Println("   → Download llama.cpp in corso...")
 		if err := downloadLlama(); err != nil {
-			fmt.Printf("   ⚠️   Download fallito: %v\n", err)
+			fmt.Printf("   ⚠️   Download failed: %v\n", err)
 			fmt.Println("   Install manually from: https://github.com/ggerganov/llama.cpp/releases")
 		} else {
 			fmt.Println("   ✅  llama.cpp installed")
@@ -52,7 +52,7 @@ func (c *SetupCommand) Run(args []string) error {
 	}
 
 	// ── Step 2: Verifica Python ──────────────────────────────
-	fmt.Print("2. Verifica Python 3... ")
+	fmt.Print("2. Checking Python 3... ")
 	py := findPython()
 	if py != "" {
 		out, _ := exec.Command(py, "--version").CombinedOutput()
@@ -65,7 +65,7 @@ func (c *SetupCommand) Run(args []string) error {
 
 	// ── Step 3: Verifica pacchetti Python ────────────────────
 	if py != "" {
-		fmt.Print("3. Verifica pacchetti Python (diffusers, torch, whisper)... ")
+		fmt.Print("3. Checking Python packages (diffusers, torch, whisper)... ")
 		missing := checkPythonPackages(py)
 		if len(missing) == 0 {
 			fmt.Println("✅  all installed")
@@ -77,20 +77,20 @@ func (c *SetupCommand) Run(args []string) error {
 	}
 
 	// ── Step 4: PATH check ───────────────────────────────────
-	fmt.Print("4. Verifica PATH sistema... ")
+	fmt.Print("4. Checking system PATH... ")
 	selfDir := ""
 	if exe, err := os.Executable(); err == nil {
 		selfDir = filepath.Dir(exe)
 	}
 	if isInPath(selfDir) {
-		fmt.Println("✅  vortelio disponibile globalmente")
+		fmt.Println("✅  vortelio available globally")
 	} else {
-		fmt.Printf("⚠️   %s non è nel PATH\n", selfDir)
+		fmt.Printf("⚠️   %s is not in PATH\n", selfDir)
 		if runtime.GOOS == "windows" {
-			fmt.Println("   → Aggiunta al PATH di sistema...")
+			fmt.Println("   → Adding to system PATH...")
 			addToPathWindows(selfDir)
 		} else {
-			fmt.Printf("   Aggiungi manualmente: export PATH=\"%s:$PATH\"\n", selfDir)
+			fmt.Printf("   Add manually: export PATH=\"%s:$PATH\"\n", selfDir)
 		}
 	}
 
@@ -99,10 +99,10 @@ func (c *SetupCommand) Run(args []string) error {
 	fmt.Println("✅  Setup complete! Open a new terminal and try:")
 	fmt.Println()
 	fmt.Println("   vortelio pull llm/mistral:7b")
-	fmt.Println("   vortelio run llm/mistral:7b \"ciao!\"")
+	fmt.Println("   vortelio run llm/mistral:7b \"hello!\"")
 	fmt.Println()
 	fmt.Println("   vortelio pull image/sdxl")
-	fmt.Println("   vortelio run image/sdxl \"un tramonto sul mare\"")
+	fmt.Println("   vortelio run image/sdxl \"a sunset over the sea\"")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	return nil
 }
@@ -118,7 +118,7 @@ func downloadLlama() error {
 	// Get latest release from GitHub API
 	url, err := getLatestLlamaURL()
 	if err != nil {
-		return fmt.Errorf("impossibile ottenere URL release: %w", err)
+		return fmt.Errorf("could not get release URL: %w", err)
 	}
 
 	fmt.Printf("   URL: %s\n", url)
@@ -217,7 +217,7 @@ func getLatestLlamaURL() (string, error) {
 			return a.BrowserDownloadURL, nil
 		}
 	}
-	return "", fmt.Errorf("nessun asset trovato per %s/%s nella release %s", runtime.GOOS, runtime.GOARCH, rel.TagName)
+	return "", fmt.Errorf("no asset found for %s/%s in release %s", runtime.GOOS, runtime.GOARCH, rel.TagName)
 }
 
 func downloadFile(url, dest string, showProgress bool) error {
@@ -395,7 +395,7 @@ func isInPath(dir string) bool {
 
 func addToPathWindows(dir string) {
 	cmd := exec.Command("powershell", "-NonInteractive", "-Command",
-		fmt.Sprintf(`$p=[Environment]::GetEnvironmentVariable("Path","Machine"); if($p -notlike "*%s*"){[Environment]::SetEnvironmentVariable("Path","$p;%s","Machine"); Write-Host "PATH aggiornato"}else{Write-Host "PATH già configurato"}`, dir, dir),
+		fmt.Sprintf(`$p=[Environment]::GetEnvironmentVariable("Path","Machine"); if($p -notlike "*%s*"){[Environment]::SetEnvironmentVariable("Path","$p;%s","Machine"); Write-Host "PATH updated"}else{Write-Host "PATH already configured"}`, dir, dir),
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

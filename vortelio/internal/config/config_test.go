@@ -37,9 +37,15 @@ func TestLoad_defaults(t *testing.T) {
 	resetSingleton()
 
 	cfg := Load()
-	if cfg.Port != 11500          { t.Errorf("default Port = %d, want 11500", cfg.Port) }
-	if cfg.OllamaPort != 11434    { t.Errorf("default OllamaPort = %d, want 11434", cfg.OllamaPort) }
-	if cfg.CloudTimeoutSec != 120 { t.Errorf("default CloudTimeoutSec = %d, want 120", cfg.CloudTimeoutSec) }
+	if cfg.Port != 11500 {
+		t.Errorf("default Port = %d, want 11500", cfg.Port)
+	}
+	if cfg.OllamaPort != 11434 {
+		t.Errorf("default OllamaPort = %d, want 11434", cfg.OllamaPort)
+	}
+	if cfg.CloudTimeoutSec != 120 {
+		t.Errorf("default CloudTimeoutSec = %d, want 120", cfg.CloudTimeoutSec)
+	}
 }
 
 func TestLoad_fromFile(t *testing.T) {
@@ -53,7 +59,13 @@ func TestLoad_fromFile(t *testing.T) {
 	}
 
 	cfg := Load()
-	if cfg.Port != 9999           { t.Errorf("Port = %d, want 9999", cfg.Port) }
-	if cfg.OllamaPort != 12345    { t.Errorf("OllamaPort = %d, want 12345", cfg.OllamaPort) }
-	if cfg.CloudTimeoutSec != 60  { t.Errorf("CloudTimeoutSec = %d, want 60", cfg.CloudTimeoutSec) }
+	if cfg.Port != 9999 {
+		t.Errorf("Port = %d, want 9999", cfg.Port)
+	}
+	if cfg.OllamaPort != 12345 {
+		t.Errorf("OllamaPort = %d, want 12345", cfg.OllamaPort)
+	}
+	if cfg.CloudTimeoutSec != 60 {
+		t.Errorf("CloudTimeoutSec = %d, want 60", cfg.CloudTimeoutSec)
+	}
 }

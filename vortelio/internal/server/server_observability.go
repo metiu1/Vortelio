@@ -29,17 +29,17 @@ type AuditEntry struct {
 }
 
 var (
-	auditMu        sync.Mutex
-	auditRingBuf   = make([]AuditEntry, 0, 512)
-	auditRingCap   = 512
-	auditFileMu    sync.Mutex
+	auditMu      sync.Mutex
+	auditRingBuf = make([]AuditEntry, 0, 512)
+	auditRingCap = 512
+	auditFileMu  sync.Mutex
 
 	// Prometheus counters
-	mReqTotal      sync.Map // map[pathStatusKey]*int64
-	mReqDurSumMS   int64
-	mReqInFlight   int64
-	mGenTokensIn   int64
-	mGenTokensOut  int64
+	mReqTotal     sync.Map // map[pathStatusKey]*int64
+	mReqDurSumMS  int64
+	mReqInFlight  int64
+	mGenTokensIn  int64
+	mGenTokensOut int64
 )
 
 func auditFilePath() string {

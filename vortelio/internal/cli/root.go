@@ -47,7 +47,10 @@ func (r *rootCommand) run(args []string) error {
 		return nil
 	}
 	name := args[0]
-	if name == "--help" || name == "-h" || name == "help" { r.printHelp(); return nil }
+	if name == "--help" || name == "-h" || name == "help" {
+		r.printHelp()
+		return nil
+	}
 	if name == "--version" || name == "-v" || name == "version" {
 		fmt.Printf("vortelio version %s\n", version.Version)
 		return nil
@@ -55,15 +58,21 @@ func (r *rootCommand) run(args []string) error {
 	aliasMap := map[string]string{"rm": "remove", "ls": "list", "ps": "list", "start": "run"}
 	if aliasTarget, ok := aliasMap[name]; ok {
 		for _, cmd := range r.subcommands {
-			if cmd.Name() == aliasTarget { return cmd.Run(args[1:]) }
+			if cmd.Name() == aliasTarget {
+				return cmd.Run(args[1:])
+			}
 		}
 	}
 	for _, cmd := range r.subcommands {
-		if cmd.Name() == name { return cmd.Run(args[1:]) }
+		if cmd.Name() == name {
+			return cmd.Run(args[1:])
+		}
 	}
 	if strings.Contains(name, "/") {
 		for _, cmd := range r.subcommands {
-			if cmd.Name() == "run" { return cmd.Run(args) }
+			if cmd.Name() == "run" {
+				return cmd.Run(args)
+			}
 		}
 	}
 	fmt.Fprintf(os.Stderr, "❌  Unknown command: %q\n\nUse 'vortelio help' for the list of commands.\n", name)

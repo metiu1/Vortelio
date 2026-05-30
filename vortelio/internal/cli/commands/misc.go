@@ -24,7 +24,7 @@ import (
 
 type ListCommand struct{}
 
-func NewListCommand() *ListCommand { return &ListCommand{} }
+func NewListCommand() *ListCommand  { return &ListCommand{} }
 func (c *ListCommand) Name() string { return "list" }
 func (c *ListCommand) Run(args []string) error {
 	store := hub.NewModelStore()
@@ -54,7 +54,7 @@ func (c *ListCommand) Run(args []string) error {
 type RemoveCommand struct{}
 
 func NewRemoveCommand() *RemoveCommand { return &RemoveCommand{} }
-func (c *RemoveCommand) Name() string { return "remove" }
+func (c *RemoveCommand) Name() string  { return "remove" }
 func (c *RemoveCommand) Run(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: vortelio remove <model> [model2 ...] [--all]")
@@ -83,7 +83,7 @@ func (c *RemoveCommand) Run(args []string) error {
 			if err := store.Remove(ref); err != nil {
 				fmt.Fprintf(os.Stderr, "❌  %s/%s:%s: %v\n", m.Type, m.Name, m.Tag, err)
 			} else {
-				fmt.Printf("🗑️   Rimosso %s/%s:%s\n", m.Type, m.Name, m.Tag)
+				fmt.Printf("🗑️   Removed %s/%s:%s\n", m.Type, m.Name, m.Tag)
 				removed++
 			}
 		}
@@ -102,11 +102,11 @@ func (c *RemoveCommand) Run(args []string) error {
 			fmt.Fprintf(os.Stderr, "❌  %s: %v\n", arg, err)
 			failed++
 		} else {
-			fmt.Printf("🗑️   Rimosso %s/%s:%s\n", ref.Type, ref.Name, ref.Tag)
+			fmt.Printf("🗑️   Removed %s/%s:%s\n", ref.Type, ref.Name, ref.Tag)
 		}
 	}
 	if failed > 0 {
-		return fmt.Errorf("%d modelli non rimossi", failed)
+		return fmt.Errorf("%d models not removed", failed)
 	}
 	return nil
 }
@@ -115,7 +115,7 @@ func (c *RemoveCommand) Run(args []string) error {
 
 type InfoCommand struct{}
 
-func NewInfoCommand() *InfoCommand { return &InfoCommand{} }
+func NewInfoCommand() *InfoCommand  { return &InfoCommand{} }
 func (c *InfoCommand) Name() string { return "info" }
 func (c *InfoCommand) Run(args []string) error {
 	if len(args) == 0 {
@@ -145,7 +145,7 @@ func (c *InfoCommand) Run(args []string) error {
 
 type GUICommand struct{}
 
-func NewGUICommand() *GUICommand { return &GUICommand{} }
+func NewGUICommand() *GUICommand   { return &GUICommand{} }
 func (c *GUICommand) Name() string { return "gui" }
 func (c *GUICommand) Run(args []string) error {
 	port := "11500"
@@ -183,14 +183,26 @@ func (c *ServeCommand) Run(args []string) error {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--port", "-p":
-			if i+1 < len(args) { port = args[i+1]; bgArgs = append(bgArgs, args[i], args[i+1]); i++ }
+			if i+1 < len(args) {
+				port = args[i+1]
+				bgArgs = append(bgArgs, args[i], args[i+1])
+				i++
+			}
 		case "--host":
-			if i+1 < len(args) { host = args[i+1]; bgArgs = append(bgArgs, args[i], args[i+1]); i++ }
+			if i+1 < len(args) {
+				host = args[i+1]
+				bgArgs = append(bgArgs, args[i], args[i+1])
+				i++
+			}
 		case "--remote":
 			remote = true
 			bgArgs = append(bgArgs, args[i])
 		case "--api-key":
-			if i+1 < len(args) { apiKey = args[i+1]; bgArgs = append(bgArgs, args[i], args[i+1]); i++ }
+			if i+1 < len(args) {
+				apiKey = args[i+1]
+				bgArgs = append(bgArgs, args[i], args[i+1])
+				i++
+			}
 		case "--no-browser":
 			noBrowser = true
 		case "--bg", "--background":
@@ -201,15 +213,15 @@ func (c *ServeCommand) Run(args []string) error {
 	if background {
 		pid, err := LaunchServiceDetachedWithArgs(bgArgs)
 		if err != nil {
-			return fmt.Errorf("avvio in background fallito: %w", err)
+			return fmt.Errorf("background start failed: %w", err)
 		}
 		portDisp := port
 		if portDisp == "" {
 			portDisp = "11500"
 		}
-		fmt.Printf("Vortelio avviato in background (PID: %d)\n", pid)
+		fmt.Printf("Vortelio started in background (PID: %d)\n", pid)
 		fmt.Printf("GUI: http://localhost:%s\n", portDisp)
-		fmt.Printf("Ferma con: vortelio stop\n")
+		fmt.Printf("Stop with: vortelio stop\n")
 		return nil
 	}
 
@@ -217,7 +229,9 @@ func (c *ServeCommand) Run(args []string) error {
 	if port != "" {
 		var p int
 		fmt.Sscanf(port, "%d", &p)
-		if p > 0 { cfg.Port = p }
+		if p > 0 {
+			cfg.Port = p
+		}
 	}
 	if host != "" {
 		cfg.BindAddr = host
@@ -237,7 +251,7 @@ func (c *ServeCommand) Run(args []string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		if strings.Contains(err.Error(), "bind") || strings.Contains(err.Error(), "address already in use") {
-			fmt.Printf("ℹ️   Server già attivo su %s\n", localURL)
+			fmt.Printf("ℹ️   Server already running at %s\n", localURL)
 			if !noBrowser {
 				fmt.Println("    Apertura GUI...")
 				openDesktopWindow(localURL)
@@ -254,10 +268,10 @@ func (c *ServeCommand) Run(args []string) error {
 		if cfg.APIKey != "" {
 			fmt.Printf("🔑  API key attiva  (Authorization: Bearer %s)\n", cfg.APIKey)
 		} else {
-			fmt.Printf("⚠️   Nessuna API key — accesso remoto aperto a tutti\n")
+			fmt.Printf("⚠️   No API key — remote access open to everyone\n")
 		}
 	}
-	fmt.Printf("    Premi Ctrl+C per fermare.\n\n")
+	fmt.Printf("    Press Ctrl+C to stop.\n\n")
 
 	server.InitLogger("info")
 
@@ -287,7 +301,7 @@ func (c *ServeCommand) Run(args []string) error {
 	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return err
 	}
-	fmt.Println("✅  Server fermato.")
+	fmt.Println("✅  Server stopped.")
 	return nil
 }
 
@@ -308,7 +322,7 @@ func openBrowser(url string) {
 
 type StopCommand struct{}
 
-func NewStopCommand() *StopCommand { return &StopCommand{} }
+func NewStopCommand() *StopCommand  { return &StopCommand{} }
 func (c *StopCommand) Name() string { return "stop" }
 func (c *StopCommand) Run(args []string) error {
 	port := "11500"
@@ -323,7 +337,7 @@ func (c *StopCommand) Run(args []string) error {
 	resp, err := client.Post("http://localhost:"+port+"/api/shutdown", "application/json", nil)
 	if err == nil {
 		resp.Body.Close()
-		fmt.Println("Vortelio fermato.")
+		fmt.Println("Vortelio stopped.")
 		return nil
 	}
 
@@ -331,18 +345,18 @@ func (c *StopCommand) Run(args []string) error {
 	pidPath := filepath.Join(config.HomeDir(), "vortelio.pid")
 	data, err := os.ReadFile(pidPath)
 	if err != nil {
-		return fmt.Errorf("server non in esecuzione (PID file non trovato)")
+		return fmt.Errorf("server not running (PID file not found)")
 	}
 	var pid int
 	fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
 	if pid == 0 {
-		return fmt.Errorf("PID non valido nel file %s", pidPath)
+		return fmt.Errorf("invalid PID in file %s", pidPath)
 	}
 	if err := killProcess(pid); err != nil {
-		return fmt.Errorf("impossibile fermare il processo (PID %d): %w", pid, err)
+		return fmt.Errorf("could not stop process (PID %d): %w", pid, err)
 	}
 	os.Remove(pidPath)
-	fmt.Printf("Vortelio fermato (PID %d)\n", pid)
+	fmt.Printf("Vortelio stopped (PID %d)\n", pid)
 	return nil
 }
 

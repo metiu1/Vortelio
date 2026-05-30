@@ -23,7 +23,7 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ollamaManifest struct {
-	SchemaVersion int `json:"schemaVersion"`
+	SchemaVersion int    `json:"schemaVersion"`
 	MediaType     string `json:"mediaType"`
 	Layers        []struct {
 		MediaType string `json:"mediaType"`

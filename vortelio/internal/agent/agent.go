@@ -36,27 +36,27 @@ const (
 )
 
 type CatalogEntry struct {
-	ID             string        `json:"id"`
-	Name           string        `json:"name"`
-	Description    string        `json:"description"`
-	Version        string        `json:"version"`
-	DefaultPort    int           `json:"default_port"`
-	DefaultURL     string        `json:"default_url"`
-	InstallMethod  InstallMethod `json:"install_method"`
-	NPMPackage     string        `json:"npm_package,omitempty"`
-	BinCommand     string        `json:"bin_command"`
-	StartArgs      []string      `json:"start_args"`
+	ID            string        `json:"id"`
+	Name          string        `json:"name"`
+	Description   string        `json:"description"`
+	Version       string        `json:"version"`
+	DefaultPort   int           `json:"default_port"`
+	DefaultURL    string        `json:"default_url"`
+	InstallMethod InstallMethod `json:"install_method"`
+	NPMPackage    string        `json:"npm_package,omitempty"`
+	BinCommand    string        `json:"bin_command"`
+	StartArgs     []string      `json:"start_args"`
 	// EnvVars are extra environment variables injected at start time.
 	// Use {{VORTELIO_URL}} as placeholder — replaced with the actual Vortelio base URL.
-	EnvVars        []string      `json:"env_vars,omitempty"`
-	HealthPath     string        `json:"health_path"`
-	Tags           []string      `json:"tags"`
-	RequiresAPIKey bool          `json:"requires_api_key"`
-	APIKeyHint     string        `json:"api_key_hint,omitempty"`
+	EnvVars        []string `json:"env_vars,omitempty"`
+	HealthPath     string   `json:"health_path"`
+	Tags           []string `json:"tags"`
+	RequiresAPIKey bool     `json:"requires_api_key"`
+	APIKeyHint     string   `json:"api_key_hint,omitempty"`
 	// Script-based agents: extract embedded script, run via python interpreter.
-	PipDeps        []string      `json:"pip_deps,omitempty"`    // pip packages to install (MethodPip)
-	UVDeps         []string      `json:"uv_deps,omitempty"`     // packages for uv run --with (MethodUV)
-	ScriptName     string        `json:"script_name,omitempty"` // filename for extracted runner script
+	PipDeps    []string `json:"pip_deps,omitempty"`    // pip packages to install (MethodPip)
+	UVDeps     []string `json:"uv_deps,omitempty"`     // packages for uv run --with (MethodUV)
+	ScriptName string   `json:"script_name,omitempty"` // filename for extracted runner script
 }
 
 // vortURL returns the base URL of the local Vortelio server.
@@ -66,16 +66,16 @@ func vortURL() string {
 
 var Catalog = []CatalogEntry{
 	{
-		ID:          "openclaw",
-		Name:        "OpenClaw",
-		Description: "Gateway AI multi-canale (WhatsApp, Telegram, Discord). Usa i modelli locali di Vortelio.",
-		Version:     "latest",
-		DefaultPort: 18789,
-		DefaultURL:  "http://localhost:18789",
+		ID:            "openclaw",
+		Name:          "OpenClaw",
+		Description:   "Multi-channel AI gateway (WhatsApp, Telegram, Discord). Uses Vortelio's local models.",
+		Version:       "latest",
+		DefaultPort:   18789,
+		DefaultURL:    "http://localhost:18789",
 		InstallMethod: MethodNPM,
-		NPMPackage:  "openclaw",
-		BinCommand:  "openclaw",
-		StartArgs:   []string{"gateway", "--port", "18789"},
+		NPMPackage:    "openclaw",
+		BinCommand:    "openclaw",
+		StartArgs:     []string{"gateway", "--port", "18789"},
 		// Point OpenClaw at Vortelio's Ollama-compatible API
 		EnvVars: []string{
 			"OLLAMA_HOST={{VORTELIO_URL}}",
@@ -89,16 +89,16 @@ var Catalog = []CatalogEntry{
 		RequiresAPIKey: false,
 	},
 	{
-		ID:          "opencode",
-		Name:        "Open Code",
-		Description: "Agente AI per sviluppatori: coding, refactoring, debug via terminale.",
-		Version:     "latest",
-		DefaultPort: 0, // TUI, no HTTP port
-		DefaultURL:  "",
+		ID:            "opencode",
+		Name:          "Open Code",
+		Description:   "AI agent for developers: coding, refactoring, debugging via the terminal.",
+		Version:       "latest",
+		DefaultPort:   0, // TUI, no HTTP port
+		DefaultURL:    "",
 		InstallMethod: MethodNPM,
-		NPMPackage:  "opencode-ai",
-		BinCommand:  "opencode",
-		StartArgs:   []string{},
+		NPMPackage:    "opencode-ai",
+		BinCommand:    "opencode",
+		StartArgs:     []string{},
 		EnvVars: []string{
 			"OPENAI_BASE_URL={{VORTELIO_URL}}/v1",
 			"OPENAI_API_BASE={{VORTELIO_URL}}/v1",
@@ -109,16 +109,16 @@ var Catalog = []CatalogEntry{
 		RequiresAPIKey: false,
 	},
 	{
-		ID:          "open-webui",
-		Name:        "Open WebUI",
-		Description: "Interfaccia web completa per chat con modelli locali. Compatibile Ollama. Richiede Python 3.11+.",
-		Version:     "latest",
-		DefaultPort: 3000,
-		DefaultURL:  "http://localhost:3000",
+		ID:            "open-webui",
+		Name:          "Open WebUI",
+		Description:   "Full web interface for chatting with local models. Ollama-compatible. Requires Python 3.11+.",
+		Version:       "latest",
+		DefaultPort:   3000,
+		DefaultURL:    "http://localhost:3000",
 		InstallMethod: MethodPip,
-		NPMPackage:  "open-webui",
-		BinCommand:  "open-webui",
-		StartArgs:   []string{"serve", "--host", "0.0.0.0", "--port", "3000"},
+		NPMPackage:    "open-webui",
+		BinCommand:    "open-webui",
+		StartArgs:     []string{"serve", "--host", "0.0.0.0", "--port", "3000"},
 		EnvVars: []string{
 			"OLLAMA_BASE_URL={{VORTELIO_URL}}",
 			"OPENAI_API_BASE_URL={{VORTELIO_URL}}/v1",
@@ -129,16 +129,16 @@ var Catalog = []CatalogEntry{
 		RequiresAPIKey: false,
 	},
 	{
-		ID:          "flowise",
-		Name:        "Flowise",
-		Description: "Visual AI flow builder: crea agenti, RAG e workflow con drag-and-drop. Porta 3002.",
-		Version:     "latest",
-		DefaultPort: 3002,
-		DefaultURL:  "http://localhost:3002",
+		ID:            "flowise",
+		Name:          "Flowise",
+		Description:   "Visual AI flow builder: create agents, RAG and workflows with drag-and-drop. Port 3002.",
+		Version:       "latest",
+		DefaultPort:   3002,
+		DefaultURL:    "http://localhost:3002",
 		InstallMethod: MethodNPM,
-		NPMPackage:  "flowise",
-		BinCommand:  "flowise",
-		StartArgs:   []string{"start"},
+		NPMPackage:    "flowise",
+		BinCommand:    "flowise",
+		StartArgs:     []string{"start"},
 		EnvVars: []string{
 			"PORT=3002",
 			"FLOWISE_PORT=3002",
@@ -150,17 +150,17 @@ var Catalog = []CatalogEntry{
 		RequiresAPIKey: false,
 	},
 	{
-		ID:          "crewai",
-		Name:        "CrewAI Studio",
-		Description: "Orchestrazione multi-agente: crea team di agenti AI collaborativi per task complessi. Richiede uv (astral.sh/uv).",
-		Version:     "latest",
-		DefaultPort: 8500,
-		DefaultURL:  "http://localhost:8500",
+		ID:            "crewai",
+		Name:          "CrewAI Studio",
+		Description:   "Multi-agent orchestration: build teams of collaborative AI agents for complex tasks. Requires uv (astral.sh/uv).",
+		Version:       "latest",
+		DefaultPort:   8500,
+		DefaultURL:    "http://localhost:8500",
 		InstallMethod: MethodUV,
-		BinCommand:  "uv",
-		ScriptName:  "crewai_server.py",
-		UVDeps:      []string{"crewai", "crewai-tools", "fastapi", "uvicorn", "sse-starlette", "tomli-w"},
-		StartArgs:   []string{},
+		BinCommand:    "uv",
+		ScriptName:    "crewai_server.py",
+		UVDeps:        []string{"crewai", "crewai-tools", "fastapi", "uvicorn", "sse-starlette", "tomli-w"},
+		StartArgs:     []string{},
 		EnvVars: []string{
 			"VORTELIO_URL={{VORTELIO_URL}}",
 			"OPENAI_API_BASE={{VORTELIO_URL}}/v1",
@@ -339,7 +339,7 @@ func isBinInstalled(entry CatalogEntry) bool {
 func GetState(id string) AgentState {
 	entry, ok := findEntry(id)
 	if !ok {
-		return AgentState{ID: id, Error: "agente sconosciuto"}
+		return AgentState{ID: id, Error: "unknown agent"}
 	}
 	installed := isBinInstalled(entry)
 
@@ -379,11 +379,11 @@ func GetAllStates() []AgentState {
 // Install installs the agent. For npm packages, streams npm output as progress.
 func Install(ctx context.Context, id string, progress func(line string)) error {
 	if !validAgentID.MatchString(id) {
-		return fmt.Errorf("id agente non valido: %q", id)
+		return fmt.Errorf("invalid agent id: %q", id)
 	}
 	entry, ok := findEntry(id)
 	if !ok {
-		return fmt.Errorf("agente sconosciuto: %s", id)
+		return fmt.Errorf("unknown agent: %s", id)
 	}
 
 	switch entry.InstallMethod {
@@ -393,7 +393,7 @@ func Install(ctx context.Context, id string, progress func(line string)) error {
 		if len(entry.PipDeps) > 0 {
 			for _, dep := range entry.PipDeps {
 				if progress != nil {
-					progress("Installazione " + dep + "…")
+					progress("Installing " + dep + "…")
 				}
 				if err := installPipPackage(ctx, dep, progress); err != nil {
 					return err
@@ -405,25 +405,25 @@ func Install(ctx context.Context, id string, progress func(line string)) error {
 	case MethodUV:
 		return installUV(ctx, entry, progress)
 	case MethodBinary:
-		return fmt.Errorf("installazione binaria non supportata per questo agente")
+		return fmt.Errorf("binary install not supported for this agent")
 	default:
-		return fmt.Errorf("metodo di installazione sconosciuto")
+		return fmt.Errorf("unknown install method")
 	}
 }
 
 func installNPM(ctx context.Context, entry CatalogEntry, progress func(line string)) error {
 	if !nodeAvailable() {
 		return fmt.Errorf(
-			"Node.js non trovato nel PATH.\n" +
-			"Installa Node.js da https://nodejs.org (versione LTS consigliata),\n" +
-			"poi riavvia Vortelio e riprova.",
+			"Node.js not found in PATH.\n" +
+				"Install Node.js from https://nodejs.org (LTS version recommended),\n" +
+				"then restart Vortelio and try again.",
 		)
 	}
 	if !npmAvailable() {
 		return fmt.Errorf(
-			"npm non trovato nel PATH.\n" +
-			"Assicurati che npm sia installato insieme a Node.js:\n" +
-			"https://nodejs.org",
+			"npm not found in PATH.\n" +
+				"Make sure npm is installed together with Node.js:\n" +
+				"https://nodejs.org",
 		)
 	}
 
@@ -439,7 +439,7 @@ func installNPM(ctx context.Context, entry CatalogEntry, progress func(line stri
 	stderr, _ := cmd.StderrPipe()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("impossibile avviare npm: %w", err)
+		return fmt.Errorf("could not start npm: %w", err)
 	}
 
 	// Stream both stdout and stderr as progress lines
@@ -472,7 +472,7 @@ func installNPM(ctx context.Context, entry CatalogEntry, progress func(line stri
 	<-done
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("npm install fallito: %w\n\nSe il problema persiste, esegui manualmente:\n  npm install -g %s", err, entry.NPMPackage)
+		return fmt.Errorf("npm install failed: %w\n\nIf the problem persists, run manually:\n  npm install -g %s", err, entry.NPMPackage)
 	}
 	return nil
 }
@@ -481,9 +481,9 @@ func installPipPackage(ctx context.Context, pkg string, progress func(line strin
 	pipCmd := pipBin()
 	if _, err := exec.LookPath(pipCmd); err != nil {
 		return fmt.Errorf(
-			"pip non trovato nel PATH.\n" +
-				"Installa Python 3.10+ da https://python.org,\n" +
-				"poi riavvia Vortelio e riprova.",
+			"pip not found in PATH.\n" +
+				"Install Python 3.10+ from https://python.org,\n" +
+				"then restart Vortelio and try again.",
 		)
 	}
 	args := []string{"install", "--upgrade", pkg}
@@ -491,7 +491,7 @@ func installPipPackage(ctx context.Context, pkg string, progress func(line strin
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("impossibile avviare pip: %w", err)
+		return fmt.Errorf("could not start pip: %w", err)
 	}
 	done := make(chan struct{}, 2)
 	streamLines := func(r io.Reader) {
@@ -521,7 +521,7 @@ func installPipPackage(ctx context.Context, pkg string, progress func(line strin
 	<-done
 	<-done
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("pip install %s fallito: %w", pkg, err)
+		return fmt.Errorf("pip install %s failed: %w", pkg, err)
 	}
 	return nil
 }
@@ -530,9 +530,9 @@ func installPip(ctx context.Context, entry CatalogEntry, progress func(line stri
 	pipCmd := pipBin()
 	if _, err := exec.LookPath(pipCmd); err != nil {
 		return fmt.Errorf(
-			"pip non trovato nel PATH.\n" +
-				"Installa Python 3.10+ da https://python.org,\n" +
-				"poi riavvia Vortelio e riprova.",
+			"pip not found in PATH.\n" +
+				"Install Python 3.10+ from https://python.org,\n" +
+				"then restart Vortelio and try again.",
 		)
 	}
 
@@ -543,7 +543,7 @@ func installPip(ctx context.Context, entry CatalogEntry, progress func(line stri
 	stderr, _ := cmd.StderrPipe()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("impossibile avviare pip: %w", err)
+		return fmt.Errorf("could not start pip: %w", err)
 	}
 
 	done := make(chan struct{}, 2)
@@ -575,7 +575,7 @@ func installPip(ctx context.Context, entry CatalogEntry, progress func(line stri
 	<-done
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("pip install fallito: %w\n\nSe il problema persiste, esegui manualmente:\n  pip install %s", err, entry.NPMPackage)
+		return fmt.Errorf("pip install failed: %w\n\nIf the problem persists, run manually:\n  pip install %s", err, entry.NPMPackage)
 	}
 	return nil
 }
@@ -584,9 +584,9 @@ func installUV(ctx context.Context, entry CatalogEntry, progress func(string)) e
 	uv := uvBin()
 	if _, err := exec.LookPath(uv); err != nil {
 		return fmt.Errorf(
-			"uv non trovato nel PATH.\n" +
-				"Installalo con: pip install uv  oppure  curl -LsSf https://astral.sh/uv/install.sh | sh\n" +
-				"Poi riavvia Vortelio e riprova.",
+			"uv not found in PATH.\n" +
+				"Install it with: pip install uv  or  curl -LsSf https://astral.sh/uv/install.sh | sh\n" +
+				"then restart Vortelio and try again.",
 		)
 	}
 
@@ -598,20 +598,20 @@ func installUV(ctx context.Context, entry CatalogEntry, progress func(string)) e
 	}
 	venvCmd := exec.CommandContext(ctx, uv, "venv", venvDir)
 	if out, err := venvCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("uv venv fallito: %w\n%s", err, string(out))
+		return fmt.Errorf("uv venv failed: %w\n%s", err, string(out))
 	}
 
 	// Step 2: install each dep into the venv
 	for _, dep := range entry.UVDeps {
 		if progress != nil {
-			progress("Installazione " + dep + "…")
+			progress("Installing " + dep + "…")
 		}
 		args := []string{"pip", "install", "--python", venvDir, "--upgrade", dep}
 		cmd := exec.CommandContext(ctx, uv, args...)
 		stdout, _ := cmd.StdoutPipe()
 		stderr, _ := cmd.StderrPipe()
 		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("uv pip install %s fallito: %w", dep, err)
+			return fmt.Errorf("uv pip install %s failed: %w", dep, err)
 		}
 		done := make(chan struct{}, 2)
 		streamLines := func(r io.Reader) {
@@ -641,7 +641,7 @@ func installUV(ctx context.Context, entry CatalogEntry, progress func(string)) e
 		<-done
 		<-done
 		if err := cmd.Wait(); err != nil {
-			return fmt.Errorf("uv pip install %s fallito: %w", dep, err)
+			return fmt.Errorf("uv pip install %s failed: %w", dep, err)
 		}
 	}
 	return nil
@@ -651,11 +651,11 @@ func installUV(ctx context.Context, entry CatalogEntry, progress func(string)) e
 
 func Start(id string) error {
 	if !validAgentID.MatchString(id) {
-		return fmt.Errorf("id agente non valido: %q", id)
+		return fmt.Errorf("invalid agent id: %q", id)
 	}
 	entry, ok := findEntry(id)
 	if !ok {
-		return fmt.Errorf("agente sconosciuto: %s", id)
+		return fmt.Errorf("unknown agent: %s", id)
 	}
 
 	mu.Lock()
@@ -667,9 +667,9 @@ func Start(id string) error {
 
 	if !isBinInstalled(entry) {
 		if entry.InstallMethod == MethodUV {
-			return fmt.Errorf("agente %q richiede uv — installalo con: pip install uv", entry.Name)
+			return fmt.Errorf("agent %q requires uv — install it with: pip install uv", entry.Name)
 		}
-		return fmt.Errorf("agente %q non installato — installa prima tramite il pannello Agenti", entry.Name)
+		return fmt.Errorf("agent %q not installed — install it first via the Agents panel", entry.Name)
 	}
 
 	// Extract embedded script to disk if needed
@@ -677,7 +677,7 @@ func Start(id string) error {
 	if entry.ScriptName != "" {
 		runnersDir := filepath.Join(config.HomeDir(), "runners")
 		if err := os.MkdirAll(runnersDir, 0755); err != nil {
-			return fmt.Errorf("impossibile creare directory runners: %w", err)
+			return fmt.Errorf("could not create runners directory: %w", err)
 		}
 		scriptPath = filepath.Join(runnersDir, entry.ScriptName)
 		var scriptData []byte
@@ -687,7 +687,7 @@ func Start(id string) error {
 		}
 		if scriptData != nil {
 			if err := os.WriteFile(scriptPath, scriptData, 0644); err != nil {
-				return fmt.Errorf("impossibile estrarre script: %w", err)
+				return fmt.Errorf("could not extract script: %w", err)
 			}
 		}
 	}
@@ -730,7 +730,7 @@ func Start(id string) error {
 	cmd.Env = env
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("avvio %s fallito: %w", entry.Name, err)
+		return fmt.Errorf("start of %s failed: %w", entry.Name, err)
 	}
 
 	mu.Lock()
@@ -767,12 +767,12 @@ func Stop(id string) error {
 // Uninstall removes the npm global package.
 func Uninstall(id string) error {
 	if !validAgentID.MatchString(id) {
-		return fmt.Errorf("id agente non valido: %q", id)
+		return fmt.Errorf("invalid agent id: %q", id)
 	}
 	Stop(id)
 	entry, ok := findEntry(id)
 	if !ok {
-		return fmt.Errorf("agente sconosciuto")
+		return fmt.Errorf("unknown agent")
 	}
 	switch entry.InstallMethod {
 	case MethodNPM:
@@ -792,7 +792,7 @@ func Uninstall(id string) error {
 		venvDir := filepath.Join(config.HomeDir(), "venvs", entry.ID)
 		return os.RemoveAll(venvDir)
 	default:
-		return fmt.Errorf("rimozione non supportata per questo tipo di agente")
+		return fmt.Errorf("uninstall not supported for this agent type")
 	}
 }
 
@@ -800,7 +800,7 @@ func Uninstall(id string) error {
 func Health(id string) (bool, string) {
 	entry, ok := findEntry(id)
 	if !ok {
-		return false, "agente sconosciuto"
+		return false, "unknown agent"
 	}
 	if entry.DefaultURL == "" {
 		// TUI agent — check if process is alive

@@ -37,9 +37,15 @@ func TestParseModelRef_standard(t *testing.T) {
 			t.Errorf("ParseModelRef(%q): unexpected error: %v", c.input, err)
 			continue
 		}
-		if ref.Type != c.wantType { t.Errorf("ParseModelRef(%q).Type = %q, want %q", c.input, ref.Type, c.wantType) }
-		if ref.Name != c.wantName { t.Errorf("ParseModelRef(%q).Name = %q, want %q", c.input, ref.Name, c.wantName) }
-		if ref.Tag != c.wantTag  { t.Errorf("ParseModelRef(%q).Tag  = %q, want %q", c.input, ref.Tag, c.wantTag) }
+		if ref.Type != c.wantType {
+			t.Errorf("ParseModelRef(%q).Type = %q, want %q", c.input, ref.Type, c.wantType)
+		}
+		if ref.Name != c.wantName {
+			t.Errorf("ParseModelRef(%q).Name = %q, want %q", c.input, ref.Name, c.wantName)
+		}
+		if ref.Tag != c.wantTag {
+			t.Errorf("ParseModelRef(%q).Tag  = %q, want %q", c.input, ref.Tag, c.wantTag)
+		}
 	}
 }
 
@@ -70,10 +76,18 @@ func TestParseModelRef_hfdirect(t *testing.T) {
 			t.Errorf("ParseModelRef(%q): HFDirect is nil", c.input)
 			continue
 		}
-		if ref.Type != c.wantType       { t.Errorf("%q Type = %q, want %q", c.input, ref.Type, c.wantType) }
-		if ref.HFDirect.Owner != c.wantOwner { t.Errorf("%q Owner = %q, want %q", c.input, ref.HFDirect.Owner, c.wantOwner) }
-		if ref.HFDirect.Repo != c.wantRepo   { t.Errorf("%q Repo = %q, want %q", c.input, ref.HFDirect.Repo, c.wantRepo) }
-		if ref.HFDirect.FileHint != c.wantHint { t.Errorf("%q FileHint = %q, want %q", c.input, ref.HFDirect.FileHint, c.wantHint) }
+		if ref.Type != c.wantType {
+			t.Errorf("%q Type = %q, want %q", c.input, ref.Type, c.wantType)
+		}
+		if ref.HFDirect.Owner != c.wantOwner {
+			t.Errorf("%q Owner = %q, want %q", c.input, ref.HFDirect.Owner, c.wantOwner)
+		}
+		if ref.HFDirect.Repo != c.wantRepo {
+			t.Errorf("%q Repo = %q, want %q", c.input, ref.HFDirect.Repo, c.wantRepo)
+		}
+		if ref.HFDirect.FileHint != c.wantHint {
+			t.Errorf("%q FileHint = %q, want %q", c.input, ref.HFDirect.FileHint, c.wantHint)
+		}
 	}
 }
 
@@ -99,9 +113,15 @@ func TestParseModelRef_hfurl(t *testing.T) {
 			t.Errorf("ParseModelRef(%q): HFDirect is nil", c.input)
 			continue
 		}
-		if ref.Type != c.wantType             { t.Errorf("%q Type  = %q, want %q", c.input, ref.Type, c.wantType) }
-		if ref.HFDirect.Owner != c.wantOwner  { t.Errorf("%q Owner = %q, want %q", c.input, ref.HFDirect.Owner, c.wantOwner) }
-		if ref.HFDirect.Repo != c.wantRepo    { t.Errorf("%q Repo  = %q, want %q", c.input, ref.HFDirect.Repo, c.wantRepo) }
+		if ref.Type != c.wantType {
+			t.Errorf("%q Type  = %q, want %q", c.input, ref.Type, c.wantType)
+		}
+		if ref.HFDirect.Owner != c.wantOwner {
+			t.Errorf("%q Owner = %q, want %q", c.input, ref.HFDirect.Owner, c.wantOwner)
+		}
+		if ref.HFDirect.Repo != c.wantRepo {
+			t.Errorf("%q Repo  = %q, want %q", c.input, ref.HFDirect.Repo, c.wantRepo)
+		}
 	}
 }
 

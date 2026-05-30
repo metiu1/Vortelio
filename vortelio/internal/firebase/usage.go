@@ -12,19 +12,19 @@ import (
 
 // MonthlyUsage tracks token consumption per user per billing month.
 type MonthlyUsage struct {
-	Month      string `firestore:"month"       json:"month"`        // "2026-05"
-	TokensIn   int64  `firestore:"tokens_in"   json:"tokens_in"`
-	TokensOut  int64  `firestore:"tokens_out"  json:"tokens_out"`
-	Requests   int64  `firestore:"requests"    json:"requests"`
+	Month      string    `firestore:"month"       json:"month"` // "2026-05"
+	TokensIn   int64     `firestore:"tokens_in"   json:"tokens_in"`
+	TokensOut  int64     `firestore:"tokens_out"  json:"tokens_out"`
+	Requests   int64     `firestore:"requests"    json:"requests"`
 	LastUpdate time.Time `firestore:"last_update" json:"last_update"`
 }
 
 // Plan token limits per month (0 = no cloud access).
 var PlanLimits = map[string]int64{
-	"free":       0,          // no cloud access — local only
-	"pro":        2000000,    // €9.99/mese — 2M tokens
-	"business":   5000000,    // €20/mese   — 5M tokens
-	"enterprise": 15000000,   // €150/mese  — 15M tokens
+	"free":       0,        // no cloud access — local only
+	"pro":        2000000,  // €9.99/mese — 2M tokens
+	"business":   5000000,  // €20/mese   — 5M tokens
+	"enterprise": 15000000, // €150/mese  — 15M tokens
 }
 
 // currentMonth returns "YYYY-MM".

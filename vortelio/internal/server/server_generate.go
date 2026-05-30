@@ -16,23 +16,45 @@ import (
 )
 
 func handleGenerate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	var req GenerateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON: "+err.Error()); return }
-	if req.Model == "" { jsonError(w, 400, "model is required"); return }
-	if req.Steps == 0 { req.Steps = 20 }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON: "+err.Error())
+		return
+	}
+	if req.Model == "" {
+		jsonError(w, 400, "model is required")
+		return
+	}
+	if req.Steps == 0 {
+		req.Steps = 20
+	}
 
 	ref, err := hub.ParseModelRef(req.Model)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 	store := hub.NewModelStore()
 	model, err := store.Resolve(ref)
-	if err != nil { jsonError(w, 404, fmt.Sprintf("model %q not found. Download it first with vortelio pull", req.Model)); return }
+	if err != nil {
+		jsonError(w, 404, fmt.Sprintf("model %q not found. Download it first with vortelio pull", req.Model))
+		return
+	}
 
 	hw := getHardware()
-	if req.ForceCPU { hw.Backend = runtime.BackendCPU }
+	if req.ForceCPU {
+		hw.Backend = runtime.BackendCPU
+	}
 
 	runner, err := runtime.NewRunner(model, hw)
-	if err != nil { jsonError(w, 500, err.Error()); return }
+	if err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 
 	streamBool := req.Stream == nil || *req.Stream
 	opts := &runtime.RunOptions{
@@ -51,7 +73,10 @@ func handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := runner.Run(opts); err != nil { jsonError(w, 500, err.Error()); return }
+	if err := runner.Run(opts); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	respond(w, 200, map[string]interface{}{"model": req.Model, "status": "done"})
 }
 
@@ -245,7 +270,10 @@ func handleGenerateMedia(w http.ResponseWriter, r *http.Request, model *hub.Mode
 
 	if opts.OutputFile == "" {
 		tmp, err := os.CreateTemp("", "vortelio-out-*."+ext)
-		if err != nil { jsonError(w, 500, "cannot create temporary file: "+err.Error()); return }
+		if err != nil {
+			jsonError(w, 500, "cannot create temporary file: "+err.Error())
+			return
+		}
 		tmp.Close()
 		opts.OutputFile = tmp.Name()
 	}
@@ -257,7 +285,9 @@ func handleGenerateMedia(w http.ResponseWriter, r *http.Request, model *hub.Mode
 
 	sseEvent := func(typ, data string) {
 		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", typ, data)
-		if canFlush { flusher.Flush() }
+		if canFlush {
+			flusher.Flush()
+		}
 	}
 
 	ctx := r.Context()
@@ -267,13 +297,25 @@ func handleGenerateMedia(w http.ResponseWriter, r *http.Request, model *hub.Mode
 	go func() {
 		switch model.Type {
 		case "image":
-			if ir, ok := runner.(*runtime.ImageRunner); ok { done <- ir.RunWithProgress(opts, progCh); return }
+			if ir, ok := runner.(*runtime.ImageRunner); ok {
+				done <- ir.RunWithProgress(opts, progCh)
+				return
+			}
 		case "audio":
-			if ar, ok := runner.(*runtime.AudioRunner); ok { done <- ar.RunWithProgress(opts, progCh); return }
+			if ar, ok := runner.(*runtime.AudioRunner); ok {
+				done <- ar.RunWithProgress(opts, progCh)
+				return
+			}
 		case "video":
-			if vr, ok := runner.(*runtime.VideoRunner); ok { done <- vr.RunWithProgress(opts, progCh); return }
+			if vr, ok := runner.(*runtime.VideoRunner); ok {
+				done <- vr.RunWithProgress(opts, progCh)
+				return
+			}
 		case "3d":
-			if tr, ok := runner.(*runtime.ThreeDRunner); ok { done <- tr.RunWithProgress(opts, progCh); return }
+			if tr, ok := runner.(*runtime.ThreeDRunner); ok {
+				done <- tr.RunWithProgress(opts, progCh)
+				return
+			}
 		}
 		done <- runner.Run(opts)
 		close(progCh)
@@ -309,8 +351,8 @@ func handleGenerateMedia(w http.ResponseWriter, r *http.Request, model *hub.Mode
 
 	resultJSON, _ := json.Marshal(map[string]interface{}{
 		"model": req.Model, "status": "done", "type": model.Type,
-		"mime": mediaMime[model.Type],
-		"data": base64.StdEncoding.EncodeToString(data),
+		"mime":     mediaMime[model.Type],
+		"data":     base64.StdEncoding.EncodeToString(data),
 		"saved_to": dlPath,
 	})
 	sseEvent("result", string(resultJSON))
@@ -319,7 +361,9 @@ func handleGenerateMedia(w http.ResponseWriter, r *http.Request, model *hub.Mode
 // restoreContext looks up a prior conversation session by context token array.
 func restoreContext(ctx []int) []map[string]string {
 	key := contextToKey(ctx)
-	if key == "" { return nil }
+	if key == "" {
+		return nil
+	}
 	contextSessions.mu.Lock()
 	defer contextSessions.mu.Unlock()
 	return contextSessions.data[key]
@@ -327,7 +371,9 @@ func restoreContext(ctx []int) []map[string]string {
 
 // saveContext stores the conversation turn and returns a new context token array.
 func saveContext(prevCtx []int, prompt, response string, existingMsgs []map[string]interface{}) []int {
-	if prompt == "" || response == "" { return nil }
+	if prompt == "" || response == "" {
+		return nil
+	}
 
 	// Restore prior history
 	var history []map[string]string

@@ -45,7 +45,7 @@ func encryptKey(plaintext []byte) ([]byte, error) {
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if r == 0 {
-		return nil, fmt.Errorf("CryptProtectData fallito")
+		return nil, fmt.Errorf("CryptProtectData failed")
 	}
 	defer procLocalFree.Call(uintptr(unsafe.Pointer(out.pbData)))
 	result := make([]byte, out.cbData)
@@ -63,7 +63,7 @@ func decryptKey(ciphertext []byte) ([]byte, error) {
 		uintptr(unsafe.Pointer(&out)),
 	)
 	if r == 0 {
-		return nil, fmt.Errorf("CryptUnprotectData fallito")
+		return nil, fmt.Errorf("CryptUnprotectData failed")
 	}
 	defer procLocalFree.Call(uintptr(unsafe.Pointer(out.pbData)))
 	result := make([]byte, out.cbData)

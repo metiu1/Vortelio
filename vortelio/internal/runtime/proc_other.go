@@ -14,29 +14,39 @@ import (
 func HideWindow(cmd *exec.Cmd) *exec.Cmd { return cmd }
 
 func RunWithOutput(cmd *exec.Cmd, stdout, stderr io.Writer) error {
-	cmd.Stdout = stdout; cmd.Stderr = stderr
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	return cmd.Run()
 }
 
 func LaunchDetached(path string, args ...string) error {
 	cmd := exec.Command(path, args...)
-	cmd.Stdout = nil; cmd.Stderr = nil; cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
 	return cmd.Start()
 }
 
 func RunWithCapture(cmd *exec.Cmd) error {
 	var buf bytes.Buffer
-	cmd.Stdout = &buf; cmd.Stderr = &buf
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
 	err := cmd.Run()
 	return wrapCaptureErr(err, buf.String())
 }
 
 func wrapCaptureErr(err error, output string) error {
-	if err == nil { return nil }
+	if err == nil {
+		return nil
+	}
 	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) > 30 { lines = lines[len(lines)-30:] }
+	if len(lines) > 30 {
+		lines = lines[len(lines)-30:]
+	}
 	tail := strings.TrimSpace(strings.Join(lines, "\n"))
-	if tail == "" { return fmt.Errorf("%w", err) }
+	if tail == "" {
+		return fmt.Errorf("%w", err)
+	}
 	return fmt.Errorf("%w\n\nDettagli processo:\n%s", err, tail)
 }
 
@@ -50,11 +60,15 @@ func RunWithProgress(cmd *exec.Cmd, progress chan<- ProgressEvent) error {
 	cmd.Stderr = &errBuf
 	stdoutPipe, pipeErr := cmd.StdoutPipe()
 	if pipeErr != nil {
-		if progress != nil { close(progress) }
+		if progress != nil {
+			close(progress)
+		}
 		return pipeErr
 	}
 	if err := cmd.Start(); err != nil {
-		if progress != nil { close(progress) }
+		if progress != nil {
+			close(progress)
+		}
 		return err
 	}
 	scanner := bufio.NewScanner(stdoutPipe)
@@ -66,12 +80,20 @@ func RunWithProgress(cmd *exec.Cmd, progress chan<- ProgressEvent) error {
 			pct := 0
 			fmt.Sscanf(parts[0], "%d", &pct)
 			msg := ""
-			if len(parts) > 1 { msg = parts[1] }
-			if progress != nil { progress <- ProgressEvent{Percent: pct, Message: msg} }
+			if len(parts) > 1 {
+				msg = parts[1]
+			}
+			if progress != nil {
+				progress <- ProgressEvent{Percent: pct, Message: msg}
+			}
 		}
 	}
 	err := cmd.Wait()
-	if progress != nil { close(progress) }
-	if err != nil { return wrapCaptureErr(err, errBuf.String()) }
+	if progress != nil {
+		close(progress)
+	}
+	if err != nil {
+		return wrapCaptureErr(err, errBuf.String())
+	}
 	return nil
 }

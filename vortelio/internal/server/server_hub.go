@@ -14,44 +14,77 @@ import (
 // ── Model CRUD ────────────────────────────────────────────────────────────────
 
 func handleModels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet { jsonError(w, 405, "method not allowed"); return }
+	if r.Method != http.MethodGet {
+		jsonError(w, 405, "method not allowed")
+		return
+	}
 	store := hub.NewModelStore()
 	models, err := store.List()
-	if err != nil { jsonError(w, 500, err.Error()); return }
+	if err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	out := make([]ModelWithSize, len(models))
-	for i, m := range models { out[i] = ModelWithSize{Model: m, SizeHuman: m.SizeHuman()} }
+	for i, m := range models {
+		out[i] = ModelWithSize{Model: m, SizeHuman: m.SizeHuman()}
+	}
 	respond(w, 200, map[string]interface{}{"models": out})
 }
 
 func handleModelByName(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	for _, skip := range []string{"/api/models/remove", "/api/models/rename", "/api/models/info"} {
-		if path == skip { http.NotFound(w, r); return }
+		if path == skip {
+			http.NotFound(w, r)
+			return
+		}
 	}
 	rawPath := r.URL.RawPath
-	if rawPath == "" { rawPath = r.URL.Path }
+	if rawPath == "" {
+		rawPath = r.URL.Path
+	}
 	raw := strings.TrimPrefix(rawPath, "/api/models/")
 	raw = strings.ReplaceAll(raw, "%2F", "/")
 	raw = strings.ReplaceAll(raw, "%2f", "/")
 	raw = strings.ReplaceAll(raw, "%3A", ":")
 	raw = strings.ReplaceAll(raw, "%3a", ":")
 	raw = strings.ReplaceAll(raw, "%40", "@")
-	if raw == "" { jsonError(w, 400, "missing model name"); return }
+	if raw == "" {
+		jsonError(w, 400, "missing model name")
+		return
+	}
 	ref, err := hub.ParseModelRef(raw)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 	store := hub.NewModelStore()
 	switch r.Method {
 	case http.MethodGet:
 		m, err := store.Resolve(ref)
-		if err != nil { jsonError(w, 404, err.Error()); return }
+		if err != nil {
+			jsonError(w, 404, err.Error())
+			return
+		}
 		respond(w, 200, ModelWithSize{Model: m, SizeHuman: m.SizeHuman()})
 	case http.MethodDelete:
-		if err := store.Remove(ref); err != nil { jsonError(w, 500, err.Error()); return }
+		if err := store.Remove(ref); err != nil {
+			jsonError(w, 500, err.Error())
+			return
+		}
 		respond(w, 200, map[string]string{"status": "deleted", "model": raw})
 	case http.MethodPatch:
-		var req struct{ DisplayName string `json:"display_name"` }
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
-		if err := store.Rename(ref, req.DisplayName); err != nil { jsonError(w, 500, err.Error()); return }
+		var req struct {
+			DisplayName string `json:"display_name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonError(w, 400, "invalid JSON")
+			return
+		}
+		if err := store.Rename(ref, req.DisplayName); err != nil {
+			jsonError(w, 500, err.Error())
+			return
+		}
 		respond(w, 200, map[string]string{"status": "renamed", "model": raw, "display_name": req.DisplayName})
 	default:
 		jsonError(w, 405, "use GET, DELETE or PATCH")
@@ -59,56 +92,111 @@ func handleModelByName(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleModelRemove(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ Model string `json:"model"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	ref, err := hub.ParseModelRef(req.Model)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 	store := hub.NewModelStore()
-	if err := store.Remove(ref); err != nil { jsonError(w, 500, err.Error()); return }
+	if err := store.Remove(ref); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	respond(w, 200, map[string]string{"status": "deleted", "model": req.Model})
 }
 
 func handleModelRename(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	var req struct {
 		Model       string `json:"model"`
 		DisplayName string `json:"display_name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	ref, err := hub.ParseModelRef(req.Model)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 	store := hub.NewModelStore()
-	if err := store.Rename(ref, req.DisplayName); err != nil { jsonError(w, 500, err.Error()); return }
+	if err := store.Rename(ref, req.DisplayName); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	respond(w, 200, map[string]string{"status": "renamed", "model": req.Model, "display_name": req.DisplayName})
 }
 
 func handleModelInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ Model string `json:"model"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	ref, err := hub.ParseModelRef(req.Model)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 	store := hub.NewModelStore()
 	m, err := store.Resolve(ref)
-	if err != nil { jsonError(w, 404, err.Error()); return }
+	if err != nil {
+		jsonError(w, 404, err.Error())
+		return
+	}
 	respond(w, 200, ModelWithSize{Model: m, SizeHuman: m.SizeHuman()})
 }
 
 func handleModelMmProj(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	var req struct {
-		Model     string `json:"model"`
+		Model      string `json:"model"`
 		MmProjPath string `json:"mmproj_path"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	ref, err := hub.ParseModelRef(req.Model)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 	store := hub.NewModelStore()
 	m, err := store.Resolve(ref)
-	if err != nil { jsonError(w, 404, err.Error()); return }
+	if err != nil {
+		jsonError(w, 404, err.Error())
+		return
+	}
 	m.MmProjPath = req.MmProjPath
-	if err := store.Save(m); err != nil { jsonError(w, 500, err.Error()); return }
+	if err := store.Save(m); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
 	// Unload model so it restarts with new mmproj on next request
 	runtime.GlobalModelManager.Unload(m)
 	respond(w, 200, map[string]string{"status": "ok", "mmproj_path": req.MmProjPath})
@@ -117,19 +205,33 @@ func handleModelMmProj(w http.ResponseWriter, r *http.Request) {
 // ── Download ──────────────────────────────────────────────────────────────────
 
 func handlePull(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
 	var req struct {
 		Model    string `json:"model"`
 		Name     string `json:"name"`     // Ollama legacy field
 		Insecure bool   `json:"insecure"` // ignored
 		Stream   *bool  `json:"stream"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	modelName := req.Model
-	if modelName == "" { modelName = req.Name }
-	if modelName == "" { jsonError(w, 400, "model is required"); return }
+	if modelName == "" {
+		modelName = req.Name
+	}
+	if modelName == "" {
+		jsonError(w, 400, "model is required")
+		return
+	}
 	ref, err := hub.ParseModelRef(modelName)
-	if err != nil { jsonError(w, 400, err.Error()); return }
+	if err != nil {
+		jsonError(w, 400, err.Error())
+		return
+	}
 
 	// Detect Ollama-compat client via Accept header (NDJSON) vs browser GUI (SSE).
 	wantSSE := strings.Contains(r.Header.Get("Accept"), "text/event-stream")
@@ -151,7 +253,9 @@ func handlePull(w http.ResponseWriter, r *http.Request) {
 		} else {
 			fmt.Fprintf(w, "%s\n", string(data))
 		}
-		if canFlush { flusher.Flush() }
+		if canFlush {
+			flusher.Flush()
+		}
 	}
 
 	ctx, cancel := context.WithCancel(r.Context())
@@ -171,11 +275,16 @@ func handlePull(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		d := hub.NewDownloaderWithContext(ctx)
 		cb := func(downloaded, total int64) {
-			if !streaming { return }
-			var pct int; var msg string
+			if !streaming {
+				return
+			}
+			var pct int
+			var msg string
 			if total > 0 {
 				pct = int(downloaded * 100 / total)
-				if pct > 99 { pct = 99 }
+				if pct > 99 {
+					pct = 99
+				}
 				msg = fmt.Sprintf("%.1f / %.1f MB (%d%%)", float64(downloaded)/1e6, float64(total)/1e6, pct)
 			} else {
 				pct = 5
@@ -205,9 +314,17 @@ func handlePull(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePullCancel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonError(w, 405, "POST only"); return }
-	var req struct{ Model string `json:"model"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { jsonError(w, 400, "invalid JSON"); return }
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "POST only")
+		return
+	}
+	var req struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
 	if cancelPull(req.Model) {
 		respond(w, 200, map[string]string{"status": "cancelled", "model": req.Model})
 	} else {

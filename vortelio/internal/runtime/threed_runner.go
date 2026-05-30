@@ -22,8 +22,8 @@ func NewThreeDRunner(model *hub.Model, hw *Hardware) *ThreeDRunner {
 func (r *ThreeDRunner) Run(opts *RunOptions) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		fmt.Println("\n⚠️   Python 3 non trovato.")
-		fmt.Println("    Installa Python 3.10+ da: https://python.org/downloads")
+		fmt.Println("\n⚠️   Python 3 not found.")
+		fmt.Println("    Install Python 3.10+ from: https://python.org/downloads")
 		return nil
 	}
 
@@ -49,7 +49,7 @@ func (r *ThreeDRunner) Run(opts *RunOptions) error {
 // runTripoSR: image → 3D mesh (best quality, fast)
 func (r *ThreeDRunner) runTripoSR(pythonBin string, opts *RunOptions) error {
 	if opts.InputFile == "" && opts.Prompt == "" {
-		fmt.Println("ℹ️   TripoSR: Genera modelli 3D da immagine")
+		fmt.Println("ℹ️   TripoSR: generate 3D models from an image")
 		fmt.Println("    vortelio run 3d/triposr --input ./foto_oggetto.png")
 		fmt.Println("    vortelio run 3d/triposr --input ./foto.jpg --output modello.obj")
 		return nil
@@ -61,26 +61,26 @@ func (r *ThreeDRunner) runTripoSR(pythonBin string, opts *RunOptions) error {
 	if opts.InputFile != "" {
 		// Image to 3D
 		inputPath := strings.ReplaceAll(opts.InputFile, `\`, `/`)
-		fmt.Printf("🧊  Generazione 3D da immagine\n    Input: %s\n    Output: %s\n\n", opts.InputFile, outputPath)
+		fmt.Printf("🧊  3D generation from image\n    Input: %s\n    Output: %s\n\n", opts.InputFile, outputPath)
 
 		// Install TripoSR dependencies
 		// Note: TripoSR is not on PyPI — must install from GitHub
 		// Requires: git installed and accessible in PATH
 		if !CheckPythonPackage(pythonBin, "tsr") {
-			fmt.Println("📦  Installazione TripoSR e dipendenze...")
+			fmt.Println("📦  Installing TripoSR e dipendenze...")
 			// Install deps first (these are on PyPI)
 			_ = InstallPythonPackage(pythonBin, "trimesh", "Pillow", "einops", "omegaconf", "huggingface_hub", "torch", "torchvision")
 			// Try GitHub install
 			_ = InstallPythonPackage(pythonBin, "git+https://github.com/VAST-AI-Research/TripoSR.git")
 			if !CheckPythonPackage(pythonBin, "tsr") {
 				fmt.Println()
-				fmt.Println("❌  TripoSR non installato automaticamente.")
-				fmt.Println("    Richiede git installato. Installa manualmente con:")
+				fmt.Println("❌  TripoSR not installed automatically.")
+				fmt.Println("    Requires git installed. Install manually with:")
 				fmt.Println()
 				fmt.Println("    1. Installa git: https://git-scm.com/download/win")
 				fmt.Println("    2. pip install git+https://github.com/VAST-AI-Research/TripoSR.git")
 				fmt.Println()
-				fmt.Println("    Oppure usa Shap-E (non richiede git):")
+				fmt.Println("    Or use Shap-E (does not require git):")
 				fmt.Println(`    vortelio pull 3d/shap-e && vortelio run 3d/shap-e "un gatto"`)
 				return nil
 			}
@@ -98,7 +98,7 @@ except ImportError as e:
     print('pip install torch trimesh Pillow einops omegaconf')
     sys.exit(1)
 
-print('Caricamento TripoSR...')
+print('Loading TripoSR...')
 try:
     from tsr.system import TSR
     model_path = r'''%s'''
@@ -112,14 +112,14 @@ model = model.to(device)
 model.renderer.set_chunk_size(8192)
 
 img = Image.open(input_path).convert('RGBA')
-print('Generazione mesh 3D...')
+print('Generating 3D mesh...')
 with torch.no_grad():
     scene_codes = model([img], device=device)
     meshes = model.extract_mesh(scene_codes, resolution=256)
 
 mesh = meshes[0]
 mesh.export(output_path)
-print(f'\n✅  Modello 3D salvato in: ' + output_path)
+print(f'\n✅  3D model saved to: ' + output_path)
 `, outputPath, inputPath, r.model.LocalPath)
 
 		return r.runPython(pythonBin, script)
@@ -128,8 +128,8 @@ print(f'\n✅  Modello 3D salvato in: ' + output_path)
 	// Text → 3D: use Shap-E (no git required, works on Python 3.14)
 	// TripoSR text→3D requires git+GitHub which often fails on Windows
 	// Shap-E is installed directly from PyPI and works reliably
-	fmt.Printf("🧊  Generazione 3D da testo → Shap-E\n    Prompt: %q\n    Output: %s\n", opts.Prompt, outputPath)
-	fmt.Println("ℹ️   Uso Shap-E (metodo consigliato per testo→3D su Windows)")
+	fmt.Printf("🧊  3D generation from text → Shap-E\n    Prompt: %q\n    Output: %s\n", opts.Prompt, outputPath)
+	fmt.Println("ℹ️   Using Shap-E (recommended method for text→3D on Windows)")
 	fmt.Println()
 	// Delegate to Shap-E
 	return r.runShapE(pythonBin, opts)
@@ -148,7 +148,7 @@ func (r *ThreeDRunner) runShapE(pythonBin string, opts *RunOptions) error {
 	outputPath = strings.ReplaceAll(outputPath, `\`, `/`)
 	inputPath := strings.ReplaceAll(opts.InputFile, `\`, `/`)
 
-	fmt.Printf("🧊  Generazione 3D (Shap-E)\n    Output: %s\n\n", outputPath)
+	fmt.Printf("🧊  3D generation (Shap-E)\n    Output: %s\n\n", outputPath)
 
 	script := fmt.Sprintf(`import sys, torch
 output_path = r'''%s'''
@@ -158,12 +158,12 @@ try:
     from shap_e.models.download import load_model, load_config
     from shap_e.util.notebooks import create_pan_cameras, decode_latent_mesh
 except ImportError:
-    print('Shap-E non installato.')
+    print('Shap-E not installed.')
     print('pip install git+https://github.com/openai/shap-e.git')
     sys.exit(1)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print('Caricamento Shap-E...')
+print('Loading Shap-E...')
 xm = load_model('transmitter', device=device)
 diffusion = diffusion_from_config(load_config('diffusion'))
 
@@ -192,7 +192,7 @@ print('Esportazione mesh...')
 t = decode_latent_mesh(xm, latents[0]).tri_mesh()
 with open(output_path, 'wb') as f:
     t.write_ply(f)
-print('\n✅  Modello 3D salvato in: ' + output_path)
+print('\n✅  3D model saved to: ' + output_path)
 `, outputPath, opts.InputFile != "", inputPath, text)
 
 	return r.runPython(pythonBin, script)
@@ -201,7 +201,7 @@ print('\n✅  Modello 3D salvato in: ' + output_path)
 // runLGM: Large Multi-View Gaussian (image → 3D gaussian splat)
 func (r *ThreeDRunner) runLGM(pythonBin string, opts *RunOptions) error {
 	if opts.InputFile == "" && opts.Prompt == "" {
-		fmt.Printf("ℹ️   LGM (%s): Genera modelli 3D da immagine o testo\n", r.model.Name)
+		fmt.Printf("ℹ️   LGM (%s): generate 3D models from image or text\n", r.model.Name)
 		fmt.Println("    vortelio run 3d/jctn--lgm --input ./foto.png")
 		fmt.Printf("    vortelio run 3d/jctn--lgm \"un gatto\"\n")
 		return nil
@@ -209,8 +209,8 @@ func (r *ThreeDRunner) runLGM(pythonBin string, opts *RunOptions) error {
 	// Text prompt: route to TripoSR's text→image→3D pipeline
 	// (LGM itself needs an image, so we generate one first with SD then pass to TripoSR)
 	if opts.InputFile == "" && opts.Prompt != "" {
-		fmt.Printf("ℹ️   LGM richiede un'immagine come input.\n")
-		fmt.Printf("    Generazione automatica immagine da testo con TripoSR text→3D:\n")
+		fmt.Printf("ℹ️   LGM requires an image as input.\n")
+		fmt.Printf("    Auto-generating image from text with TripoSR text→3D:\n")
 		fmt.Printf("    vortelio run 3d/triposr \"%s\"\n", opts.Prompt)
 		fmt.Println()
 		// Automatically delegate to triposr text→3D pipeline
@@ -218,7 +218,7 @@ func (r *ThreeDRunner) runLGM(pythonBin string, opts *RunOptions) error {
 	}
 	outputPath := strings.ReplaceAll(ResolveOutputPath(opts.OutputFile, "output.ply"), `\`, `/`)
 	inputPath := strings.ReplaceAll(opts.InputFile, `\`, `/`)
-	fmt.Printf("🧊  Generazione 3D (LGM)\n    Input: %s\n    Output: %s\n\n", opts.InputFile, outputPath)
+	fmt.Printf("🧊  3D generation (LGM)\n    Input: %s\n    Output: %s\n\n", opts.InputFile, outputPath)
 
 	script := fmt.Sprintf(`import sys, torch
 output_path = r'''%s'''
@@ -232,13 +232,13 @@ except ImportError:
     print("pip install Pillow numpy")
     sys.exit(1)
 
-print("Caricamento LGM...")
+print("Loading LGM...")
 try:
     from huggingface_hub import hf_hub_download
     from lgm.models.lgm import LGM
-    print("LGM caricato correttamente")
+    print("LGM loaded successfully")
 except ImportError:
-    print("LGM non installato. Installa con:")
+    print("LGM not installed. Install with:")
     print("  pip install git+https://github.com/3DTopia/LGM.git")
     sys.exit(1)
 
@@ -264,7 +264,7 @@ with open(output_path, "wb") as f:
     f.write(b"property float x\nproperty float y\nproperty float z\nend_header\n")
     for p in pts:
         f.write(struct.pack("<fff", *p[:3]))
-print(f"\n\u2705  Modello 3D salvato in: " + output_path)
+print(f"\n\u2705  3D model saved to: " + output_path)
 `, outputPath, inputPath, strings.ReplaceAll(r.model.LocalPath, `\`, `/`))
 	return r.runPython(pythonBin, script)
 }
@@ -272,14 +272,14 @@ print(f"\n\u2705  Modello 3D salvato in: " + output_path)
 // runTRELLIS: Microsoft TRELLIS text/image → 3D
 func (r *ThreeDRunner) runTRELLIS(pythonBin string, opts *RunOptions) error {
 	if opts.Prompt == "" && opts.InputFile == "" {
-		fmt.Printf("ℹ️   TRELLIS (%s): Genera modelli 3D da testo o immagine\n", r.model.Name)
+		fmt.Printf("ℹ️   TRELLIS (%s): generate 3D models from text or image\n", r.model.Name)
 		fmt.Println(`    vortelio run 3d/jctn--lgm "una sedia di legno"`)
 		fmt.Println("    vortelio run 3d/jctn--lgm --input ./foto.jpg")
 		return nil
 	}
 	outputPath := strings.ReplaceAll(ResolveOutputPath(opts.OutputFile, "output.glb"), `\`, `/`)
-	fmt.Printf("🧊  Generazione 3D (TRELLIS)\n    Output: %s\n\n", outputPath)
-	fmt.Println("ℹ️   TRELLIS richiede installazione separata:")
+	fmt.Printf("🧊  3D generation (TRELLIS)\n    Output: %s\n\n", outputPath)
+	fmt.Println("ℹ️   TRELLIS requires a separate install:")
 	fmt.Println("    pip install git+https://github.com/microsoft/TRELLIS.git")
 	return nil
 }
@@ -288,7 +288,7 @@ func (r *ThreeDRunner) runTRELLIS(pythonBin string, opts *RunOptions) error {
 func (r *ThreeDRunner) runGeneric3D(pythonBin string, opts *RunOptions) error {
 	modelName := r.model.Name
 	modelPath := r.model.LocalPath
-	fmt.Printf("🧊  Modello 3D: %s\n", modelName)
+	fmt.Printf("🧊  3D model: %s\n", modelName)
 	fmt.Printf("    Path: %s\n\n", modelPath)
 
 	if opts.Prompt == "" && opts.InputFile == "" {
@@ -308,7 +308,7 @@ output_path = r'''%s'''
 input_path = r'''%s'''
 model_path = r'''%s'''
 
-print("Tentativo caricamento modello 3D: " + model_path)
+print("Trying to load 3D model: " + model_path)
 print()
 
 # Try transformers pipeline first
@@ -323,12 +323,12 @@ try:
         result = pipe(img)
     else:
         result = pipe('''%s''')
-    print("\n\u2705  Completato")
+    print("\n\u2705  Done")
 except Exception as e:
-    print(f"Errore: {e}")
+    print(f"Error: {e}")
     print()
-    print("Il modello non e' supportato automaticamente.")
-    print("Consulta la documentazione del modello su HuggingFace")
+    print("The model is not supported automatically.")
+    print("See the model documentation on HuggingFace")
     print("per istruzioni di utilizzo specifiche.")
     sys.exit(1)
 `, outputPath, inputPath, modelDir, escapePy(opts.Prompt))
@@ -357,11 +357,13 @@ func (r *ThreeDRunner) runPythonProg(pythonBin, script string, onProgress func(P
 // RunWithProgress for 3D
 func (r *ThreeDRunner) RunWithProgress(opts *RunOptions, progress chan<- ProgressEvent) error {
 	if progress != nil {
-		progress <- ProgressEvent{Percent: 5, Message: "Avvio generazione 3D..."}
+		progress <- ProgressEvent{Percent: 5, Message: "Starting 3D generation..."}
 	}
 	err := r.Run(opts)
 	if progress != nil {
-		if err == nil { progress <- ProgressEvent{Percent: 100, Message: "Completato!"} }
+		if err == nil {
+			progress <- ProgressEvent{Percent: 100, Message: "Done!"}
+		}
 		close(progress)
 	}
 	return err
