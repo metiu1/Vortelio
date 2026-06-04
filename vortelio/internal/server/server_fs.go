@@ -61,22 +61,39 @@ func handleFsList(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]interface{}{"path": path, "entries": out})
 }
 
-// fsRoots returns useful starting points: the user's home directory plus any
-// available drives (Windows) or "/" (Unix).
+// fsRoots returns familiar Quick-Access shortcuts (like a native file dialog):
+// Home, Desktop, Downloads, Documents, Pictures, Music, Videos, OneDrive,
+// followed by available drives.
 func fsRoots() []fsEntry {
 	var out []fsEntry
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		out = append(out, fsEntry{Name: "🏠 Home", Path: home, Dir: true})
+	add := func(label, p string) {
+		if p == "" {
+			return
+		}
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			out = append(out, fsEntry{Name: label, Path: p, Dir: true})
+		}
+	}
+	home, _ := os.UserHomeDir()
+	if home != "" {
+		add("🏠 Home", home)
+		add("🖥 Desktop", filepath.Join(home, "Desktop"))
+		add("⬇ Downloads", filepath.Join(home, "Downloads"))
+		add("📄 Documents", filepath.Join(home, "Documents"))
+		add("🖼 Pictures", filepath.Join(home, "Pictures"))
+		add("🎵 Music", filepath.Join(home, "Music"))
+		add("🎬 Videos", filepath.Join(home, "Videos"))
+		add("☁ OneDrive", filepath.Join(home, "OneDrive"))
 	}
 	if runtime.GOOS == "windows" {
 		for c := 'C'; c <= 'Z'; c++ {
 			d := string(c) + ":\\"
 			if _, err := os.Stat(d); err == nil {
-				out = append(out, fsEntry{Name: d, Path: d, Dir: true})
+				out = append(out, fsEntry{Name: "💽 " + string(c) + ":", Path: d, Dir: true})
 			}
 		}
 	} else {
-		out = append(out, fsEntry{Name: "/", Path: "/", Dir: true})
+		add("/", "/")
 	}
 	return out
 }
