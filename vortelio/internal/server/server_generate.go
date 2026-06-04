@@ -135,14 +135,51 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 		}
 	}
 
+	// Agentic mode implies tools are on.
+	toolsOn := req.ToolsEnabled || req.Agentic != nil
+
+	// Smart/auto mode never hard-errors: if the model can't do tools, silently
+	// degrade to a plain chat so the beginner always gets an answer.
+	if toolsOn && req.Agentic != nil && req.Agentic.Auto && !runtime.ModelSupportsTools(req.Model) {
+		req.Agentic = nil
+		toolsOn = req.ToolsEnabled
+	}
+
+	// Native tool-support gate: communicate clearly when the model can't do tools.
+	if toolsOn && !runtime.ModelSupportsTools(req.Model) {
+		msg := runtime.ToolSupportMessage(req.Model)
+		if streaming {
+			w.Header().Set("Content-Type", "application/x-ndjson")
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+		}
+		writeNDJSON(map[string]interface{}{
+			"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+			"response": "", "done": true, "done_reason": "error",
+			"error": msg, "tools_unsupported": true,
+		})
+		flush()
+		return
+	}
+
+	// Apply enabled skills as system-prompt augmentation.
+	systemPrompt := req.System
+	if req.Agentic != nil && len(req.Agentic.Skills) > 0 {
+		systemPrompt = applySkills(systemPrompt, req.Agentic.Skills)
+	}
+	// Smart/auto mode: nudge the model to use its tools on its own.
+	if req.Agentic != nil && req.Agentic.Auto {
+		systemPrompt = autoSystemPrompt(systemPrompt)
+	}
+
 	sopts := runtime.StreamOpts{
 		Prompt:       req.Prompt,
-		System:       req.System,
+		System:       systemPrompt,
 		Messages:     messages,
 		Images:       req.Images,
 		Raw:          req.Raw,
 		Think:        req.Think,
-		ToolsEnabled: req.ToolsEnabled,
+		ToolsEnabled: toolsOn,
 		Options:      llmOpts,
 		Format:       formatStr,
 	}
@@ -162,7 +199,7 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 	}
 
 	var toolEmitter runtime.ToolEventEmitter
-	if req.ToolsEnabled {
+	if toolsOn {
 		toolEmitter = func(eventType string, data interface{}) {
 			evJSON, _ := json.Marshal(data)
 			if streaming {
@@ -173,6 +210,11 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 				flush()
 			}
 		}
+	}
+
+	// Build the composite tool provider for agentic requests.
+	if req.Agentic != nil {
+		sopts.ToolProvider = buildAgenticProvider(req.Agentic, toolEmitter)
 	}
 
 	var llmRunner *runtime.LLMRunner
@@ -217,7 +259,7 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		writeNDJSON(obj)
-		if req.Prompt != "" && response.Len() > 0 {
+		if req.Prompt != "" && response.Len() > 0 && !req.Incognito {
 			convID := fmt.Sprintf("%d", time.Now().UnixNano())
 			history.Append(
 				history.Entry{ID: convID, Model: req.Model, Role: "user", Content: req.Prompt},
@@ -254,7 +296,7 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 	writeNDJSON(doneObj)
 	flush()
 
-	if req.Prompt != "" && response.Len() > 0 {
+	if req.Prompt != "" && response.Len() > 0 && !req.Incognito {
 		convID := fmt.Sprintf("%d", time.Now().UnixNano())
 		history.Append(
 			history.Entry{ID: convID, Model: req.Model, Role: "user", Content: req.Prompt},

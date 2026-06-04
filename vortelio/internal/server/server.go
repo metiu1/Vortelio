@@ -98,10 +98,27 @@ type GenerateRequest struct {
 	ContextSize  int             `json:"context_size"`
 	Think        bool            `json:"think"`
 	ToolsEnabled bool            `json:"tools_enabled"`
+	Incognito    bool            `json:"incognito"`  // when true, do not persist chat history
+	Agentic      *AgenticConfig  `json:"agentic"`    // when set, builds a composite tool provider
 	Format       json.RawMessage `json:"format"`     // "json" or JSON schema
 	Suffix       string          `json:"suffix"`     // FIM suffix
 	KeepAlive    json.RawMessage `json:"keep_alive"` // duration string or seconds
 	Options      json.RawMessage `json:"options"`    // Ollama-style generation params
+}
+
+// AgenticConfig selects which tool groups a chat request can use and how the
+// coding agent behaves.
+type AgenticConfig struct {
+	WebSearch  bool     `json:"web_search"`  // enable web_search tool
+	Builtins   bool     `json:"builtins"`    // enable calculator/time/read/write/list builtins
+	MCP        bool     `json:"mcp"`         // expose connected MCP server tools
+	Coding     bool     `json:"coding"`      // expose coding tools (file + shell)
+	Media      bool     `json:"media"`       // expose model-as-tool media generation (image/video/audio/3d)
+	Auto       bool     `json:"auto"`        // smart mode: never hard-error on unsupported tools; nudge the model to use tools when helpful
+	Skills     []string `json:"skills"`      // enabled skill IDs
+	Mode       string   `json:"mode"`        // coding mode: "plan" | "ask" | "auto"
+	WorkingDir string   `json:"working_dir"` // root dir for coding tools
+	SessionID  string   `json:"session_id"`  // correlates approval prompts
 }
 
 type ChatMessage struct {
@@ -225,6 +242,20 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/cloud/providers", ca(handleCloudProviders))
 	mux.HandleFunc("/api/cloud/key", ca(handleCloudKey))
 	mux.HandleFunc("/api/cloud/chat", ca(handleCloudChat))
+
+	// ── MCP (Model Context Protocol) servers ──────────────────────────────────
+	mux.HandleFunc("/api/mcp/servers", ca(handleMCPServers))
+	mux.HandleFunc("/api/mcp/enable", ca(handleMCPEnable))
+	mux.HandleFunc("/api/mcp/remove", ca(handleMCPRemove))
+
+	// ── Agentic: skills + tool approvals ───────────────────────────────────────
+	mux.HandleFunc("/api/skills", ca(handleSkills))
+	mux.HandleFunc("/api/skills/delete", ca(handleSkillDelete))
+	mux.HandleFunc("/api/agentic/approve", ca(handleAgenticApprove))
+
+	// ── Developer file explorer (read-only) ───────────────────────────────────
+	mux.HandleFunc("/api/fs/list", ca(handleFsList))
+	mux.HandleFunc("/api/fs/read", ca(handleFsRead))
 
 	// ── Stripe payments ───────────────────────────────────────────────────────
 	mux.HandleFunc("/api/stripe/checkout", ca(handleStripeCheckout))

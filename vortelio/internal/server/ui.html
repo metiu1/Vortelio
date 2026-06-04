@@ -887,6 +887,119 @@ textarea.inp::placeholder { color: var(--text3); }
 .dark .tools-tab:hover { background: var(--bg3) !important; }
 .dark .tools-tab.on { color: var(--accent) !important; }
 
+/* ── App mode switch (Assistant / Developer) ── */
+.mode-switch { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 3px; margin: 0 0 8px; }
+.mode-seg { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 6px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-family: var(--sans); color: var(--text2); transition: all .14s; }
+.mode-seg:hover { color: var(--text); }
+.mode-seg.active { background: var(--accent); color: #fff; }
+.dark .mode-switch { background: var(--bg2) !important; border-color: var(--border) !important; }
+
+/* ── Developer workspace bar ── */
+.dev-bar { display: none; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg2); font-size: 12px; flex-wrap: wrap; }
+.dev-bar.on { display: flex; }
+.dev-bar input { flex: 1; min-width: 180px; padding: 5px 9px; border: 1px solid var(--border2); border-radius: var(--radius-xs); font-family: var(--mono); font-size: 12px; background: var(--bg); color: var(--text); }
+.dev-bar .dev-pill { font-size: 11px; color: var(--text3); }
+.dark .dev-bar { background: var(--bg2) !important; border-color: var(--border) !important; }
+.dark .dev-bar input { background: var(--bg3) !important; color: var(--text) !important; border-color: var(--border2) !important; }
+
+/* ── Developer split layout + file explorer ── */
+.dev-split { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.dev-col { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.dev-explorer { display: none; flex-direction: column; width: 250px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--bg2); overflow: hidden; }
+#ws-chat.dev-active .dev-explorer { display: flex; }
+.dev-explorer .dx-head { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 12px; font-weight: 500; color: var(--text2); border-bottom: 1px solid var(--border); }
+.dev-explorer .dx-refresh { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 14px; padding: 2px 4px; border-radius: 5px; }
+.dev-explorer .dx-refresh:hover { background: var(--bg3); color: var(--text); }
+.dev-explorer .dx-tree { flex: 1; overflow-y: auto; padding: 6px 4px; font-size: 12.5px; font-family: var(--mono); }
+.dev-explorer .dx-empty { color: var(--text3); font-family: var(--sans); font-size: 12px; padding: 12px; line-height: 1.5; }
+.dx-node { display: flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 5px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text2); }
+.dx-node:hover { background: var(--bg3); color: var(--text); }
+.dx-node .dx-ic { flex-shrink: 0; opacity: .8; }
+.dx-children { margin-left: 12px; border-left: 1px solid var(--border); }
+.dark .dev-explorer { background: var(--bg2) !important; border-color: var(--border) !important; }
+
+/* ── Approval card ── */
+.approval-card { border: 1px solid #f59e0b; background: #fffbeb; border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0; }
+.approval-card .ap-title { font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.approval-card .ap-summary { font-family: var(--mono); font-size: 12px; color: var(--text2); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
+.approval-card .ap-actions { display: flex; gap: 8px; }
+.approval-card.resolved { opacity: .65; }
+.dark .approval-card { background: #3b2a05 !important; border-color: #92400e !important; }
+.dark .approval-card .ap-summary { background: #11111b !important; border-color: var(--border) !important; }
+
+/* ── Generated media artifact (model-as-tool output) ── */
+.media-artifact { border: 1px solid var(--border); background: var(--bg2); border-radius: var(--radius-sm); padding: 10px; margin: 8px 0; }
+.media-artifact .media-cap { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+.media-artifact img, .media-artifact video { display: block; }
+.dark .media-artifact { background: var(--bg3) !important; border-color: var(--border) !important; }
+
+#private-btn.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+/* ── Onboarding cards ── */
+.onb-card { display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px; border: 1px solid var(--border2); border-radius: 12px; background: var(--bg); cursor: pointer; transition: all .14s; width: 100%; }
+.onb-card:hover { border-color: var(--accent); background: var(--accent-light); }
+.onb-card .onb-emoji { font-size: 30px; flex-shrink: 0; }
+.onb-card .onb-h { font-size: 15px; font-weight: 600; color: var(--text); }
+.onb-card .onb-d { font-size: 12.5px; color: var(--text2); margin-top: 3px; line-height: 1.45; }
+.onb-h { font-size: 15px; font-weight: 600; }
+.dark .onb-card { background: var(--bg2) !important; border-color: var(--border) !important; }
+.dark .onb-card:hover { background: rgba(16,163,127,.14) !important; }
+
+/* ── Agent config popover ── */
+.agent-pop { position: fixed; z-index: 9000; width: 340px; max-height: 80vh; overflow-y: auto; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 14px; display: none; }
+.agent-pop.open { display: block; }
+.agent-pop h4 { font-size: 13px; margin-bottom: 4px; }
+.agent-pop .ap-sub { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+.ag-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.ag-row:last-child { border-bottom: none; }
+.ag-row .ag-txt { flex: 1; }
+.ag-row .ag-name { font-size: 13px; }
+.ag-row .ag-desc { font-size: 11px; color: var(--text3); }
+.switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .sl { position: absolute; inset: 0; background: var(--border2); border-radius: 20px; transition: .18s; cursor: pointer; }
+.switch .sl::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .18s; }
+.switch input:checked + .sl { background: var(--accent); }
+.switch input:checked + .sl::before { transform: translateX(16px); }
+.skill-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 9px; border: 1px solid var(--border2); border-radius: 14px; cursor: pointer; margin: 0 5px 5px 0; transition: all .14s; }
+.skill-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.dark .agent-pop { background: var(--bg2) !important; border-color: var(--border) !important; }
+
+/* ── Clean composer "+" menu ── */
+.ctrl-plus { width: 34px; padding: 0; justify-content: center; }
+.plus-menu { min-width: 248px; max-height: 70vh; overflow-y: auto; padding: 6px; }
+.plus-menu .dd-item { display: flex; align-items: center; gap: 9px; border-radius: 7px; }
+.plus-menu .dd-item .cap-dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: transparent; flex-shrink: 0; }
+.plus-menu .dd-item.on { background: var(--accent-light); color: var(--text); }
+.plus-menu .dd-item.on .cap-dot { background: var(--accent); }
+.plus-menu .dd-item.sel { background: var(--accent-light); }
+.plus-menu .dd-arrow { margin-left: auto; color: var(--text3); }
+.dark .plus-menu .dd-item.on, .dark .plus-menu .dd-item.sel { background: rgba(16,163,127,.18) !important; }
+
+/* ── Active capability chips in composer ── */
+.cap-chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cap-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 3px 8px; border-radius: 13px; background: var(--accent-light); color: var(--accent); border: 1px solid transparent; }
+.cap-chip .x { cursor: pointer; opacity: .7; font-weight: 600; }
+.cap-chip .x:hover { opacity: 1; }
+.dark .cap-chip { background: rgba(16,163,127,.18) !important; color: #5fd0ad !important; }
+
+/* ── Top-bar mode segmented control ── */
+.topbar-modes { display: inline-flex; gap: 2px; background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+.topbar-modes .tm { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: none; background: transparent; border-radius: 7px; cursor: pointer; font-size: 12.5px; color: var(--text2); font-family: var(--sans); transition: all .14s; }
+.topbar-modes .tm:hover { color: var(--text); }
+.topbar-modes .tm.active { background: var(--bg); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-weight: 500; }
+.dark .topbar-modes { background: var(--bg2) !important; border-color: var(--border) !important; }
+.dark .topbar-modes .tm.active { background: var(--bg3) !important; }
+
+/* ── Settings drawer: quick-links grid ── */
+.set-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.set-link { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; transition: all .14s; text-align: left; font-family: var(--sans); font-size: 13px; color: var(--text); }
+.set-link:hover { border-color: var(--accent); background: var(--accent-light); }
+.set-link .sl-ic { font-size: 18px; }
+.set-link .sl-sub { font-size: 11px; color: var(--text3); }
+.dark .set-link { background: var(--bg2) !important; border-color: var(--border) !important; }
+.dark .set-link:hover { background: rgba(16,163,127,.12) !important; }
+
 </style>
 </head>
 <body>
@@ -905,31 +1018,7 @@ textarea.inp::placeholder { color: var(--text3); }
     <span id="new-chat-lbl">Nuova chat</span>
   </button>
 
-  <button class="new-chat-btn" onclick="showPanel('agents')" style="margin-bottom:4px">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="5" r="3"/><path d="M1 13c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="11.5" cy="2.5" r="1.5" fill="currentColor" stroke="none"/></svg>
-    <span>Agenti AI</span>
-  </button>
-
-  <button class="new-chat-btn" onclick="showPanel('crewai')" style="margin-bottom:4px">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="5" r="2"/><circle cx="10" cy="5" r="2"/><circle cx="7" cy="2" r="1.5"/><path d="M2 13c0-2 1.3-3 2-3h6c.7 0 2 1 2 3"/></svg>
-    <span>🤖 CrewAI</span>
-  </button>
-
-  <button class="new-chat-btn" onclick="showPanel('cloud')" style="margin-bottom:4px">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11.5 9.5H3a2.5 2.5 0 010-5h.3A4 4 0 0111.5 9.5z"/></svg>
-    <span>☁️ Cloud Models</span>
-  </button>
-
-  <button class="new-chat-btn" onclick="showPanel('models')" style="margin-bottom:4px;font-size:13px" id="installed-btn-lbl-btn">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 10V4a2 2 0 012-2h6a2 2 0 012 2v4"/><path d="M1 12l2-2 2 2 2-2 2 2 2-2 2 2"/></svg>
-    <span id="installed-btn-lbl">Modelli installati</span>
-  </button>
-
-  <button class="new-chat-btn" onclick="showPanel('tools')" style="margin-bottom:4px;font-size:13px">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5l4 4-5.5 5.5-4-4z"/><path d="M5.5 9.5L1 13"/><circle cx="11" cy="3" r="1"/></svg>
-    <span>🔧 Tools avanzati</span>
-  </button>
-
+  <div class="sidebar-section" id="hist-section-lbl">Recent chats</div>
   <div class="history-list" id="hist-list">
     <!-- populated by JS -->
   </div>
@@ -981,6 +1070,17 @@ textarea.inp::placeholder { color: var(--text3); }
         </button>
       </div>
       <div style="flex:1"></div>
+      <div class="topbar-modes" id="topbar-modes">
+        <button class="tm active" id="mode-assistant" onclick="setAppMode('assistant')" title="Chat e assistente agentico, per tutti">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 7a6 6 0 1112 0 6 6 0 01-9 5l-3 1 1-3a6 6 0 01-1-3z"/></svg>
+          Assistant
+        </button>
+        <button class="tm" id="mode-developer" onclick="setAppMode('developer')" title="Agente coding con accesso a file e shell">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4L2 7l3 3M9 4l3 3-3 3"/></svg>
+          Developer
+        </button>
+      </div>
+      <div style="flex:1"></div>
       <div id="remote-topbar-badge" style="display:none;align-items:center;gap:5px;font-size:11px;background:var(--accent);color:#fff;padding:3px 9px;border-radius:12px;cursor:pointer;margin-right:4px" onclick="openSettings()" title="Remote server active — click to configure">
         🔗 <span id="remote-topbar-label">remote</span>
       </div>
@@ -992,6 +1092,21 @@ textarea.inp::placeholder { color: var(--text3); }
         </button>
       </div>
     </div>
+    <!-- Developer workspace bar (visible only in Developer mode) -->
+    <div class="dev-bar" id="dev-bar">
+      <span class="dev-pill">📁 Workspace</span>
+      <input id="dev-workspace" placeholder="C:\path\to\your\project — folder the coding agent can read/write" spellcheck="false">
+      <span class="dev-pill" id="dev-mode-pill">Mode: Ask · file + shell access with confirmation</span>
+    </div>
+    <div class="dev-split" id="dev-split">
+    <aside class="dev-explorer" id="dev-explorer">
+      <div class="dx-head">
+        <span>📂 Files</span>
+        <button class="dx-refresh" onclick="loadDevTree()" title="Refresh">⟳</button>
+      </div>
+      <div class="dx-tree" id="dx-tree"><div class="dx-empty">Set a working folder above to browse it.</div></div>
+    </aside>
+    <div class="dev-col">
     <div class="canvas" id="canvas" ondragover="inputDragOver(event)" ondragleave="inputDragLeave(event)" ondrop="handleDrop(event)">
       <div class="welcome" id="welcome">
         <div class="welcome-logo">PA</div>
@@ -1024,22 +1139,35 @@ textarea.inp::placeholder { color: var(--text3); }
             <svg id="stop-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" style="display:none"><rect x="2" y="2" width="10" height="10" rx="1.5"/></svg>
           </button>
         </div>
-        <!-- Controls row -->
+        <!-- Controls row — minimal: one "+" menu + model picker -->
         <div class="controls-row">
-          <!-- Type selector -->
-          <div class="dd-wrap" id="type-wrap">
-            <button class="ctrl-btn" id="type-btn" onclick="toggleDD('type')">
-              <span id="type-icon">💬</span>
-              <span id="type-lbl">LLM</span>
-              <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l4 4 4-4"/></svg>
+          <!-- "+" capabilities menu -->
+          <div class="dd-wrap" id="plus-wrap">
+            <button class="ctrl-btn ctrl-plus" id="plus-btn" onclick="toggleDD('plus')" title="Tools, web, skills, output type…">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>
             </button>
-            <div class="dd-menu" id="type-dd">
-              <div class="dd-header">Tipo di output</div>
-              <div class="dd-item sel" onclick="setType('chat','💬','LLM',this)"><span>💬</span> LLM — Testo</div>
-              <div class="dd-item" onclick="setType('image','🎨','Immagini',this)"><span>🎨</span> Immagini</div>
-              <div class="dd-item" onclick="setType('audio','🔊','Audio',this)"><span>🔊</span> Audio</div>
-              <div class="dd-item" onclick="setType('video','🎬','Video',this)"><span>🎬</span> Video</div>
-              <div class="dd-item" onclick="setType('threed','🧊','3D',this)"><span>🧊</span> 3D</div>
+            <div class="dd-menu plus-menu" id="plus-dd">
+              <div class="dd-header" id="plus-out-hd">Output</div>
+              <div class="dd-item type-item sel" data-type="chat" onclick="setType('chat','💬','LLM',this)"><span>💬</span> Text (LLM)</div>
+              <div class="dd-item type-item" data-type="image" onclick="setType('image','🎨','Images',this)"><span>🎨</span> Images</div>
+              <div class="dd-item type-item" data-type="audio" onclick="setType('audio','🔊','Audio',this)"><span>🔊</span> Audio</div>
+              <div class="dd-item type-item" data-type="video" onclick="setType('video','🎬','Video',this)"><span>🎬</span> Video</div>
+              <div class="dd-item type-item" data-type="threed" onclick="setType('threed','🧊','3D',this)"><span>🧊</span> 3D</div>
+
+              <div class="dd-sep" id="plus-cap-sep"></div>
+              <div class="dd-header" id="plus-cap-hd">Abilities</div>
+              <div class="dd-item cap-item" id="cap-web" onclick="toggleWeb();event.stopPropagation()"><span>🌐</span> Web search <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item" id="cap-tools" onclick="toggleTools();event.stopPropagation()"><span>🧰</span> Calculator &amp; files <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item" id="cap-media" onclick="toggleMedia();event.stopPropagation()"><span>🎨</span> Create media (image/video/audio/3D) <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item" id="cap-think" onclick="toggleThink();event.stopPropagation()"><span>💡</span> Think step by step <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item" id="cap-incognito" onclick="toggleIncognito();event.stopPropagation()"><span>🕶</span> Private chat <i class="cap-dot"></i></div>
+              <div class="dd-item" id="cap-skills" onclick="openAgentConfig()"><span>🎓</span> Skills &amp; agent… <span class="dd-arrow">›</span></div>
+              <div class="dd-item" id="cap-mcp" onclick="openMcpManager()"><span>🔌</span> External tools (MCP)… <span class="dd-arrow">›</span></div>
+
+              <div class="dd-sep"></div>
+              <div class="dd-header">Hardware</div>
+              <div class="dd-item hw-item sel" id="hw-gpu-item" onclick="setHW(false);event.stopPropagation()"><span>⚡</span> GPU <i class="cap-dot"></i></div>
+              <div class="dd-item hw-item" id="hw-cpu-item" onclick="setHW(true);event.stopPropagation()"><span>🖥</span> CPU <i class="cap-dot"></i></div>
             </div>
           </div>
 
@@ -1047,45 +1175,46 @@ textarea.inp::placeholder { color: var(--text3); }
           <div class="dd-wrap" id="model-wrap">
             <button class="ctrl-btn" id="model-btn" onclick="toggleDD('model')">
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="1" width="5" height="5" rx="1.5"/><rect x="8" y="1" width="5" height="5" rx="1.5"/><rect x="1" y="8" width="5" height="5" rx="1.5"/><rect x="8" y="8" width="5" height="5" rx="1.5"/></svg>
-              <span id="model-lbl">Select model</span>
+              <span id="model-lbl">Choose assistant</span>
               <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l4 4 4-4"/></svg>
             </button>
             <div class="dd-menu" id="model-dd"></div>
           </div>
 
-          <!-- Think toggle (only LLM) -->
-          <button class="ctrl-btn" id="think-btn" onclick="toggleThink()" style="display:none">
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 1a5 5 0 014 8l-1 1H4L3 9A5 5 0 017 1z"/><path d="M5 13h4M7 11v2"/></svg>
-            <span id="think-lbl">Thinking</span>
-          </button>
-
-          <!-- Tools toggle (only LLM) -->
-          <button class="ctrl-btn" id="tools-btn" onclick="toggleTools()" style="display:none">
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5l4 4-5.5 5.5-4-4z"/><path d="M5.5 9.5L1 13"/><circle cx="11" cy="3" r="1"/></svg>
-            <span id="tools-lbl">Tools</span>
-          </button>
-
-          <!-- CPU/GPU split button -->
-          <div class="hw-split" title="Select accelerator">
-            <button class="hw-half active" id="hw-gpu-btn" onclick="setHW(false)">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="10" height="10" rx="2"/><rect x="4" y="4" width="6" height="6" rx="1"/><path d="M0 5h2M0 9h2M12 5h2M12 9h2"/></svg>
-              GPU
+          <!-- Coding mode selector (developer screen only) -->
+          <div class="dd-wrap" id="codemode-wrap" style="display:none">
+            <button class="ctrl-btn" id="codemode-btn" onclick="toggleDD('codemode')" title="How autonomous the coding agent is">
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 4L2 7l3 3M9 4l3 3-3 3"/></svg>
+              <span id="codemode-lbl">Ask</span>
+              <svg viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l4 4 4-4"/></svg>
             </button>
-            <button class="hw-half" id="hw-cpu-btn" onclick="setHW(true)">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="3" width="12" height="8" rx="1.5"/><path d="M4 3V1m6 2V1M4 11v2m6-2v2"/></svg>
-              CPU
-            </button>
+            <div class="dd-menu" id="codemode-dd">
+              <div class="dd-header">Coding mode</div>
+              <div class="dd-item" onclick="setCodeMode('plan','📋 Plan')"><span>📋</span> Plan — reads &amp; proposes only</div>
+              <div class="dd-item sel" onclick="setCodeMode('ask','Ask')"><span>✋</span> Ask — confirms risky actions</div>
+              <div class="dd-item" onclick="setCodeMode('auto','⚡ Auto')"><span>⚡</span> Auto — runs without asking</div>
+            </div>
           </div>
 
+          <!-- Simple Private toggle (Assistant view) -->
+          <button class="ctrl-btn" id="private-btn" onclick="toggleIncognito()" title="Private chat — not saved" style="display:none">
+            <span>🕶</span><span id="private-lbl">Private</span>
+          </button>
+
+          <!-- Active capability chips -->
+          <div id="cap-chips" class="cap-chips"></div>
+
           <div style="margin-left:auto;font-size:12px;color:var(--text3)" id="mode-hint">
-            <span id="mode-hint-text">Premi ↵ per inviare, Shift+↵ per andare a capo</span>
+            <span id="mode-hint-text">↵ send · Shift+↵ newline</span>
           </div>
         </div>
       </div>
       <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:8px;max-width:720px;margin-left:auto;margin-right:auto">
-        <span id="footer-note">Vortelio runs models locally on your device. No data sent to the cloud.</span>
+        <span id="footer-note">Vortelio runs on your device. Cloud assistants use your own API key. The assistant can make mistakes — double-check important info.</span>
       </div>
     </div>
+    </div><!-- /.dev-col -->
+    </div><!-- /.dev-split -->
   </div>
 
   <!-- MODELS PANEL -->
@@ -1669,6 +1798,37 @@ textarea.inp::placeholder { color: var(--text3); }
   </div>
   <div class="settings-body">
 
+    <!-- Manage (hub for everything else) -->
+    <div class="settings-section">
+      <div class="settings-section-title">Manage</div>
+      <div class="set-links">
+        <button class="set-link" onclick="showPanel('models');closeSettings()">
+          <span class="sl-ic">💾</span><span><div>Installed models</div><div class="sl-sub">Manage &amp; set defaults</div></span>
+        </button>
+        <button class="set-link" onclick="showPanel('registry');closeSettings()">
+          <span class="sl-ic">⬇️</span><span><div>Download models</div><div class="sl-sub">Catalog + HuggingFace</div></span>
+        </button>
+        <button class="set-link" onclick="showPanel('cloud');closeSettings()">
+          <span class="sl-ic">☁️</span><span><div>Cloud models</div><div class="sl-sub">Your API keys (BYOK)</div></span>
+        </button>
+        <button class="set-link" onclick="showPanel('agents');closeSettings()">
+          <span class="sl-ic">🧩</span><span><div>AI agents</div><div class="sl-sub">Open WebUI, OpenCode…</div></span>
+        </button>
+        <button class="set-link" onclick="showPanel('crewai');closeSettings()">
+          <span class="sl-ic">🤖</span><span><div>CrewAI</div><div class="sl-sub">Multi-agent crews</div></span>
+        </button>
+        <button class="set-link" onclick="openMcpManager();closeSettings()">
+          <span class="sl-ic">🔌</span><span><div>External tools (MCP)</div><div class="sl-sub">Connect MCP servers</div></span>
+        </button>
+        <button class="set-link" onclick="openAgentConfig();closeSettings()">
+          <span class="sl-ic">🎓</span><span><div>Skills &amp; agent</div><div class="sl-sub">Agentic abilities</div></span>
+        </button>
+        <button class="set-link" onclick="showPanel('tools');closeSettings()">
+          <span class="sl-ic">🔧</span><span><div>Advanced tools</div><div class="sl-sub">RAG, Compare, GGUF…</div></span>
+        </button>
+      </div>
+    </div>
+
     <!-- Appearance -->
     <div class="settings-section">
       <div class="settings-section-title" data-i18n="appearance">Appearance</div>
@@ -1735,6 +1895,10 @@ textarea.inp::placeholder { color: var(--text3); }
       </div>
       <div id="settings-defaults-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
+
+    <!-- Advanced (hidden by default) -->
+    <details class="settings-advanced" style="margin-top:6px">
+    <summary style="cursor:pointer;font-size:13px;color:var(--text2);padding:8px 0;list-style:none">⚙️ Advanced settings</summary>
 
     <!-- Remote Server -->
     <div class="settings-section">
@@ -1803,6 +1967,7 @@ textarea.inp::placeholder { color: var(--text3); }
       </div>
       <div id="cfg-status" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
     </div>
+    </details>
 
     <!-- Info -->
     <div class="settings-section">
@@ -1837,6 +2002,54 @@ textarea.inp::placeholder { color: var(--text3); }
 
 <!-- Sidebar nav buttons -->
 
+
+<!-- First-run onboarding -->
+<div class="overlay" id="onboarding-overlay" style="z-index:400">
+  <div class="dialog" id="onboarding-dialog" style="max-width:560px;width:92vw;text-align:center">
+    <div style="font-size:40px;margin-bottom:6px">👋</div>
+    <div class="dlg-title" style="font-size:20px">Welcome to Vortelio</div>
+    <div class="dlg-body" style="margin-bottom:18px">Your private AI assistant. Pick how you want to start — you can change this anytime.</div>
+    <div id="onb-choices" style="display:flex;gap:12px;flex-direction:column">
+      <button class="onb-card" onclick="onbStartLocal()">
+        <div class="onb-emoji">💻</div>
+        <div class="onb-txt"><div class="onb-h">Use it on this computer</div>
+          <div class="onb-d">Private and free. Runs on your device — no internet needed after setup. We'll download a small assistant for you.</div></div>
+      </button>
+      <button class="onb-card" onclick="onbShowCloud()">
+        <div class="onb-emoji">☁️</div>
+        <div class="onb-txt"><div class="onb-h">Use a cloud assistant</div>
+          <div class="onb-d">Fast and powerful, nothing to download. Needs a free API key from a provider (OpenAI, Anthropic or Google).</div></div>
+      </button>
+    </div>
+    <!-- Local download progress -->
+    <div id="onb-local" style="display:none;margin-top:8px">
+      <div class="onb-h" style="margin-bottom:8px" id="onb-local-title">Setting up your assistant…</div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;height:10px;overflow:hidden">
+        <div id="onb-bar" style="height:100%;width:0%;background:var(--accent);transition:width .2s"></div>
+      </div>
+      <div id="onb-local-msg" style="font-size:12px;color:var(--text3);margin-top:8px">Starting download…</div>
+    </div>
+    <!-- Cloud key form -->
+    <div id="onb-cloud" style="display:none;margin-top:8px;text-align:left">
+      <div class="onb-h" style="margin-bottom:10px;text-align:center">Connect a cloud assistant</div>
+      <label style="font-size:12px;color:var(--text2)">Provider</label>
+      <select id="onb-provider" style="width:100%;padding:9px 12px;margin:4px 0 12px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px">
+        <option value="openai">OpenAI (ChatGPT)</option>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="gemini">Google (Gemini)</option>
+      </select>
+      <label style="font-size:12px;color:var(--text2)">API key</label>
+      <input id="onb-key" type="password" placeholder="Paste your API key here"
+        style="width:100%;padding:9px 12px;margin:4px 0 6px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box">
+      <a id="onb-key-help" href="https://platform.openai.com/api-keys" target="_blank" style="font-size:12px;color:var(--accent)">Where do I get a key?</a>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn" style="flex:1" onclick="onbBack()">← Back</button>
+        <button class="btn primary" style="flex:2" onclick="onbSaveCloud()">Connect & start</button>
+      </div>
+    </div>
+    <div style="margin-top:16px"><a href="#" onclick="onbSkip();return false" style="font-size:12px;color:var(--text3)">Skip for now</a></div>
+  </div>
+</div>
 
 <!-- Save chat dialog -->
 <div class="overlay" id="save-dlg">
@@ -1950,6 +2163,77 @@ textarea.inp::placeholder { color: var(--text3); }
 
 
 
+
+<!-- ── Agent config popover ── -->
+<div class="agent-pop" id="agent-pop">
+  <h4>Agentic capabilities</h4>
+  <div class="ap-sub">Pick what the model is allowed to do in this chat.</div>
+
+  <div class="ag-row">
+    <div class="ag-txt"><div class="ag-name">🌐 Web search</div><div class="ag-desc">Search the web (DuckDuckGo, no API key).</div></div>
+    <label class="switch"><input type="checkbox" id="ag-web" onchange="agentCfgChanged()"><span class="sl"></span></label>
+  </div>
+  <div class="ag-row">
+    <div class="ag-txt"><div class="ag-name">🧰 Built-in tools</div><div class="ag-desc">Calculator, clock, file read/write, list dir.</div></div>
+    <label class="switch"><input type="checkbox" id="ag-builtins" onchange="agentCfgChanged()"><span class="sl"></span></label>
+  </div>
+  <div class="ag-row">
+    <div class="ag-txt"><div class="ag-name">👨‍💻 Coding tools</div><div class="ag-desc">File edit, glob, grep &amp; shell (with approval).</div></div>
+    <label class="switch"><input type="checkbox" id="ag-coding" onchange="agentCfgChanged()"><span class="sl"></span></label>
+  </div>
+  <div class="ag-row">
+    <div class="ag-txt"><div class="ag-name">🔌 MCP servers <a href="#" onclick="openMcpManager();return false" style="font-size:11px;color:var(--accent)">manage</a></div><div class="ag-desc" id="ag-mcp-desc">Expose connected MCP tools.</div></div>
+    <label class="switch"><input type="checkbox" id="ag-mcp" onchange="agentCfgChanged()"><span class="sl"></span></label>
+  </div>
+
+  <div style="margin-top:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <h4 style="margin:0">🎓 Skills</h4>
+      <a href="#" onclick="openSkillEditor();return false" style="font-size:11px;color:var(--accent)">+ new skill</a>
+    </div>
+    <div id="ag-skill-list" style="display:flex;flex-wrap:wrap"><span style="font-size:11px;color:var(--text3)">Loading…</span></div>
+  </div>
+</div>
+
+<!-- ── MCP manager modal ── -->
+<div class="overlay" id="mcp-overlay">
+  <div class="dialog" style="max-width:560px;width:92%;text-align:left">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">🔌 MCP servers</h3>
+      <button class="btn" onclick="closeMcpManager()">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Connect Model Context Protocol servers to give the model extra tools. Use a stdio command (e.g. <code>npx -y @modelcontextprotocol/server-filesystem .</code>) or an HTTP URL.</div>
+    <div id="mcp-list" style="margin-bottom:14px"></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:12px;font-weight:500;margin-bottom:8px">Add a server</div>
+      <input id="mcp-name" class="tool-input" placeholder="Name (e.g. filesystem)" style="width:100%;margin-bottom:8px">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="mcp-transport" class="tool-input" style="flex:0 0 110px" onchange="mcpTransportChanged()">
+          <option value="stdio">stdio</option>
+          <option value="http">http</option>
+        </select>
+        <input id="mcp-command" class="tool-input" placeholder="Command + args (e.g. npx -y @modelcontextprotocol/server-filesystem .)" style="flex:1">
+      </div>
+      <input id="mcp-url" class="tool-input" placeholder="HTTP URL (https://…/mcp)" style="width:100%;margin-bottom:8px;display:none">
+      <input id="mcp-env" class="tool-input" placeholder="Env vars, comma-separated (KEY=value)" style="width:100%;margin-bottom:8px">
+      <button class="btn primary" onclick="mcpAddServer()">+ Add &amp; connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Skill editor modal ── -->
+<div class="overlay" id="skill-overlay">
+  <div class="dialog" style="max-width:560px;width:92%;text-align:left">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">🎓 New skill</h3>
+      <button class="btn" onclick="closeSkillEditor()">✕</button>
+    </div>
+    <input id="skill-name" class="tool-input" placeholder="Skill name (e.g. SQL Expert)" style="width:100%;margin-bottom:8px">
+    <input id="skill-desc" class="tool-input" placeholder="Short description" style="width:100%;margin-bottom:8px">
+    <textarea id="skill-body" class="tool-input" rows="8" placeholder="Instructions for the model when this skill is active…" style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+    <button class="btn primary" onclick="saveSkill()">Save skill</button>
+  </div>
+</div>
 
 <script>
 // ── Firebase globals ───────────────────────────────────────────────────────
@@ -2074,7 +2358,7 @@ const LANGS = {
     searchPlaceholder: 'Cerca nel catalogo...',
     urlInstallTitle: 'Installa da URL HuggingFace',
     // Footer
-    footerNote: '<span id="footer-note">Vortelio esegue modelli localmente sul tuo dispositivo. Nessun dato inviato al cloud.</span>',
+    footerNote: 'Vortelio runs on your device. Cloud assistants use your own API key. The assistant can make mistakes — double-check important info.',
     // Controls
     sendHint: '<span id="mode-hint-text">Premi ↵ per inviare, Shift+↵ per andare a capo</span>',
     // Topbar
@@ -2215,7 +2499,7 @@ const LANGS = {
     searchPlaceholder: 'Search catalog...',
     urlInstallTitle: 'Install from HuggingFace URL',
     // Footer
-    footerNote: 'Vortelio runs models locally on your device. No data sent to the cloud.',
+    footerNote: 'Vortelio runs on your device. Cloud assistants use your own API key. The assistant can make mistakes — double-check important info.',
     // Controls
     sendHint: 'Press ↵ to send, Shift+↵ for newline',
     // Topbar
@@ -2274,7 +2558,7 @@ const LANGS = {
 };
 
 let currentLang = localStorage.getItem('vortelio_lang') || localStorage.getItem('pullai_lang') || 'en';
-function t(key) { return (LANGS[currentLang] || LANGS.it)[key] || key; }
+function t(key) { return (LANGS[currentLang] || LANGS.en)[key] || key; }
 
 function setLang(lang) {
   if (!LANGS[lang]) return;
@@ -2555,9 +2839,17 @@ function setCtx(val) {
 let domain = 'chat';
 let thinkOn = false;
 let toolsOn = false;
+let webOn = false;
+let incognitoOn = false;
+let appMode = 'assistant';            // 'assistant' | 'developer'
+let codeMode = 'ask';                 // 'plan' | 'ask' | 'auto'
+let agentCfg = { web:false, builtins:false, coding:false, mcp:false, media:false, skills:[] };
 let useCPU = false;
 let attachments = [];
 let selectedModel = '';
+let selectedModelIsCloud = false;   // true when the picked assistant is a cloud model
+let selectedCloudProvider = '';     // provider id when cloud (e.g. "openai")
+let selectedCloudModel = '';        // model id when cloud (e.g. "gpt-4o")
 let chatHistory = [];
 let sessions = [];
 let currentSession = null;
@@ -2623,7 +2915,12 @@ function init() {
   renderReg(REG);
   // Load cloud provider config so dropdown populates on start
   updateModelDDForDomain();
+  loadCloudProviders().then(() => { autoSelectModel(); });
+  loadSkills();         // populate agentic skills list
+  setAppMode('assistant');
 }
+
+let _onboardChecked = false;
 
 // ── Status ────────────────────────────────────────
 async function loadStatus() {
@@ -2635,10 +2932,12 @@ async function loadStatus() {
     document.getElementById('hw-lbl').textContent = d.hardware || 'CPU';
     document.getElementById('ver').textContent = d.version ? ('v' + d.version) : 'v?';
     await refreshModels();
+    autoSelectModel();
+    if (!_onboardChecked) { _onboardChecked = true; maybeShowOnboarding(); }
     return true;
   } catch {
     document.getElementById('hw-dot').classList.add('off');
-    document.getElementById('hw-lbl').textContent = 'Connessione…';
+    document.getElementById('hw-lbl').textContent = 'Connecting…';
     throw new Error('offline');
   }
 }
@@ -2652,6 +2951,134 @@ async function refreshModels() {
   } catch {
     installedModels = [];
   }
+}
+
+// Load cloud providers (and whether a key is configured) so the unified model
+// picker can list cloud assistants alongside local ones.
+async function loadCloudProviders() {
+  try {
+    const r = await fetch('/api/cloud/providers');
+    const d = await r.json();
+    _cloudProviders = d.providers || [];
+  } catch { _cloudProviders = []; }
+  if (domain === 'chat') updateModelDDForDomain();
+}
+
+// Pick a sensible assistant on startup so a beginner can type right away:
+// saved default → first local LLM → first cloud model (if a key exists).
+// Returns true if something was selected.
+function autoSelectModel() {
+  if (selectedModel) return true;
+  const def = getDefaultModel('llm');
+  if (def) {
+    const m = installedModels.find(x => `${x.type}/${x.name}:${x.tag}` === def);
+    if (m) { selectModel(def, m.display_name || prettyModelName(m.name, m.tag)); return true; }
+  }
+  const llm = installedModels.find(x => x.type === 'llm');
+  if (llm) { selectModel(`${llm.type}/${llm.name}:${llm.tag}`, llm.display_name || prettyModelName(llm.name, llm.tag)); return true; }
+  for (const p of (_cloudProviders || [])) {
+    if (p.has_key && (p.models || []).length) {
+      const cm = p.models[0];
+      selectModel(`cloud:${p.id}:${cm.id}`, cm.label || cm.id);
+      return true;
+    }
+  }
+  return false;
+}
+
+// Decide whether to show first-run onboarding (no model + no cloud key + not done).
+function maybeShowOnboarding() {
+  if (localStorage.getItem('vortelio_onboarded')) return;
+  const hasLocal = installedModels.some(x => x.type === 'llm');
+  const hasCloud = (_cloudProviders || []).some(p => p.has_key);
+  if (!hasLocal && !hasCloud) openOnboarding();
+}
+
+// ── First-run onboarding ────────────────────────────
+const ONB_RECOMMENDED = 'llm/llama3.2:3b'; // 2 GB, runs on CPU — safe default for any PC
+let onbDlAC = null;
+
+function onbView(which) {
+  document.getElementById('onb-choices').style.display = which === 'choices' ? 'flex' : 'none';
+  document.getElementById('onb-local').style.display   = which === 'local'   ? 'block' : 'none';
+  document.getElementById('onb-cloud').style.display   = which === 'cloud'   ? 'block' : 'none';
+}
+function openOnboarding() { onbView('choices'); document.getElementById('onboarding-overlay').classList.add('show'); }
+function closeOnboarding() { document.getElementById('onboarding-overlay').classList.remove('show'); }
+function onbBack() { onbView('choices'); }
+function onbSkip() { localStorage.setItem('vortelio_onboarded','1'); if (onbDlAC) { onbDlAC.abort(); onbDlAC = null; } closeOnboarding(); }
+
+function onbShowCloud() {
+  onbView('cloud');
+  const sel = document.getElementById('onb-provider');
+  const help = document.getElementById('onb-key-help');
+  const links = { openai:'https://platform.openai.com/api-keys', anthropic:'https://console.anthropic.com/settings/keys', gemini:'https://aistudio.google.com/app/apikey' };
+  sel.onchange = () => { help.href = links[sel.value] || '#'; };
+  sel.onchange();
+}
+
+async function onbSaveCloud() {
+  const provider = document.getElementById('onb-provider').value;
+  const key = document.getElementById('onb-key').value.trim();
+  if (!key) { toast('Paste your API key first', 'err'); return; }
+  try {
+    const r = await fetch('/api/cloud/key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider, key}) });
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.error || 'Could not save key');
+    await loadCloudProviders();
+    // Auto-select the first model of this provider.
+    const p = (_cloudProviders||[]).find(x => x.id === provider);
+    if (p && (p.models||[]).length) selectModel(`cloud:${p.id}:${p.models[0].id}`, p.models[0].label || p.models[0].id);
+    localStorage.setItem('vortelio_onboarded','1');
+    closeOnboarding();
+    toast('☁️ Ready! Type a message to start.', 'ok');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+async function onbStartLocal() {
+  onbView('local');
+  const bar = document.getElementById('onb-bar');
+  const msg = document.getElementById('onb-local-msg');
+  bar.style.width = '0%'; msg.textContent = 'Starting download…';
+  onbDlAC = new AbortController();
+  try {
+    const r = await fetch('/api/pull', {
+      method:'POST', headers:{'Content-Type':'application/json','Accept':'text/event-stream'},
+      body: JSON.stringify({model: ONB_RECOMMENDED}), signal: onbDlAC.signal
+    });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || 'Server error'); }
+    const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    outer: while (true) {
+      const {done, value} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const chunks = buf.split('\n\n'); buf = chunks.pop();
+      for (const chunk of chunks) {
+        let etype = '', dline = '';
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('event: ')) etype = line.slice(7).trim();
+          else if (line.startsWith('data: ')) dline = line.slice(6).trim();
+        }
+        if (!dline) continue;
+        let ev; try { ev = JSON.parse(dline); } catch { continue; }
+        if (etype === 'progress') {
+          const p = Math.min(100, ev.pct||0);
+          bar.style.width = p + '%';
+          msg.textContent = ev.msg || ('Downloading… ' + p + '%');
+        } else if (etype === 'done') {
+          bar.style.width = '100%'; msg.textContent = 'Done!';
+          await refreshModels();
+          selectedModel = ''; autoSelectModel();
+          localStorage.setItem('vortelio_onboarded','1');
+          setTimeout(closeOnboarding, 500);
+          toast('✅ Ready! Type a message to start.', 'ok');
+          break outer;
+        } else if (etype === 'error') { throw new Error(ev.error || 'Download error'); }
+      }
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') { msg.textContent = '❌ ' + (e.message || 'Download failed'); toast('❌ ' + e.message, 'err'); }
+  }
+  onbDlAC = null;
 }
 
 async function fetchOllamaModels(url) {
@@ -2669,35 +3096,52 @@ function updateModelDDForDomain() {
   const mine = installedModels.filter(m => m.type === cfg.apiType);
   const models = mine.map(m => ({
     v: `${m.type}/${m.name}:${m.tag}`,
-    l: m.display_name || `${m.name}:${m.tag}`,
+    l: m.display_name || prettyModelName(m.name, m.tag),
     tag: m.size_human || '',
   }));
+  // For chat, also offer cloud assistants whose API key is configured.
+  if (domain === 'chat') {
+    for (const p of (_cloudProviders || [])) {
+      if (!p.has_key) continue;
+      for (const cm of (p.models || [])) {
+        models.push({ v: `cloud:${p.id}:${cm.id}`, l: cm.label || cm.id, tag: '☁️ ' + p.name, cloud: true });
+      }
+    }
+  }
   buildModelDD(models);
   if (!models.find(m => m.v === selectedModel)) {
-    selectedModel = models[0]?.v || '';
-    document.getElementById('model-lbl').textContent = models[0]?.l || 'No model';
+    const first = models[0];
+    if (first) selectModel(first.v, first.l);
+    else { selectedModel = ''; selectedModelIsCloud = false; document.getElementById('model-lbl').textContent = 'No model'; }
   }
 }
 
 // ── Type & Model ──────────────────────────────────
 function setType(d, icon, label, el) {
   domain = d;
-  document.getElementById('type-icon').textContent = icon;
-  document.getElementById('type-lbl').textContent = label;
-  document.querySelectorAll('#type-dd .dd-item').forEach(x => x.classList.remove('sel'));
-  if (el) el.classList.add('sel');
+  // Mark the active output-type row in the "+" menu.
+  document.querySelectorAll('.plus-menu .type-item').forEach(x => x.classList.toggle('sel', x.dataset.type === d));
   closeAllDD();
 
   const cfg = DC[d];
   if (cfg) {
-    document.getElementById('inp').placeholder = cfg.ph;
+    const inp = document.getElementById('inp');
+    if (inp) inp.placeholder = cfg.ph;
     // Show only installed models for this domain
     updateModelDDForDomain();
   }
-  document.getElementById('think-btn').style.display = cfg?.think ? 'flex' : 'none';
-  if (!cfg?.think) thinkOn = false;
-  document.getElementById('tools-btn').style.display = cfg?.tools ? 'flex' : 'none';
-  if (!cfg?.tools) toolsOn = false;
+  // Capabilities only make sense for the LLM/chat domain.
+  const isLLM = !!(cfg && cfg.think);
+  const capSep = document.getElementById('plus-cap-sep');
+  const capHd = document.getElementById('plus-cap-hd');
+  ['cap-web','cap-tools','cap-think','cap-incognito','cap-skills','cap-mcp'].forEach(id => {
+    const el2 = document.getElementById(id); if (el2) el2.style.display = (d === 'chat') ? 'flex' : 'none';
+  });
+  if (capSep) capSep.style.display = (d === 'chat') ? '' : 'none';
+  if (capHd) capHd.style.display = (d === 'chat') ? '' : 'none';
+  if (!isLLM) thinkOn = false;
+  if (typeof updateComposerForMode === 'function') updateComposerForMode();
+  if (typeof syncCaps === 'function') syncCaps();
 
   updateWelcomeSuggestions();
 }
@@ -2713,33 +3157,444 @@ function buildModelDD(models) {
     selectedModel = '';
     return;
   }
-  dd.innerHTML = '<div class="dd-header">💾 Local models</div>' + models.map(m =>
+  const local = models.filter(m => !m.cloud);
+  const cloud = models.filter(m => m.cloud);
+  const row = m =>
     `<div class="dd-item${m.v===selectedModel?' sel':''}" onclick="selectModel('${esc(m.v)}','${esc(m.l)}')">
       <span style="font-size:13px">${esc(m.l)}</span>
       <span class="dd-item-tag">${esc(m.tag||'')}</span>
-    </div>`
-  ).join('');
+    </div>`;
+  let html = '';
+  if (local.length) html += '<div class="dd-header">💻 On this PC</div>' + local.map(row).join('');
+  if (cloud.length) html += '<div class="dd-header">☁️ Cloud</div>' + cloud.map(row).join('');
+  dd.innerHTML = html;
 }
 
 
 function selectModel(v, l) {
   selectedModel = v;
+  if (v.startsWith('cloud:')) {
+    const parts = v.split(':');
+    selectedModelIsCloud = true;
+    selectedCloudProvider = parts[1] || '';
+    selectedCloudModel = parts.slice(2).join(':') || '';
+  } else {
+    selectedModelIsCloud = false;
+    selectedCloudProvider = '';
+    selectedCloudModel = '';
+  }
   document.getElementById('model-lbl').textContent = l;
   closeAllDD();
 }
 
 function toggleThink() {
   thinkOn = !thinkOn;
-  const btn = document.getElementById('think-btn');
-  btn.classList.toggle('active', thinkOn);
-  document.getElementById('think-lbl').textContent = thinkOn ? 'Thinking ON' : 'Thinking';
+  syncCaps();
 }
 
 function toggleTools() {
   toolsOn = !toolsOn;
-  const btn = document.getElementById('tools-btn');
-  btn.classList.toggle('active', toolsOn);
-  document.getElementById('tools-lbl').textContent = toolsOn ? 'Tools ON' : 'Tools';
+  agentCfg.builtins = toolsOn;
+  syncCaps();
+}
+
+function toggleWeb() {
+  webOn = !webOn;
+  agentCfg.web = webOn;
+  const w = document.getElementById('ag-web'); if (w) w.checked = webOn;
+  syncCaps();
+}
+
+function toggleMedia() {
+  agentCfg.media = !agentCfg.media;
+  if (agentCfg.media && !toolsOn) { toolsOn = true; agentCfg.builtins = true; }
+  if (agentCfg.media) toast('🎨 The assistant can now create images, video, audio and 3D');
+  syncCaps();
+}
+
+function toggleIncognito() {
+  incognitoOn = !incognitoOn;
+  if (incognitoOn) toast('🕶 Private: this chat will not be saved');
+  syncCaps();
+}
+
+// Render a generated-media artifact (image/audio/video/3d) emitted by a tool.
+function mediaArtifactEl(m) {
+  const wrap = document.createElement('div');
+  wrap.className = 'media-artifact';
+  const cap = '<div class="media-cap">🎨 ' + esc((m.kind||'media').toUpperCase()) + ' generato' +
+    (m.path ? ' · <span style="font-family:var(--mono);font-size:11px">' + esc(m.path) + '</span>' : '') + '</div>';
+  let body = '';
+  const src = m.data_uri || m.path || '';
+  if (m.kind === 'image')      body = '<img src="' + src + '" style="max-width:100%;border-radius:8px">';
+  else if (m.kind === 'audio') body = '<audio controls src="' + src + '" style="width:100%"></audio>';
+  else if (m.kind === 'video') body = '<video controls src="' + src + '" style="max-width:100%;border-radius:8px"></video>';
+  else                          body = '<div style="font-size:12px;color:var(--text2)">File 3D salvato. Aprilo dalla cartella output.</div>';
+  wrap.innerHTML = cap + body;
+  return wrap;
+}
+
+// Compact tool-activity line for the cloud chat stream.
+function cloudToolEl(label) {
+  const el = document.createElement('div');
+  el.className = 'tool-block';
+  el.style.padding = '6px 10px';
+  el.innerHTML = '<div class="tool-header" style="cursor:default"><span class="tool-name" style="font-size:12px">' + label + '</span></div>';
+  return el;
+}
+
+// Approval card for risky coding tools requested by a cloud model.
+function cloudApprovalEl(ap) {
+  const card = document.createElement('div');
+  card.className = 'approval-card';
+  card.id = 'appr-' + ap.id;
+  let args = ''; try { args = JSON.stringify(ap.arguments, null, 2); } catch {}
+  card.innerHTML = '<div class="ap-title">⚠️ Approval needed — <span style="font-family:var(--mono)">' + esc(ap.tool) + '</span></div>' +
+    '<div class="ap-summary">' + esc(ap.summary || '') + (args && args !== '{}' ? '\n\n' + esc(args) : '') + '</div>' +
+    '<div class="ap-actions">' +
+    '<button class="btn primary" onclick="resolveApproval(\'' + esc(ap.id) + '\',true,this)">✓ Approve</button>' +
+    '<button class="btn danger" onclick="resolveApproval(\'' + esc(ap.id) + '\',false,this)">✗ Deny</button></div>';
+  return card;
+}
+
+// Reflect capability state into the "+" menu dots and the composer chips.
+function syncCaps() {
+  const setOn = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('on', !!on); };
+  setOn('cap-web', webOn);
+  setOn('cap-tools', toolsOn);
+  setOn('cap-media', agentCfg.media);
+  setOn('cap-think', thinkOn);
+  setOn('cap-incognito', incognitoOn);
+  const pb = document.getElementById('private-btn'); if (pb) pb.classList.toggle('on', incognitoOn);
+  const b = document.getElementById('ag-builtins'); if (b) b.checked = toolsOn;
+  renderCapChips();
+}
+
+function renderCapChips() {
+  const box = document.getElementById('cap-chips');
+  if (!box) return;
+  const chips = [];
+  if (webOn)       chips.push(['web', '🌐 Web', 'toggleWeb()']);
+  if (toolsOn)     chips.push(['tools', '🧰 Tools', 'toggleTools()']);
+  if (agentCfg.media) chips.push(['media', '🎨 Media', 'toggleMedia()']);
+  if (thinkOn)     chips.push(['think', '💡 Ragiona', 'toggleThink()']);
+  if (incognitoOn) chips.push(['inc', '🕶 Incognito', 'toggleIncognito()']);
+  if (agentCfg.mcp) chips.push(['mcp', '🔌 MCP', "agentCfg.mcp=false;renderCapChips()"]);
+  (agentCfg.skills||[]).forEach(id => {
+    const s = (allSkills||[]).find(x => x.id === id);
+    chips.push(['sk-'+id, '🎓 ' + (s ? s.name : id), `toggleSkill('${id}')`]);
+  });
+  box.innerHTML = chips.map(([k,label,fn]) =>
+    `<span class="cap-chip">${esc(label)} <span class="x" onclick="${fn};renderCapChips()">✕</span></span>`
+  ).join('');
+}
+
+// ── App mode (Assistant / Developer) ──────────────
+function setAppMode(mode) {
+  appMode = mode;
+  document.getElementById('mode-assistant').classList.toggle('active', mode === 'assistant');
+  document.getElementById('mode-developer').classList.toggle('active', mode === 'developer');
+  const dev = mode === 'developer';
+  document.getElementById('dev-bar').classList.toggle('on', dev);
+  document.getElementById('ws-chat').classList.toggle('dev-active', dev);
+  document.getElementById('codemode-wrap').style.display = dev ? '' : 'none';
+  // Developer view exposes all the power tools via the "+" menu; the Assistant
+  // view is intentionally bare — just type and send (smart mode does the rest).
+  const plus = document.getElementById('plus-wrap');
+  if (plus) plus.style.display = dev ? '' : 'none';
+  const priv = document.getElementById('private-btn');
+  if (priv) priv.style.display = dev ? 'none' : '';
+  // Assistant view stays clean: capability chips live in Developer only.
+  const chips = document.getElementById('cap-chips');
+  if (chips) chips.style.display = dev ? '' : 'none';
+  // Output-type picker only matters in Developer's "+" menu.
+  const outHd = document.getElementById('plus-out-hd');
+  document.querySelectorAll('#plus-dd .type-item').forEach(el => el.style.display = dev ? 'none' : '');
+  if (outHd) outHd.style.display = dev ? 'none' : '';
+  // In developer mode, coding tools are implied on.
+  agentCfg.coding = dev;
+  if (dev) { toolsOn = true; loadDevTree(); }
+  // Make sure we are on the chat panel.
+  showPanel('chat');
+  const wt = document.getElementById('welcome-title');
+  if (wt) wt.textContent = dev ? 'What do you want to build?' : 'How can I help you?';
+  const ws = document.getElementById('welcome-sub');
+  if (ws) ws.textContent = dev
+    ? 'Set a working folder above, pick a model, and describe the task. The agent reads, edits and runs code — asking before anything risky.'
+    : 'Just type below. I can search the web, work with your files, and create images — automatically, whenever it helps.';
+  updateWelcomeSuggestions();
+  if (typeof syncCaps === 'function') syncCaps();
+}
+
+function updateComposerForMode() {
+  // All capability controls now live inside the "+" menu; nothing to toggle here.
+}
+
+function setCodeMode(m, label) {
+  codeMode = m;
+  document.getElementById('codemode-lbl').textContent = label.replace(/^[^ ]+ /, '');
+  document.querySelectorAll('#codemode-dd .dd-item').forEach(x => x.classList.remove('sel'));
+  if (event && event.target) event.target.closest('.dd-item').classList.add('sel');
+  closeAllDD();
+  const pill = document.getElementById('dev-mode-pill');
+  const desc = { plan:'read-only, proposes a plan', ask:'file + shell access with confirmation', auto:'runs file + shell without asking' }[m];
+  pill.textContent = 'Mode: ' + label.replace(/^[^ ]+ /, '') + ' · ' + desc;
+}
+
+// ── Developer file explorer ─────────────────────────
+async function loadDevTree() {
+  const treeEl = document.getElementById('dx-tree');
+  if (!treeEl) return;
+  const root = (document.getElementById('dev-workspace').value || '').trim();
+  if (!root) { treeEl.innerHTML = '<div class="dx-empty">Set a working folder above to browse it.</div>'; return; }
+  treeEl.innerHTML = '<div class="dx-empty">Loading…</div>';
+  const items = await dxList(root);
+  if (items === null) { treeEl.innerHTML = '<div class="dx-empty">Could not read the folder. Check the path.</div>'; return; }
+  treeEl.innerHTML = '';
+  treeEl.appendChild(dxRender(items, root));
+}
+
+async function dxList(path) {
+  try {
+    const r = await fetch('/api/fs/list?path=' + encodeURIComponent(path));
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.entries || [];
+  } catch { return null; }
+}
+
+function dxRender(items, parentPath) {
+  const frag = document.createDocumentFragment();
+  items.forEach(it => {
+    const node = document.createElement('div');
+    node.className = 'dx-node';
+    const full = it.path;
+    node.innerHTML = '<span class="dx-ic">' + (it.dir ? '📁' : '📄') + '</span><span>' + esc(it.name) + '</span>';
+    if (it.dir) {
+      const kids = document.createElement('div');
+      kids.className = 'dx-children';
+      kids.style.display = 'none';
+      let loaded = false;
+      node.onclick = async (e) => {
+        e.stopPropagation();
+        const open = kids.style.display === 'none';
+        kids.style.display = open ? '' : 'none';
+        node.querySelector('.dx-ic').textContent = open ? '📂' : '📁';
+        if (open && !loaded) {
+          loaded = true;
+          const sub = await dxList(full);
+          if (sub) kids.appendChild(dxRender(sub, full));
+        }
+      };
+      const wrap = document.createElement('div');
+      wrap.appendChild(node); wrap.appendChild(kids);
+      frag.appendChild(wrap);
+    } else {
+      node.onclick = (e) => { e.stopPropagation(); openDevFile(full, it.name); };
+      frag.appendChild(node);
+    }
+  });
+  return frag;
+}
+
+async function openDevFile(path, name) {
+  try {
+    const r = await fetch('/api/fs/read?path=' + encodeURIComponent(path));
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error || 'Could not read file'), 'err'); return; }
+    showCodeViewer(name, path, d.content || '', !!d.truncated);
+  } catch (e) { toast('❌ ' + e.message, 'err'); }
+}
+
+function showCodeViewer(name, path, content, truncated) {
+  let ov = document.getElementById('code-viewer');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'code-viewer';
+    ov.className = 'overlay';
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
+    ov.innerHTML = '<div class="dialog" style="max-width:860px;width:90vw;max-height:86vh;display:flex;flex-direction:column;padding:0;overflow:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">' +
+      '<span id="cv-title" style="font-family:var(--mono);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>' +
+      '<button class="btn" onclick="document.getElementById(\'code-viewer\').classList.remove(\'show\')">✕</button></div>' +
+      '<pre id="cv-body" style="flex:1;overflow:auto;margin:0;padding:14px;font-family:var(--mono);font-size:12.5px;line-height:1.5;background:var(--bg2);white-space:pre"></pre></div>';
+    document.body.appendChild(ov);
+  }
+  document.getElementById('cv-title').textContent = path + (truncated ? '  (truncated)' : '');
+  document.getElementById('cv-body').textContent = content;
+  ov.classList.add('show');
+}
+
+// Reload the tree when the workspace path changes.
+document.addEventListener('DOMContentLoaded', () => {
+  const wi = document.getElementById('dev-workspace');
+  if (wi) wi.addEventListener('change', () => { if (appMode === 'developer') loadDevTree(); });
+});
+
+// ── Agent config popover ───────────────────────────
+function openAgentConfig() {
+  const pop = document.getElementById('agent-pop');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  // sync checkboxes from state
+  document.getElementById('ag-web').checked = agentCfg.web;
+  document.getElementById('ag-builtins').checked = agentCfg.builtins;
+  document.getElementById('ag-coding').checked = agentCfg.coding;
+  document.getElementById('ag-mcp').checked = agentCfg.mcp;
+  renderSkillChips();
+  loadMcpStatusBadge();
+  closeAllDD();
+  const anchor = document.getElementById('plus-btn') || document.getElementById('plus-wrap');
+  if (anchor) {
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 356)) + 'px';
+    pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+  } else {
+    pop.style.left = '50%'; pop.style.bottom = '120px'; pop.style.transform = 'translateX(-50%)';
+  }
+  pop.classList.add('open');
+}
+
+function agentCfgChanged() {
+  agentCfg.web = document.getElementById('ag-web').checked;
+  agentCfg.builtins = document.getElementById('ag-builtins').checked;
+  agentCfg.coding = document.getElementById('ag-coding').checked;
+  agentCfg.mcp = document.getElementById('ag-mcp').checked;
+  // keep composer toggles in sync
+  webOn = agentCfg.web;
+  toolsOn = agentCfg.builtins || toolsOn;
+  syncCaps();
+}
+
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('agent-pop');
+  if (pop && pop.classList.contains('open') &&
+      !pop.contains(e.target) && !e.target.closest('#cap-skills') && !e.target.closest('#plus-btn')) {
+    pop.classList.remove('open');
+  }
+});
+
+// ── Skills ─────────────────────────────────────────
+let allSkills = [];
+async function loadSkills() {
+  try { const r = await fetch('/api/skills'); const d = await r.json(); allSkills = d.skills || []; }
+  catch { allSkills = []; }
+  renderSkillChips();
+}
+function renderSkillChips() {
+  const box = document.getElementById('ag-skill-list');
+  if (!box) return;
+  if (!allSkills.length) { box.innerHTML = '<span style="font-size:11px;color:var(--text3)">No skills yet — create one.</span>'; return; }
+  box.innerHTML = allSkills.map(s =>
+    `<span class="skill-chip${agentCfg.skills.includes(s.id)?' on':''}" onclick="toggleSkill('${esc(s.id)}')" title="${esc(s.description||'')}">${esc(s.name)}</span>`
+  ).join('');
+}
+function toggleSkill(id) {
+  const i = agentCfg.skills.indexOf(id);
+  if (i >= 0) agentCfg.skills.splice(i, 1); else agentCfg.skills.push(id);
+  renderSkillChips();
+  renderCapChips();
+}
+function openSkillEditor() { document.getElementById('skill-overlay').classList.add('show'); }
+function closeSkillEditor() { document.getElementById('skill-overlay').classList.remove('show'); }
+async function saveSkill() {
+  const name = document.getElementById('skill-name').value.trim();
+  const description = document.getElementById('skill-desc').value.trim();
+  const body = document.getElementById('skill-body').value.trim();
+  if (!name) { toast('❌ Skill name required', 'err'); return; }
+  try {
+    const r = await fetch('/api/skills', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, description, body})});
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error||'Error'), 'err'); return; }
+    allSkills = d.skills || [];
+    document.getElementById('skill-name').value = '';
+    document.getElementById('skill-desc').value = '';
+    document.getElementById('skill-body').value = '';
+    renderSkillChips();
+    closeSkillEditor();
+    toast('✅ Skill saved');
+  } catch { toast('❌ Server error', 'err'); }
+}
+
+// ── MCP manager ────────────────────────────────────
+async function loadMcpStatusBadge() {
+  try {
+    const r = await fetch('/api/mcp/servers'); const d = await r.json();
+    const n = (d.servers||[]).filter(s=>s.status==='connected').length;
+    const el = document.getElementById('ag-mcp-desc');
+    if (el) el.textContent = n ? (n + ' server' + (n>1?'s':'') + ' connected') : 'Expose connected MCP tools.';
+  } catch {}
+}
+function openMcpManager() { document.getElementById('mcp-overlay').classList.add('show'); loadMcpList(); }
+function closeMcpManager() { document.getElementById('mcp-overlay').classList.remove('show'); }
+function mcpTransportChanged() {
+  const http = document.getElementById('mcp-transport').value === 'http';
+  document.getElementById('mcp-url').style.display = http ? '' : 'none';
+  document.getElementById('mcp-command').style.display = http ? 'none' : '';
+}
+async function loadMcpList() {
+  const box = document.getElementById('mcp-list');
+  box.innerHTML = '<div style="color:var(--text3);font-size:12px">Loading…</div>';
+  try {
+    const r = await fetch('/api/mcp/servers'); const d = await r.json();
+    const servers = d.servers || [];
+    if (!servers.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px">No MCP servers configured.</div>'; return; }
+    box.innerHTML = servers.map(s => {
+      const dot = s.status==='connected' ? '#10a37f' : (s.status==='error' ? '#e04040' : '#999');
+      const tools = (s.tool_names||[]).length ? (s.tool_names.length + ' tools') : (s.last_error || s.status);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="width:8px;height:8px;border-radius:50%;background:${dot};flex-shrink:0"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${esc(s.name)} <span style="font-size:10px;color:var(--text3)">${esc(s.transport)}</span></div>
+          <div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(tools)}</div>
+        </div>
+        <label class="switch"><input type="checkbox" ${s.enabled?'checked':''} onchange="mcpToggle('${esc(s.name)}',this.checked)"><span class="sl"></span></label>
+        <button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="mcpRemove('${esc(s.name)}')">🗑</button>
+      </div>`;
+    }).join('');
+  } catch { box.innerHTML = '<div style="color:#e04040;font-size:12px">Error loading servers</div>'; }
+}
+async function mcpAddServer() {
+  const name = document.getElementById('mcp-name').value.trim();
+  const transport = document.getElementById('mcp-transport').value;
+  const env = document.getElementById('mcp-env').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if (!name) { toast('❌ Name required', 'err'); return; }
+  const body = { name, transport, env, enabled: true };
+  if (transport === 'http') { body.url = document.getElementById('mcp-url').value.trim(); }
+  else {
+    const parts = (document.getElementById('mcp-command').value.trim().match(/(?:[^\s"]+|"[^"]*")+/g) || []).map(s=>s.replace(/^"|"$/g,''));
+    body.command = parts[0]; body.args = parts.slice(1);
+  }
+  try {
+    const r = await fetch('/api/mcp/servers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error||'Error'), 'err'); return; }
+    document.getElementById('mcp-name').value=''; document.getElementById('mcp-command').value=''; document.getElementById('mcp-url').value=''; document.getElementById('mcp-env').value='';
+    loadMcpList(); loadMcpStatusBadge();
+    toast('✅ Server added');
+  } catch { toast('❌ Server error', 'err'); }
+}
+async function mcpToggle(name, enabled) {
+  await fetch('/api/mcp/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, enabled})});
+  loadMcpList(); loadMcpStatusBadge();
+}
+async function mcpRemove(name) {
+  await fetch('/api/mcp/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})});
+  loadMcpList(); loadMcpStatusBadge();
+}
+
+// ── Tool approvals (coding agent) ──────────────────
+async function resolveApproval(id, approved, btn) {
+  const card = document.getElementById('appr-' + id);
+  try {
+    await fetch('/api/agentic/approve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id, approved})});
+  } catch {}
+  if (card) {
+    card.classList.add('resolved');
+    const actions = card.querySelector('.ap-actions');
+    if (actions) actions.innerHTML = approved
+      ? '<span style="color:#10a37f;font-size:12px">✓ Approved</span>'
+      : '<span style="color:#e04040;font-size:12px">✗ Denied</span>';
+  }
 }
 
 // ── Dropdowns ─────────────────────────────────────
@@ -2842,14 +3697,35 @@ function newChat() {
   showPanel('chat');
 }
 
-function updateWelcomeSuggestions() {}
+function updateWelcomeSuggestions() {
+  // Instructive examples that teach what the assistant can do. Assistant uses
+  // emojis NOT mapped to output types, so clicking keeps the smart chat domain.
+  const dev = appMode === 'developer';
+  const sets = dev ? [
+    ['💬 Explain', 'Explain what this project does'],
+    ['🔎 Find', 'Find where the server starts and show me'],
+    ['🛠 Fix', 'Find and fix the bug in this function'],
+    ['📄 Read', 'Summarize the file I have open'],
+  ] : [
+    ['🔎 Search the web', "What are today's top news headlines?"],
+    ['🖼 Create an image', 'Draw a cat astronaut, watercolor style'],
+    ['📄 Work with a file', 'Summarize the document I attach'],
+    ['💡 Explain simply', 'Explain how the internet works, in simple terms'],
+  ];
+  const ids = [['sugg-text','sugg-text-p'],['sugg-image','sugg-image-p'],['sugg-audio','sugg-audio-p'],['sugg-3d','sugg-3d-p']];
+  ids.forEach((pair, i) => {
+    const b = document.getElementById(pair[0]); const p = document.getElementById(pair[1]);
+    if (b && sets[i]) b.textContent = sets[i][0];
+    if (p && sets[i]) p.textContent = sets[i][1];
+  });
+}
 
 // ── Send ──────────────────────────────────────────
 async function doSend() {
   const field = document.getElementById('inp');
   const text = field.value.trim();
   if (!text && !attachments.length) return;
-  if (!selectedModel) { toast('Select a model first','err'); return; }
+  if (!selectedModel && !autoSelectModel()) { openOnboarding(); return; }
 
   field.value = ''; autoSize(field);
   document.getElementById('welcome').style.display = 'none';
@@ -2913,6 +3789,91 @@ async function doSend() {
   currentAbortController = null;
 }
 
+// Make a raw model ref like "gemma4:e4b" read nicely, e.g. "Gemma4 (e4b)".
+function prettyModelName(name, tag) {
+  let base = String(name || '').split('/').pop();
+  let variant = tag || '';
+  if (!variant && base.includes(':')) { const parts = base.split(':'); base = parts[0]; variant = parts.slice(1).join(':'); }
+  base = base.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return variant && variant !== 'latest' ? `${base} (${variant})` : base;
+}
+
+// Turn raw backend/runtime errors into plain language a beginner understands.
+function friendlyError(msg) {
+  const m = String(msg || '');
+  if (/llama-server not running|EnsureServer|failed to (load|start)|server (start|load)/i.test(m))
+    return "The assistant couldn't start. It may still be loading the model — wait a few seconds and try again, or pick another assistant.";
+  if (/no API key/i.test(m))
+    return "This cloud assistant needs an API key. Open Settings → Cloud models to add one.";
+  if (/tools_unsupported|does not support tools/i.test(m))
+    return "This assistant can't use tools. Pick a newer model, or it will just chat normally.";
+  if (/connection|offline|unreachable|fetch failed|ECONNREFUSED|timeout/i.test(m))
+    return "Can't reach the assistant. Make sure Vortelio is running, then try again.";
+  if (/out of memory|CUDA|VRAM|allocat/i.test(m))
+    return "Not enough memory to run this model. Try a smaller assistant, or switch to CPU.";
+  if (/not found|no such|404/i.test(m) && /model/i.test(m))
+    return "That model isn't installed. Download one from Settings → Download models.";
+  return m || 'Something went wrong.';
+}
+
+// Build the agentic capability payload. Assistant view = full smart auto (the
+// model decides when to use web/tools/media). Developer view = explicit toggles.
+function buildAgenticPayload() {
+  const dev = appMode === 'developer';
+  if (!dev) {
+    return {
+      auto: true, web_search: true, builtins: true, media: true,
+      mcp: agentCfg.mcp, coding: false,
+      skills: agentCfg.skills || [], session_id: 'sess-' + Date.now()
+    };
+  }
+  const ag = {
+    web_search: agentCfg.web || webOn, builtins: agentCfg.builtins, mcp: agentCfg.mcp,
+    coding: agentCfg.coding || dev, media: agentCfg.media, skills: agentCfg.skills,
+    mode: codeMode, working_dir: document.getElementById('dev-workspace').value.trim(),
+    session_id: 'sess-' + Date.now()
+  };
+  if (ag.web_search || ag.builtins || ag.mcp || ag.coding || ag.media || (ag.skills && ag.skills.length)) return ag;
+  return null;
+}
+
+// Stream a cloud chat response into an existing message `content` element.
+// Shared by the unified assistant chat and the legacy Cloud Models panel.
+async function streamCloudInto(provider, model, history, content, canvas, signal) {
+  const payload = { provider, model, messages: history };
+  const ag = buildAgenticPayload(); if (ag) payload.agentic = ag;
+  const r = await apiFetch('/api/cloud/chat', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload), signal
+  });
+  if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || 'HTTP ' + r.status); }
+  const tn = document.createElement('div'); tn.style.width = '100%'; content.appendChild(tn);
+  const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = ''; let fullText = '';
+  outer: while (true) {
+    const {done, value} = await reader.read(); if (done) break;
+    buf += dec.decode(value, {stream:true});
+    const lines = buf.split('\n'); buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') break outer;
+      let ev; try { ev = JSON.parse(raw); } catch(_) { continue; }
+      if (ev.error) throw new Error(ev.error);
+      if (ev.event) {
+        const data = ev.data || {};
+        if (ev.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ ' + esc((data.result||data.error||'').slice(0,160))), tn); canvas.scrollTop = 9999; continue; }
+        continue;
+      }
+      const d = ev.delta || '';
+      if (d) { fullText += d; tn.innerHTML = renderMessage(fullText); canvas.scrollTop = 9999; }
+    }
+  }
+  return fullText;
+}
+
 // ── Chat ──────────────────────────────────────────
 async function doChat(text, files, signal) {
   const msgs = document.getElementById('msgs');
@@ -2943,9 +3904,25 @@ async function doChat(text, files, signal) {
   pulse.innerHTML = '<span></span><span></span><span></span>';
   content.appendChild(pulse);
 
+  if (avatar && selectedModelIsCloud) { avatar.textContent = '☁️'; avatar.style.background = '#6366f1'; } else avatar.textContent = 'VT';
+
   inner.appendChild(avatar); inner.appendChild(content);
   grp.appendChild(inner); msgs.appendChild(grp);
   canvas.scrollTop = 9999;
+
+  // Cloud assistant: stream from the provider and finish here.
+  if (selectedModelIsCloud) {
+    try {
+      pulse.remove();
+      const full = await streamCloudInto(selectedCloudProvider, selectedCloudModel, chatHistory.slice(), content, canvas, signal);
+      chatHistory.push({role:'assistant', content: full || '(empty response)'});
+    } catch (e) {
+      if (content.querySelector('.dot-pulse')) pulse.remove();
+      if (e.name !== 'AbortError') content.innerHTML += `<span style="color:#dc2626">⚠️ ${esc(friendlyError(e.message))}</span>`;
+      else content.innerHTML += '<span style="color:var(--text3)">[cancelled]</span>';
+    }
+    return;
+  }
 
   try {
     // Send full history so the LLM has conversation context
@@ -2954,18 +3931,23 @@ async function doChat(text, files, signal) {
       force_cpu: useCPU, context_size: contextSize,
       think: thinkOn, // enable chain-of-thought for reasoning models
       tools_enabled: toolsOn, // enable function calling / tool use
+      incognito: incognitoOn,
       messages: chatHistory.slice(0, -1)
     };
+    const ag = buildAgenticPayload();
+    if (ag) payload.agentic = ag;
     if (files.length) payload.input_file = files[0].serverPath;
     const r = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal});
 
     pulse.remove();
     const textNode = document.createElement('div'); textNode.style.width='100%';
     content.appendChild(textNode);
+    // Local models can take a moment to load on the first message — reassure the user.
+    if (!selectedModelIsCloud) textNode.innerHTML = '<span style="color:var(--text3)">Starting the assistant… the first reply can take a moment.</span>';
 
     if (!r.ok) {
       const d = await r.json().catch(()=>({}));
-      textNode.innerHTML = '⚠️ ' + esc(d.error || 'Error');
+      textNode.innerHTML = '⚠️ ' + esc(friendlyError(d.error));
       return;
     }
 
@@ -3030,6 +4012,23 @@ async function doChat(text, files, signal) {
       block.classList.add('open'); canvas.scrollTop = 9999;
     };
 
+    // Helper: render an approval request card (risky coding action)
+    const _handleApproval = (ap) => {
+      const card = document.createElement('div');
+      card.className = 'approval-card';
+      card.id = 'appr-' + ap.id;
+      let args = ''; try { args = JSON.stringify(ap.arguments, null, 2); } catch {}
+      card.innerHTML = `
+        <div class="ap-title">⚠️ Approval required — <span style="font-family:var(--mono)">${esc(ap.tool)}</span></div>
+        <div class="ap-summary">${esc(ap.summary || '')}${args && args !== '{}' ? '\n\n' + esc(args) : ''}</div>
+        <div class="ap-actions">
+          <button class="btn primary" onclick="resolveApproval('${esc(ap.id)}',true,this)">✓ Approve</button>
+          <button class="btn danger" onclick="resolveApproval('${esc(ap.id)}',false,this)">✗ Deny</button>
+        </div>`;
+      content.insertBefore(card, textNode);
+      canvas.scrollTop = 9999;
+    };
+
     // Helper: process a decoded content token (handles <think> tags inline)
     const _appendToken = (data) => {
       if (data === '' || data === '\n') { full += '\n'; textNode.innerHTML = renderMessage(full); canvas.scrollTop = 9999; return; }
@@ -3069,10 +4068,12 @@ async function doChat(text, files, signal) {
         // ── NDJSON format (new /api/generate output) ──
         if (line.startsWith('{')) {
           let obj; try { obj = JSON.parse(line); } catch { continue; }
-          if (obj.error) { textNode.textContent += '\n⚠️' + obj.error; break; }
+          if (obj.error) { textNode.textContent += '\n⚠️ ' + friendlyError(obj.error); break; }
           if (obj.thinking) { _appendThink(obj.thinking); continue; }
           if (obj.event === 'tool_call') { try { _handleToolCall(obj.data); } catch {} continue; }
           if (obj.event === 'tool_result') { try { _handleToolResult(obj.data); } catch {} continue; }
+          if (obj.event === 'approval_request') { try { _handleApproval(obj.data); } catch {} continue; }
+          if (obj.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(obj.data), textNode); canvas.scrollTop = 9999; } catch {} continue; }
           if (obj.done) break;
           if (typeof obj.response === 'string') _appendToken(obj.response);
           continue;
@@ -3424,13 +4425,13 @@ async function loadModels() {
         <span style="font-family:var(--mono);font-size:12px;color:var(--text3);flex-shrink:0">${m.size_human || ''}</span>
         <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap">
           <button class="btn" style="padding:4px 9px;font-size:11px" onclick="openInfo('${esc(ref)}')">ℹ️ Info</button>
-          <button class="btn" style="padding:4px 9px;font-size:11px" onclick="openRename('${esc(ref)}','${esc(m.display_name||'')}')">✏️ Rinomina</button>
-          <button class="btn ${(defaultModels[m.type]===ref)?'primary':''}" style="padding:4px 9px;font-size:11px" onclick="setDefaultModel('${esc(ref)}')" title="Default for this type (click to set/remove)">
-            ${(defaultModels[m.type]===ref)?'⭐ Predefinito':'☆ Default'}
+          <button class="btn" style="padding:4px 9px;font-size:11px" onclick="openRename('${esc(ref)}','${esc(m.display_name||'')}')">✏️ Rename</button>
+          <button class="btn ${(defaultModels[m.type]===ref)?'primary':''}" style="padding:4px 9px;font-size:11px" onclick="setDefaultModel('${esc(ref)}')" title="Use this one by default for its type (click to set/remove)">
+            ${(defaultModels[m.type]===ref)?'⭐ Default':'☆ Set default'}
           </button>
-          ${m.type === 'llm' ? `<button class="btn" style="padding:4px 9px;font-size:11px" onclick="openQuantize('${esc(ref)}')">⚡ Quantize</button>` : ''}
-          ${m.type === 'llm' ? `<button class="btn" style="padding:4px 9px;font-size:11px" onclick="openMmProj('${esc(ref)}')">👁 mmproj</button>` : ''}
-          <button class="btn danger" style="padding:4px 9px;font-size:11px" onclick="confirmDel('${esc(ref)}')">🗑 Rimuovi</button>
+          ${m.type === 'llm' ? `<button class="btn" style="padding:4px 9px;font-size:11px" onclick="openQuantize('${esc(ref)}')" title="Shrink the model to use less memory">⚡ Compress</button>` : ''}
+          ${m.type === 'llm' ? `<button class="btn" style="padding:4px 9px;font-size:11px" onclick="openMmProj('${esc(ref)}')" title="Add a vision projector so this model can see images">👁 Vision</button>` : ''}
+          <button class="btn danger" style="padding:4px 9px;font-size:11px" onclick="confirmDel('${esc(ref)}')">🗑 Remove</button>
         </div>
       </div>`;
     }).join('');
@@ -4037,6 +5038,10 @@ function setHW(cpu) {
   const cpuBtn = document.getElementById('hw-cpu-btn');
   if (gpuBtn) gpuBtn.classList.toggle('active', !cpu);
   if (cpuBtn) cpuBtn.classList.toggle('active', cpu);
+  const gi = document.getElementById('hw-gpu-item');
+  const ci = document.getElementById('hw-cpu-item');
+  if (gi) gi.classList.toggle('sel', !cpu);
+  if (ci) ci.classList.toggle('sel', cpu);
 }
 
 // ── Cancel custom download ────────────────────────────────
@@ -5141,6 +6146,24 @@ async function sendCloudMsg() {
       model: cloudSelectedModel,
       messages: [...cloudHistory.slice(0,-1), {role:'user', content:text}],
     };
+    // Same agentic capabilities as local models: web, tools, media, skills, MCP.
+    {
+      const dev = appMode === 'developer';
+      const ag = {
+        web_search: agentCfg.web || webOn,
+        builtins: agentCfg.builtins,
+        mcp: agentCfg.mcp,
+        coding: agentCfg.coding || dev,
+        media: agentCfg.media,
+        skills: agentCfg.skills,
+        mode: codeMode,
+        working_dir: dev ? (document.getElementById('dev-workspace').value.trim()) : '',
+        session_id: 'sess-' + Date.now()
+      };
+      if (ag.web_search || ag.builtins || ag.mcp || ag.coding || ag.media || (ag.skills && ag.skills.length)) {
+        payload.agentic = ag;
+      }
+    }
     const r = await apiFetch('/api/cloud/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -5165,6 +6188,15 @@ async function sendCloudMsg() {
         let ev;
         try { ev = JSON.parse(raw); } catch(_) { continue; }
         if (ev.error) throw new Error(ev.error);
+        // Agentic tool / media events (same shape as /api/generate).
+        if (ev.event) {
+          const data = ev.data || {};
+          if (ev.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ tool: ' + esc((data.result||data.error||'').slice(0,200))), tn); canvas.scrollTop = 9999; continue; }
+          continue;
+        }
         const d = ev.delta || '';
         if (d) { fullText += d; tn.innerHTML = renderMessage(fullText); canvas.scrollTop = 9999; }
       }

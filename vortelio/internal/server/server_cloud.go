@@ -138,6 +138,8 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 		Provider string          `json:"provider"`
 		Model    string          `json:"model"`
 		Messages []cloud.Message `json:"messages"`
+		Agentic  *AgenticConfig  `json:"agentic"`
+		System   string          `json:"system"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		jsonError(w, 400, "invalid request")
@@ -177,7 +179,38 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err := cloud.Chat(p, key, req.Messages, func(tok string) {
+	// Apply enabled skills as a system-prompt augmentation, prepended as a
+	// system message so cloud providers receive it.
+	systemPrompt := req.System
+	if req.Agentic != nil && len(req.Agentic.Skills) > 0 {
+		systemPrompt = applySkills(systemPrompt, req.Agentic.Skills)
+	}
+	if req.Agentic != nil && req.Agentic.Auto {
+		systemPrompt = autoSystemPrompt(systemPrompt)
+	}
+	if systemPrompt != "" {
+		req.Messages = append([]cloud.Message{{Role: "system", Content: systemPrompt}}, req.Messages...)
+	}
+
+	// Build agentic tool options when requested. The tool event emitter doubles
+	// as the approval-request channel for risky coding tools.
+	var toolOpts *cloud.ToolCallOptions
+	if req.Agentic != nil {
+		toolEmit := func(eventType string, data interface{}) {
+			b, _ := json.Marshal(data)
+			emit(map[string]interface{}{"event": eventType, "data": json.RawMessage(b)})
+		}
+		provider := buildAgenticProvider(req.Agentic, toolEmit)
+		if tools := provider.Tools(); len(tools) > 0 {
+			toolOpts = &cloud.ToolCallOptions{
+				Tools:   tools,
+				ExecTool: provider.Execute,
+				OnEvent:  toolEmit,
+			}
+		}
+	}
+
+	_, err := cloud.ChatWithTools(p, key, req.Messages, toolOpts, func(tok string) {
 		emit(map[string]string{"delta": tok})
 	})
 	if err != nil {

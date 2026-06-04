@@ -48,6 +48,63 @@ type ToolResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// ── Tool provider abstraction ────────────────────────────────────────────────
+
+// ToolProvider supplies the set of tools available to a single chat request and
+// executes them. This lets each request (assistant chat, coding agent, MCP-enabled
+// session, skills) expose a different toolset without a coarse global registry.
+type ToolProvider interface {
+	// Tools returns the OpenAI-schema tool definitions offered to the model.
+	Tools() []ToolDef
+	// Execute runs the named tool with JSON arguments and returns a result string.
+	Execute(name, argsJSON string) (string, error)
+}
+
+// builtinProvider is the default provider backed by BuiltinTools/ExecuteTool.
+type builtinProvider struct{}
+
+func (builtinProvider) Tools() []ToolDef                          { return BuiltinTools() }
+func (builtinProvider) Execute(name, args string) (string, error) { return ExecuteTool(name, args) }
+
+// DefaultToolProvider returns the builtin tool provider.
+func DefaultToolProvider() ToolProvider { return builtinProvider{} }
+
+// CompositeProvider merges several providers into one, concatenating their tools
+// and dispatching Execute to whichever provider declares the named tool.
+type CompositeProvider struct {
+	providers []ToolProvider
+}
+
+// NewCompositeProvider builds a provider from the given (non-nil) providers.
+func NewCompositeProvider(ps ...ToolProvider) *CompositeProvider {
+	var out []ToolProvider
+	for _, p := range ps {
+		if p != nil {
+			out = append(out, p)
+		}
+	}
+	return &CompositeProvider{providers: out}
+}
+
+func (c *CompositeProvider) Tools() []ToolDef {
+	var all []ToolDef
+	for _, p := range c.providers {
+		all = append(all, p.Tools()...)
+	}
+	return all
+}
+
+func (c *CompositeProvider) Execute(name, args string) (string, error) {
+	for _, p := range c.providers {
+		for _, t := range p.Tools() {
+			if t.Function.Name == name {
+				return p.Execute(name, args)
+			}
+		}
+	}
+	return "", fmt.Errorf("unknown tool: %s", name)
+}
+
 // ── Built-in tool catalog ────────────────────────────────────────────────────
 
 // BuiltinTools returns the list of tool definitions available for server-side tool-use.
@@ -459,13 +516,24 @@ func toolWebSearch(argsJSON string) (string, error) {
 		return "", fmt.Errorf("query is required")
 	}
 
-	// Placeholder: in a real implementation this would call a search API.
-	// For now, return an informative message so the LLM knows the limitation.
-	result := map[string]string{
-		"query":   args.Query,
-		"status":  "unavailable",
-		"message": "Web search is not yet configured. The user should configure a search API key in settings to enable this tool. For now, please answer based on your training data and inform the user that web search is not available.",
+	results, err := WebSearch(args.Query, 6)
+	if err != nil {
+		out := map[string]interface{}{
+			"query":  args.Query,
+			"status": "error",
+			"error":  err.Error(),
+		}
+		b, _ := json.Marshal(out)
+		return string(b), nil
 	}
-	b, _ := json.Marshal(result)
+	out := map[string]interface{}{
+		"query":   args.Query,
+		"status":  "ok",
+		"results": results,
+	}
+	if len(results) == 0 {
+		out["message"] = "No results found."
+	}
+	b, _ := json.Marshal(out)
 	return string(b), nil
 }
