@@ -935,6 +935,15 @@ textarea.inp::placeholder { color: var(--text3); }
 
 #private-btn.on { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 
+/* ── Sidebar navigation (studios + workspace) ── */
+.sidebar-nav { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px; max-height: 46vh; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 7px 10px; border: none; background: transparent; border-radius: 7px; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--text2); }
+.nav-item:hover { background: var(--bg2); color: var(--text); }
+.nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+.nav-item > span { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+.dark .nav-item:hover { background: var(--bg3) !important; }
+.dark .nav-item.active { background: rgba(16,163,127,.18) !important; }
+
 /* ── Onboarding cards ── */
 .onb-card { display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px; border: 1px solid var(--border2); border-radius: 12px; background: var(--bg); cursor: pointer; transition: all .14s; width: 100%; }
 .onb-card:hover { border-color: var(--accent); background: var(--accent-light); }
@@ -1015,8 +1024,27 @@ textarea.inp::placeholder { color: var(--text3); }
 
   <button class="new-chat-btn" onclick="newChat()">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="7" y1="1" x2="7" y2="13"/><line x1="1" y1="7" x2="13" y2="7"/></svg>
-    <span id="new-chat-lbl">Nuova chat</span>
+    <span id="new-chat-lbl">New chat</span>
   </button>
+
+  <div class="sidebar-nav" id="sidebar-nav">
+    <div class="sidebar-section">Create</div>
+    <button class="nav-item active" id="nav-chat" onclick="studio('chat')"><span>💬</span> Chat</button>
+    <button class="nav-item" id="nav-image" onclick="studio('image')"><span>🎨</span> Images</button>
+    <button class="nav-item" id="nav-video" onclick="studio('video')"><span>🎬</span> Video</button>
+    <button class="nav-item" id="nav-audio" onclick="studio('audio')"><span>🔊</span> Audio &amp; music</button>
+    <button class="nav-item" id="nav-threed" onclick="studio('threed')"><span>🧊</span> 3D</button>
+
+    <div class="sidebar-section">Workspace</div>
+    <button class="nav-item" onclick="sideGo('models')"><span>💾</span> Models</button>
+    <button class="nav-item" onclick="sideGo('registry')"><span>⬇️</span> Download models</button>
+    <button class="nav-item" onclick="sideGo('cloud')"><span>☁️</span> Cloud keys</button>
+    <button class="nav-item" onclick="sideGo('agents')"><span>🧩</span> AI agents</button>
+    <button class="nav-item" onclick="sideGo('crewai')"><span>🤖</span> CrewAI</button>
+    <button class="nav-item" onclick="openMcpManager();clearNavActive()"><span>🔌</span> External tools (MCP)</button>
+    <button class="nav-item" onclick="openAgentConfig();clearNavActive()"><span>🎓</span> Skills &amp; agent</button>
+    <button class="nav-item" onclick="sideGo('tools')"><span>🔧</span> Advanced tools</button>
+  </div>
 
   <div class="sidebar-section" id="hist-section-lbl">Recent chats</div>
   <div class="history-list" id="hist-list">
@@ -3541,13 +3569,17 @@ function openAgentConfig() {
   renderSkillChips();
   loadMcpStatusBadge();
   closeAllDD();
-  const anchor = document.getElementById('plus-btn') || document.getElementById('plus-wrap');
-  if (anchor) {
+  const anchor = document.getElementById('plus-btn');
+  // Anchor to the "+" button when it's visible; otherwise (e.g. opened from the
+  // sidebar in Assistant view) center the popover.
+  if (anchor && anchor.offsetParent !== null) {
     const r = anchor.getBoundingClientRect();
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 356)) + 'px';
     pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    pop.style.top = 'auto'; pop.style.transform = 'none';
   } else {
-    pop.style.left = '50%'; pop.style.bottom = '120px'; pop.style.transform = 'translateX(-50%)';
+    pop.style.left = '50%'; pop.style.top = '50%'; pop.style.bottom = 'auto';
+    pop.style.transform = 'translate(-50%,-50%)';
   }
   pop.classList.add('open');
 }
@@ -3779,6 +3811,20 @@ function fillPrompt(btn) {
   document.getElementById('inp').focus();
 }
 
+// ── Sidebar navigation: studios (Create) + workspace panels ──
+const STUDIO = { chat:['💬','Chat'], image:['🎨','Image'], audio:['🔊','Audio'], video:['🎬','Video'], threed:['🧊','3D'] };
+function clearNavActive() { document.querySelectorAll('.sidebar-nav .nav-item').forEach(x => x.classList.remove('active')); }
+function studio(type) {
+  if (appMode === 'developer') setAppMode('assistant');
+  showPanel('chat');
+  newChat();
+  const [ic, lbl] = STUDIO[type] || STUDIO.chat;
+  setType(type, ic, lbl, null);
+  clearNavActive();
+  document.getElementById('nav-' + type)?.classList.add('active');
+}
+function sideGo(panel) { showPanel(panel); clearNavActive(); }
+
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('collapsed');
 }
@@ -3796,20 +3842,38 @@ function newChat() {
 }
 
 function updateWelcomeSuggestions() {
-  // Instructive examples that teach what the assistant can do. Assistant uses
-  // emojis NOT mapped to output types, so clicking keeps the smart chat domain.
+  // Per-domain welcome + examples so each studio feels dedicated.
   const dev = appMode === 'developer';
-  const sets = dev ? [
-    ['💬 Explain', 'Explain what this project does'],
-    ['🔎 Find', 'Find where the server starts and show me'],
-    ['🛠 Fix', 'Find and fix the bug in this function'],
-    ['📄 Read', 'Summarize the file I have open'],
-  ] : [
-    ['🔎 Search the web', "What are today's top news headlines?"],
-    ['🖼 Create an image', 'Draw a cat astronaut, watercolor style'],
-    ['📄 Work with a file', 'Summarize the document I attach'],
-    ['💡 Explain simply', 'Explain how the internet works, in simple terms'],
-  ];
+  const wt = document.getElementById('welcome-title');
+  const ws = document.getElementById('welcome-sub');
+  let title, sub, sets;
+  if (dev) {
+    title = 'What do you want to build?';
+    sub = 'Set a working folder, pick a model, and describe the task. The agent reads, edits and runs code — asking before anything risky.';
+    sets = [['💬 Explain','Explain what this project does'],['🔎 Find','Find where the server starts and show me'],['🛠 Fix','Find and fix the bug in this function'],['📄 Read','Summarize the file I have open']];
+  } else if (domain === 'image') {
+    title = 'Create an image';
+    sub = 'Describe what you want to see. Pick an image model below, then generate.';
+    sets = [['🐱 Animal','A cat astronaut, watercolor style'],['🌄 Scene','A sunset over snowy mountains, photorealistic'],['🎨 Art','Abstract colorful shapes, minimalist'],['🏠 Design','A cozy modern living room, interior render']];
+  } else if (domain === 'video') {
+    title = 'Create a video';
+    sub = 'Describe a short clip. Pick a video model below, then generate.';
+    sets = [['🌊 Nature','Waves crashing on a beach at sunset'],['🚗 Motion','A car driving through a neon city'],['🎬 Scene','A paper plane flying over rooftops'],['✨ Abstract','Colorful ink spreading in water']];
+  } else if (domain === 'audio') {
+    title = 'Create audio';
+    sub = 'Type text to speak, or describe music. Pick an audio model below.';
+    sets = [['🗣 Speech','Read this aloud: Welcome to Vortelio!'],['🎵 Music','Calm lo-fi piano for studying'],['🔔 Sound','A short cheerful notification chime'],['📢 Voice','An energetic podcast intro line']];
+  } else if (domain === 'threed') {
+    title = 'Create a 3D model';
+    sub = 'Describe an object or attach an image. Pick a 3D model below.';
+    sets = [['🪑 Object','A minimalist wooden chair'],['🤖 Character','A cute robot figurine'],['🏺 Prop','An ancient clay vase'],['🚀 Vehicle','A small toy rocket']];
+  } else {
+    title = 'How can I help you?';
+    sub = 'Just type below. I can search the web, work with your files, and create images — automatically, whenever it helps.';
+    sets = [['🔎 Search the web',"What are today's top news headlines?"],['🖼 Create an image','Draw a cat astronaut, watercolor style'],['📄 Work with a file','Summarize the document I attach'],['💡 Explain simply','Explain how the internet works, in simple terms']];
+  }
+  if (wt) wt.textContent = title;
+  if (ws) ws.textContent = sub;
   const ids = [['sugg-text','sugg-text-p'],['sugg-image','sugg-image-p'],['sugg-audio','sugg-audio-p'],['sugg-3d','sugg-3d-p']];
   ids.forEach((pair, i) => {
     const b = document.getElementById(pair[0]); const p = document.getElementById(pair[1]);
