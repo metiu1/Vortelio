@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/firestore v1.22.0
 	firebase.google.com/go/v4 v4.20.0
 	github.com/stripe/stripe-go/v76 v76.25.0
+	golang.org/x/net v0.54.0
 	golang.org/x/term v0.43.0
 	google.golang.org/api v0.279.0
 	google.golang.org/grpc v1.81.1
@@ -51,7 +52,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	golang.org/x/crypto v0.51.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect

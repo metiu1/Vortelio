@@ -798,6 +798,7 @@ type StreamOpts struct {
 	ToolsEnabled bool             // enable server-side builtin tool execution loop
 	ClientTools  json.RawMessage  // tool definitions from client forwarded to model as-is
 	ToolCallEmit func([]ToolCall) // when set: emit tool_calls to client instead of executing server-side
+	ToolProvider ToolProvider     // when set (with ToolsEnabled): supplies tool defs + execution; defaults to builtins
 	Options      LLMOptions
 	Format       string // "json" or raw JSON schema string
 }
@@ -1152,8 +1153,12 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 				payload["tool_choice"] = "auto"
 			}
 		} else if sopts.ToolsEnabled {
-			// Server-side builtin tools
-			payload["tools"] = BuiltinTools()
+			// Server-side tools via the request's provider (defaults to builtins).
+			tp := sopts.ToolProvider
+			if tp == nil {
+				tp = builtinProvider{}
+			}
+			payload["tools"] = tp.Tools()
 			payload["tool_choice"] = "auto"
 		}
 
@@ -1280,7 +1285,11 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 					"id": tc.ID, "name": tc.Function.Name, "arguments": tc.Function.Arguments,
 				})
 			}
-			result, err := ExecuteTool(tc.Function.Name, tc.Function.Arguments)
+			tp := sopts.ToolProvider
+			if tp == nil {
+				tp = builtinProvider{}
+			}
+			result, err := tp.Execute(tc.Function.Name, tc.Function.Arguments)
 			resultStr := result
 			errStr := ""
 			if err != nil {
