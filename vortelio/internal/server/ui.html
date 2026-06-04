@@ -3038,7 +3038,12 @@ function autoSelectModel() {
     const m = installedModels.find(x => `${x.type}/${x.name}:${x.tag}` === def);
     if (m) { selectModel(def, m.display_name || prettyModelName(m.name, m.tag)); return true; }
   }
-  const llm = installedModels.find(x => x.type === 'llm');
+  const llms = installedModels.filter(x => x.type === 'llm');
+  // Prefer a tool-capable model (so web search / agentic features work) and,
+  // among those, the smallest — most likely to fit in available VRAM/RAM.
+  const bySize = a => (a.size_bytes || 0);
+  const capable = llms.filter(x => modelSupportsTools(`${x.name}:${x.tag}`)).sort((a,b)=>bySize(a)-bySize(b));
+  const llm = capable[0] || llms.slice().sort((a,b)=>bySize(a)-bySize(b))[0];
   if (llm) { selectModel(`${llm.type}/${llm.name}:${llm.tag}`, llm.display_name || prettyModelName(llm.name, llm.tag)); return true; }
   for (const p of (_cloudProviders || [])) {
     if (p.has_key && (p.models || []).length) {
@@ -3158,11 +3163,14 @@ function updateModelDDForDomain() {
   const cfg = DC[domain];
   if (!cfg) return;
   const mine = installedModels.filter(m => m.type === cfg.apiType);
-  const models = mine.map(m => ({
-    v: `${m.type}/${m.name}:${m.tag}`,
-    l: m.display_name || prettyModelName(m.name, m.tag),
-    tag: m.size_human || '',
-  }));
+  const models = mine.map(m => {
+    const tools = cfg.apiType === 'llm' && modelSupportsTools(`${m.name}:${m.tag}`);
+    return {
+      v: `${m.type}/${m.name}:${m.tag}`,
+      l: m.display_name || prettyModelName(m.name, m.tag),
+      tag: (m.size_human || '') + (tools ? ' · 🔧 tools' : ''),
+    };
+  });
   // For chat, also offer cloud assistants whose API key is configured.
   if (domain === 'chat') {
     for (const p of (_cloudProviders || [])) {
@@ -3949,6 +3957,17 @@ async function doSend() {
 
   setGenerating(false);
   currentAbortController = null;
+}
+
+// Mirrors runtime.ModelSupportsTools: models whose chat templates support native
+// function/tool calling (so web search / agentic features actually work).
+const TOOL_FAMILIES = ['llama-3.1','llama3.1','llama-3.2','llama3.2','llama-3.3','llama3.3','llama-4','llama4',
+  'qwen2','qwen2.5','qwen3','qwq','mistral','mixtral','ministral','magistral','devstral','codestral',
+  'hermes','command-r','command-a','firefunction','functionary','granite-3','granite3','phi-4','phi4',
+  'gpt-oss','gpt-4','gpt-3.5','o1','o3','o4','claude','gemini','gemma-3','gemma3','deepseek-v3','deepseek-chat','deepseek-r1','smollm2'];
+function modelSupportsTools(ref) {
+  const n = String(ref || '').toLowerCase();
+  return TOOL_FAMILIES.some(f => n.includes(f));
 }
 
 // Make a raw model ref like "gemma4:e4b" read nicely, e.g. "Gemma4 (e4b)".
