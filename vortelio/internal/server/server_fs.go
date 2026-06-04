@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 )
 
@@ -20,10 +21,12 @@ type fsEntry struct {
 }
 
 // GET /api/fs/list?path=...
+// With an empty path it returns the filesystem roots (home + drives) so the
+// folder picker has a starting point.
 func handleFsList(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		jsonError(w, 400, "path is required")
+		respond(w, 200, map[string]interface{}{"path": "", "roots": true, "entries": fsRoots()})
 		return
 	}
 	info, err := os.Stat(path)
@@ -56,6 +59,26 @@ func handleFsList(w http.ResponseWriter, r *http.Request) {
 		return out[i].Name < out[j].Name
 	})
 	respond(w, 200, map[string]interface{}{"path": path, "entries": out})
+}
+
+// fsRoots returns useful starting points: the user's home directory plus any
+// available drives (Windows) or "/" (Unix).
+func fsRoots() []fsEntry {
+	var out []fsEntry
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		out = append(out, fsEntry{Name: "🏠 Home", Path: home, Dir: true})
+	}
+	if runtime.GOOS == "windows" {
+		for c := 'C'; c <= 'Z'; c++ {
+			d := string(c) + ":\\"
+			if _, err := os.Stat(d); err == nil {
+				out = append(out, fsEntry{Name: d, Path: d, Dir: true})
+			}
+		}
+	} else {
+		out = append(out, fsEntry{Name: "/", Path: "/", Dir: true})
+	}
+	return out
 }
 
 // GET /api/fs/read?path=...
