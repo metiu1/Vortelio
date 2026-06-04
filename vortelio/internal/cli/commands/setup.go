@@ -329,7 +329,9 @@ func llamaBinDir() string {
 }
 
 func findLlamaCLI() string {
-	names := []string{"llama-cli", "llama-cli.exe", "llama", "llama.exe", "main", "main.exe"}
+	// Only specific llama.cpp binary names — bare "main"/"llama" collide with
+	// unrelated system files (e.g. C:\Windows\system32\main.cpl).
+	names := []string{"llama-cli", "llama-cli.exe", "llama-server", "llama-server.exe"}
 	for _, name := range names {
 		if p, err := exec.LookPath(name); err == nil {
 			return p

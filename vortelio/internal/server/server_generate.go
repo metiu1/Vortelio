@@ -140,10 +140,14 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 
 	// Smart/auto mode never hard-errors: if the model can't do tools, silently
 	// degrade to a plain chat so the beginner always gets an answer.
+	degradedNoTools := false
 	if toolsOn && req.Agentic != nil && req.Agentic.Auto && !runtime.ModelSupportsTools(req.Model) {
 		req.Agentic = nil
-		toolsOn = req.ToolsEnabled
+		req.ToolsEnabled = false
+		toolsOn = false
+		degradedNoTools = true
 	}
+	_ = degradedNoTools
 
 	// Native tool-support gate: communicate clearly when the model can't do tools.
 	if toolsOn && !runtime.ModelSupportsTools(req.Model) {

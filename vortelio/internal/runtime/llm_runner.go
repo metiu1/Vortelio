@@ -127,7 +127,7 @@ func (r *LLMRunner) runInteractive(opts *RunOptions) error {
 
 // ensureServer starts llama-server if not already running and waits for it to be ready.
 func (r *LLMRunner) ensureServer() error {
-	srv := r.findBin("llama-server", "llama-server.exe", "server", "server.exe")
+	srv := r.findBin("llama-server", "llama-server.exe")
 	if srv == "" {
 		return r.fallbackPrint()
 	}
