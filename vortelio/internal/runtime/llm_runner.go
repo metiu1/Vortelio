@@ -1088,8 +1088,11 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 		effectiveEmit = splitter.feed
 	}
 
-	maxToolRounds := 5
+	maxToolRounds := 8
 	for round := 0; round < maxToolRounds; round++ {
+		// On the final round, force a text answer (no tools) so the model can't
+		// keep calling tools forever and return an empty response.
+		lastRound := round == maxToolRounds-1
 		payload := map[string]interface{}{
 			"model":          "local",
 			"messages":       messages,
@@ -1152,7 +1155,7 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 				payload["tools"] = clientTools
 				payload["tool_choice"] = "auto"
 			}
-		} else if sopts.ToolsEnabled {
+		} else if sopts.ToolsEnabled && !lastRound {
 			// Server-side tools via the request's provider (defaults to builtins).
 			tp := sopts.ToolProvider
 			if tp == nil {
