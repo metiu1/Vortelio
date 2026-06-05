@@ -331,6 +331,8 @@ textarea.inp::placeholder { color: var(--text3); }
 .dd-item-tag { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-left: auto; }
 .dd-sep { height: 1px; background: var(--border); margin: 4px 0; }
 .dd-header { padding: 6px 14px 4px; font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.dd-note { padding: 7px 14px; margin: 2px 6px; font-size: 11.5px; line-height: 1.4; color: var(--text2); background: var(--accent-light); border-radius: var(--radius-xs); display: flex; gap: 6px; align-items: flex-start; }
+.dd-note span { flex-shrink: 0; }
 
 /* Attach input */
 .attach-input-btn { 
@@ -1184,19 +1186,21 @@ textarea.inp::placeholder { color: var(--text3); }
               <div class="dd-item type-item" data-type="threed" onclick="setType('threed','🧊','3D',this)"><span>🧊</span> 3D</div>
 
               <div class="dd-sep" id="plus-cap-sep"></div>
+              <!-- Assistant view: a friendly note that the power tools run automatically -->
+              <div class="dd-note asst-only" id="plus-auto-note"><span>✨</span> Web, files &amp; media are used automatically when they help.</div>
               <div class="dd-header" id="plus-cap-hd">Abilities</div>
-              <div class="dd-item cap-item" id="cap-web" onclick="toggleWeb();event.stopPropagation()"><span>🌐</span> Web search <i class="cap-dot"></i></div>
-              <div class="dd-item cap-item" id="cap-tools" onclick="toggleTools();event.stopPropagation()"><span>🧰</span> Calculator &amp; files <i class="cap-dot"></i></div>
-              <div class="dd-item cap-item" id="cap-media" onclick="toggleMedia();event.stopPropagation()"><span>🎨</span> Create media (image/video/audio/3D) <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item dev-only" id="cap-web" onclick="toggleWeb();event.stopPropagation()"><span>🌐</span> Web search <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item dev-only" id="cap-tools" onclick="toggleTools();event.stopPropagation()"><span>🧰</span> Calculator &amp; files <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item dev-only" id="cap-media" onclick="toggleMedia();event.stopPropagation()"><span>🎨</span> Create media (image/video/audio/3D) <i class="cap-dot"></i></div>
               <div class="dd-item cap-item" id="cap-think" onclick="toggleThink();event.stopPropagation()"><span>💡</span> Think step by step <i class="cap-dot"></i></div>
-              <div class="dd-item cap-item" id="cap-incognito" onclick="toggleIncognito();event.stopPropagation()"><span>🕶</span> Private chat <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item dev-only" id="cap-incognito" onclick="toggleIncognito();event.stopPropagation()"><span>🕶</span> Private chat <i class="cap-dot"></i></div>
               <div class="dd-item" id="cap-skills" onclick="openAgentConfig()"><span>🎓</span> Skills &amp; agent… <span class="dd-arrow">›</span></div>
               <div class="dd-item" id="cap-mcp" onclick="openMcpManager()"><span>🔌</span> External tools (MCP)… <span class="dd-arrow">›</span></div>
 
-              <div class="dd-sep"></div>
-              <div class="dd-header">Hardware</div>
-              <div class="dd-item hw-item sel" id="hw-gpu-item" onclick="setHW(false);event.stopPropagation()"><span>⚡</span> GPU <i class="cap-dot"></i></div>
-              <div class="dd-item hw-item" id="hw-cpu-item" onclick="setHW(true);event.stopPropagation()"><span>🖥</span> CPU <i class="cap-dot"></i></div>
+              <div class="dd-sep dev-only"></div>
+              <div class="dd-header dev-only">Hardware</div>
+              <div class="dd-item hw-item sel dev-only" id="hw-gpu-item" onclick="setHW(false);event.stopPropagation()"><span>⚡</span> GPU <i class="cap-dot"></i></div>
+              <div class="dd-item hw-item dev-only" id="hw-cpu-item" onclick="setHW(true);event.stopPropagation()"><span>🖥</span> CPU <i class="cap-dot"></i></div>
             </div>
           </div>
 
@@ -3375,13 +3379,19 @@ function setAppMode(mode) {
   document.getElementById('dev-bar').classList.toggle('on', dev);
   document.getElementById('ws-chat').classList.toggle('dev-active', dev);
   document.getElementById('codemode-wrap').style.display = dev ? '' : 'none';
-  // Developer view exposes all the power tools via the "+" menu; the Assistant
-  // view is intentionally bare — just type and send (smart mode does the rest).
+  // The "+" menu is available in both views. Developer exposes the full power set
+  // (output types, every ability toggle, hardware). Assistant keeps it friendly:
+  // web/files/media run automatically, so we only surface the user-facing extras
+  // (Think, Skills, MCP) plus a short note. Items tagged .dev-only are hidden in
+  // Assistant; .asst-only items show only in Assistant.
   const plus = document.getElementById('plus-wrap');
-  if (plus) plus.style.display = dev ? '' : 'none';
+  if (plus) plus.style.display = '';
+  document.querySelectorAll('#plus-dd .dev-only').forEach(el => el.style.display = dev ? '' : 'none');
+  document.querySelectorAll('#plus-dd .asst-only').forEach(el => el.style.display = dev ? 'none' : '');
+  // A dedicated one-tap Private toggle lives next to the composer in Assistant.
   const priv = document.getElementById('private-btn');
   if (priv) priv.style.display = dev ? 'none' : '';
-  // Assistant view stays clean: capability chips live in Developer only.
+  // Capability chips (active toggles) only matter in Developer's explicit view.
   const chips = document.getElementById('cap-chips');
   if (chips) chips.style.display = dev ? '' : 'none';
   // Output-type picker only matters in Developer's "+" menu.
