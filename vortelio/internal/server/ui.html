@@ -1204,15 +1204,15 @@ textarea.inp::placeholder { color: var(--text3); }
 
               <div class="dd-sep" id="plus-cap-sep"></div>
               <!-- Assistant view: a friendly note that the power tools run automatically -->
-              <div class="dd-note asst-only" id="plus-auto-note"><span>✨</span> Web search is on — tap to turn it off for plain chat. Turn on “Create media” to make images, audio &amp; video.</div>
+              <div class="dd-note asst-only" id="plus-auto-note"><span>💬</span> This is a normal chat. Turn on Web search if you want me to look things up. For agents, skills, media &amp; coding, switch to <b>Developer</b>.</div>
               <div class="dd-header" id="plus-cap-hd">Abilities</div>
               <div class="dd-item cap-item" id="cap-web" onclick="toggleWeb();event.stopPropagation()"><span>🌐</span> Web search <i class="cap-dot"></i></div>
               <div class="dd-item cap-item dev-only" id="cap-tools" onclick="toggleTools();event.stopPropagation()"><span>🧰</span> Calculator &amp; files <i class="cap-dot"></i></div>
-              <div class="dd-item cap-item" id="cap-media" onclick="toggleMedia();event.stopPropagation()"><span>🎨</span> Create media (image/video/audio/3D) <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item dev-only" id="cap-media" onclick="toggleMedia();event.stopPropagation()"><span>🎨</span> Create media (image/video/audio/3D) <i class="cap-dot"></i></div>
               <div class="dd-item cap-item" id="cap-think" onclick="toggleThink();event.stopPropagation()"><span>💡</span> Think step by step <i class="cap-dot"></i></div>
               <div class="dd-item cap-item dev-only" id="cap-incognito" onclick="toggleIncognito();event.stopPropagation()"><span>🕶</span> Private chat <i class="cap-dot"></i></div>
-              <div class="dd-item" id="cap-skills" onclick="openAgentConfig()"><span>🎓</span> Skills &amp; agent… <span class="dd-arrow">›</span></div>
-              <div class="dd-item" id="cap-mcp" onclick="openMcpManager()"><span>🔌</span> External tools (MCP)… <span class="dd-arrow">›</span></div>
+              <div class="dd-item dev-only" id="cap-skills" onclick="openAgentConfig()"><span>🎓</span> Skills &amp; agent… <span class="dd-arrow">›</span></div>
+              <div class="dd-item dev-only" id="cap-mcp" onclick="openMcpManager()"><span>🔌</span> External tools (MCP)… <span class="dd-arrow">›</span></div>
 
               <div class="dd-sep dev-only"></div>
               <div class="dd-header dev-only">Hardware</div>
@@ -2924,11 +2924,11 @@ function setCtx(val) {
 let domain = 'chat';
 let thinkOn = false;
 let toolsOn = false;
-let webOn = true;   // web search on by default in Assistant (a visible toggle)
+let webOn = false;   // Assistant is a plain chat by default; web is an opt-in toggle
 let incognitoOn = false;
 let appMode = 'assistant';            // 'assistant' | 'developer'
 let codeMode = 'ask';                 // 'plan' | 'ask' | 'auto'
-let agentCfg = { web:true, builtins:false, coding:false, mcp:false, media:false, skills:[] };
+let agentCfg = { web:false, builtins:false, coding:false, mcp:false, media:false, skills:[] };
 let useCPU = false;
 let attachments = [];
 let selectedModel = '';
@@ -3422,6 +3422,7 @@ function setAppMode(mode) {
   // In developer mode, coding tools are implied on.
   agentCfg.coding = dev;
   if (dev) { toolsOn = true; loadDevTree(); }
+  else { toolsOn = false; }   // Assistant is a plain chat — no tools unless Web search is toggled on
   // Make sure we are on the chat panel.
   showPanel('chat');
   const wt = document.getElementById('welcome-title');
@@ -4040,13 +4041,13 @@ function friendlyError(msg) {
 function buildAgenticPayload() {
   const dev = appMode === 'developer';
   if (!dev) {
+    // Assistant = a normal LLM chat. By default it has NO tools, so it answers
+    // instantly like any chat app. The only optional tool here is Web search;
+    // everything agentic (media, skills, MCP, coding) lives in Developer mode.
+    if (!agentCfg.web) return null;
     return {
-      // Assistant: web search and media are user toggles (web on by default).
-      // We omit the file builtins here — they include an unguarded write_file a
-      // weak local model could fire on something as trivial as "ciao".
-      auto: true, web_search: !!agentCfg.web, builtins: false, media: !!agentCfg.media,
-      mcp: agentCfg.mcp, coding: false,
-      skills: agentCfg.skills || [], session_id: 'sess-' + Date.now()
+      auto: true, web_search: true, builtins: false, media: false,
+      mcp: false, coding: false, skills: [], session_id: 'sess-' + Date.now()
     };
   }
   const ag = {
