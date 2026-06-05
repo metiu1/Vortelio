@@ -132,24 +132,18 @@ func (r *LLMRunner) ensureServer() error {
 		return r.fallbackPrint()
 	}
 
-	port, err := freePort()
-	if err != nil {
-		return fmt.Errorf("could not find a free port: %w", err)
-	}
-	r.apiURL = fmt.Sprintf("http://127.0.0.1:%d", port)
-
 	// Determine GPU layers: model override > hardware auto-detect
-	nGL := 0
+	autoGL := 0
 	switch r.hw.Backend {
 	case BackendCUDA:
-		nGL = gpuLayersForVRAM(r.hw.VRAM)
+		autoGL = gpuLayersForVRAM(r.hw.VRAM)
 	case BackendMetal:
-		nGL = 999
+		autoGL = 999
 	}
-	if r.model.NumGPULayers > 0 {
-		nGL = r.model.NumGPULayers
+	forcedGL := r.model.NumGPULayers > 0
+	if forcedGL {
+		autoGL = r.model.NumGPULayers
 	}
-	gpuLayers := fmt.Sprintf("%d", nGL)
 
 	ctxSize := 4096
 	if r.currentCtxSize > 0 {
@@ -165,93 +159,112 @@ func (r *LLMRunner) ensureServer() error {
 		}
 	}
 
-	args := []string{
-		"--model", r.model.LocalPath,
-		"--port", fmt.Sprintf("%d", port),
-		"--host", "127.0.0.1",
-		"--ctx-size", fmt.Sprintf("%d", ctxSize),
-		"--n-gpu-layers", gpuLayers,
-		"--log-disable",
-		"-np", "1",
-	}
-
-	// Multimodal projector (LLaVA, BakLLaVA, etc.)
-	if r.model.MmProjPath != "" {
-		if _, statErr := os.Stat(r.model.MmProjPath); statErr == nil {
-			args = append(args, "--mmproj", r.model.MmProjPath)
-		}
-	}
-
-	// Flash attention
-	if mp, ok := r.model.ModelParameters["flash_attn"]; ok && (mp == "true" || mp == "1") {
-		args = append(args, "--flash-attn")
-	}
-	// mmap
-	if mp, ok := r.model.ModelParameters["use_mmap"]; ok && (mp == "false" || mp == "0") {
-		args = append(args, "--no-mmap")
-	}
-	// numa
-	if mp, ok := r.model.ModelParameters["numa"]; ok && (mp == "true" || mp == "1") {
-		args = append(args, "--numa", "distribute")
-	}
-	// threads
-	if mp, ok := r.model.ModelParameters["num_thread"]; ok && mp != "" {
-		args = append(args, "--threads", mp)
-	}
-
-	cmd := HideWindow(exec.Command(srv, args...))
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("llama-server start failed: %w\n    Path: %s", err, srv)
-	}
-	r.proc = cmd
-
-	// Wait until /health returns {"status":"ok"} — NOT just any 200
-	// During loading it returns 200 {"status":"loading model"}, we must wait for "ok"
-	fmt.Printf("⏳  Loading model")
-	deadline := time.Now().Add(120 * time.Second)
-	client := &http.Client{Timeout: 2 * time.Second}
-
-	for time.Now().Before(deadline) {
-		time.Sleep(500 * time.Millisecond)
-
-		// Check if process died unexpectedly
-		if r.proc.ProcessState != nil {
-			return fmt.Errorf("llama-server exited unexpectedly (code %d)", r.proc.ProcessState.ExitCode())
-		}
-
-		resp, err := client.Get(r.apiURL + "/health")
+	// attempt starts llama-server with nGL GPU layers and waits up to deadlineSecs
+	// for the model to become healthy. On any failure it kills the process and
+	// returns an error so the caller can retry with a safer configuration.
+	attempt := func(nGL, deadlineSecs int) error {
+		port, err := freePort()
 		if err != nil {
-			fmt.Print(".")
-			continue
+			return fmt.Errorf("could not find a free port: %w", err)
+		}
+		r.apiURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+
+		args := []string{
+			"--model", r.model.LocalPath,
+			"--port", fmt.Sprintf("%d", port),
+			"--host", "127.0.0.1",
+			"--ctx-size", fmt.Sprintf("%d", ctxSize),
+			"--n-gpu-layers", fmt.Sprintf("%d", nGL),
+			"--log-disable",
+			"-np", "1",
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		// Multimodal projector (LLaVA, BakLLaVA, etc.)
+		if r.model.MmProjPath != "" {
+			if _, statErr := os.Stat(r.model.MmProjPath); statErr == nil {
+				args = append(args, "--mmproj", r.model.MmProjPath)
+			}
+		}
+		// Flash attention
+		if mp, ok := r.model.ModelParameters["flash_attn"]; ok && (mp == "true" || mp == "1") {
+			args = append(args, "--flash-attn")
+		}
+		// mmap
+		if mp, ok := r.model.ModelParameters["use_mmap"]; ok && (mp == "false" || mp == "0") {
+			args = append(args, "--no-mmap")
+		}
+		// numa
+		if mp, ok := r.model.ModelParameters["numa"]; ok && (mp == "true" || mp == "1") {
+			args = append(args, "--numa", "distribute")
+		}
+		// threads
+		if mp, ok := r.model.ModelParameters["num_thread"]; ok && mp != "" {
+			args = append(args, "--threads", mp)
+		}
 
-		var health struct {
-			Status string `json:"status"`
-		}
-		json.Unmarshal(body, &health)
+		cmd := HideWindow(exec.Command(srv, args...))
+		cmd.Stdout = nil
+		cmd.Stderr = nil
 
-		if health.Status == "ok" {
-			fmt.Println(" ✅")
-			return nil
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("llama-server start failed: %w\n    Path: %s", err, srv)
 		}
-		if health.Status == "loading model" {
-			fmt.Print("⏳") // different char to show it's loading
-			continue
+		r.proc = cmd
+
+		// Wait until /health returns {"status":"ok"} — during loading it returns
+		// 200 {"status":"loading model"}, so we must wait for "ok" specifically.
+		deadline := time.Now().Add(time.Duration(deadlineSecs) * time.Second)
+		client := &http.Client{Timeout: 2 * time.Second}
+		for time.Now().Before(deadline) {
+			time.Sleep(500 * time.Millisecond)
+			if r.proc.ProcessState != nil {
+				return fmt.Errorf("llama-server exited (code %d) — likely out of memory", r.proc.ProcessState.ExitCode())
+			}
+			resp, err := client.Get(r.apiURL + "/health")
+			if err != nil {
+				continue
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			var health struct {
+				Status string `json:"status"`
+			}
+			json.Unmarshal(body, &health)
+			switch health.Status {
+			case "ok":
+				return nil
+			case "error":
+				return fmt.Errorf("llama-server reported an error: %s", string(body))
+			}
 		}
-		if health.Status == "error" {
-			return fmt.Errorf("llama-server reported an error: %s", string(body))
+		if r.proc != nil && r.proc.Process != nil {
+			r.proc.Process.Kill()
 		}
-		fmt.Print(".")
+		return fmt.Errorf("timeout: model did not become ready within %ds", deadlineSecs)
 	}
 
-	r.proc.Process.Kill()
-	return fmt.Errorf("timeout (120s): the model did not load. It may be too large for the available VRAM (%s)", r.hw.String())
+	// First try with the auto/forced GPU layers.
+	fmt.Println("⏳  Loading model…")
+	err := attempt(autoGL, 180)
+	if err == nil {
+		fmt.Println("✅  Model ready")
+		return nil
+	}
+
+	// If the GPU attempt failed — most often VRAM OOM on a model too large for the
+	// card — fall back to CPU so the chat still works instead of hard-failing.
+	// Slower, but it always answers. We skip this only when the user forced a
+	// specific GPU-layer count (then the failure is intentional/explicit).
+	if autoGL > 0 && !forcedGL {
+		fmt.Printf("⚠️  GPU load failed (%v).\n    Retrying on CPU — slower, but it will work…\n", err)
+		if cpuErr := attempt(0, 600); cpuErr == nil {
+			fmt.Println("✅  Model ready (CPU)")
+			return nil
+		} else {
+			err = cpuErr
+		}
+	}
+	return fmt.Errorf("the model could not be loaded — it may be too large for this machine (%s). Try a smaller model. [%v]", r.hw.String(), err)
 }
 
 func (r *LLMRunner) stopServer() {
