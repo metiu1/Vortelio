@@ -3184,14 +3184,13 @@ function updateModelDDForDomain() {
   const cfg = DC[domain];
   if (!cfg) return;
   const mine = installedModels.filter(m => m.type === cfg.apiType);
-  const models = mine.map(m => {
-    const tools = cfg.apiType === 'llm' && modelSupportsTools(`${m.name}:${m.tag}`);
-    return {
-      v: `${m.type}/${m.name}:${m.tag}`,
-      l: m.display_name || prettyModelName(m.name, m.tag),
-      tag: (m.size_human || '') + (tools ? ' · 🔧 tools' : ''),
-    };
-  });
+  const models = mine.map(m => ({
+    // The '🛠 tools' capability is shown as a pill badge in buildModelDD(), so the
+    // tag only carries the size here (avoids a redundant '· 🔧 tools' suffix).
+    v: `${m.type}/${m.name}:${m.tag}`,
+    l: m.display_name || prettyModelName(m.name, m.tag),
+    tag: m.size_human || '',
+  }));
   // For chat, also offer cloud assistants whose API key is configured.
   if (domain === 'chat') {
     for (const p of (_cloudProviders || [])) {
