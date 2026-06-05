@@ -138,32 +138,27 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 	// Agentic mode implies tools are on.
 	toolsOn := req.ToolsEnabled || req.Agentic != nil
 
-	// Smart/auto mode never hard-errors: if the model can't do tools, silently
-	// degrade to a plain chat so the beginner always gets an answer.
-	degradedNoTools := false
-	if toolsOn && req.Agentic != nil && req.Agentic.Auto && !runtime.ModelSupportsTools(req.Model) {
+	// If tools are requested but the model can't do native function-calling, we
+	// never hard-fail. We silently drop the tools and answer as a plain chat, so a
+	// beginner is never blocked — but we emit one friendly inline notice so the
+	// missing web/agentic activity is not a mystery. (Previously this returned a
+	// hard error with no answer, which read as "the chat is broken".)
+	if toolsOn && !runtime.ModelSupportsTools(req.Model) {
 		req.Agentic = nil
 		req.ToolsEnabled = false
 		toolsOn = false
-		degradedNoTools = true
-	}
-	_ = degradedNoTools
-
-	// Native tool-support gate: communicate clearly when the model can't do tools.
-	if toolsOn && !runtime.ModelSupportsTools(req.Model) {
-		msg := runtime.ToolSupportMessage(req.Model)
 		if streaming {
 			w.Header().Set("Content-Type", "application/x-ndjson")
-		} else {
-			w.Header().Set("Content-Type", "application/json")
+			notice, _ := json.Marshal(map[string]string{
+				"level": "info",
+				"text":  "This model can't use tools, so I answered without web search or agentic actions. For those, pick a tool-capable model such as Llama 3.2, Qwen2.5/3, or Mistral.",
+			})
+			writeNDJSON(map[string]interface{}{
+				"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+				"event": "notice", "data": json.RawMessage(notice), "done": false,
+			})
+			flush()
 		}
-		writeNDJSON(map[string]interface{}{
-			"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
-			"response": "", "done": true, "done_reason": "error",
-			"error": msg, "tools_unsupported": true,
-		})
-		flush()
-		return
 	}
 
 	// Apply enabled skills as system-prompt augmentation.

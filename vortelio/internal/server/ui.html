@@ -333,6 +333,9 @@ textarea.inp::placeholder { color: var(--text3); }
 .dd-header { padding: 6px 14px 4px; font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
 .dd-note { padding: 7px 14px; margin: 2px 6px; font-size: 11.5px; line-height: 1.4; color: var(--text2); background: var(--accent-light); border-radius: var(--radius-xs); display: flex; gap: 6px; align-items: flex-start; }
 .dd-note span { flex-shrink: 0; }
+.inline-notice { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 10px; padding: 9px 12px; font-size: 12.5px; line-height: 1.45; color: var(--text2); background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.inline-notice span:first-child { flex-shrink: 0; }
+.model-cap { font-size: 10px; font-weight: 600; color: var(--accent); background: var(--accent-light); padding: 1px 6px; border-radius: 8px; margin-left: auto; flex-shrink: 0; }
 
 /* Attach input */
 .attach-input-btn { 
@@ -3240,11 +3243,17 @@ function buildModelDD(models) {
   }
   const local = models.filter(m => !m.cloud);
   const cloud = models.filter(m => m.cloud);
-  const row = m =>
-    `<div class="dd-item${m.v===selectedModel?' sel':''}" onclick="selectModel('${esc(m.v)}','${esc(m.l)}')">
+  const row = m => {
+    const caps = m.cloud || modelSupportsTools(m.v);
+    const badge = caps
+      ? '<span class="model-cap" title="Supports web search & agentic tools">🛠 tools</span>'
+      : '';
+    return `<div class="dd-item${m.v===selectedModel?' sel':''}" onclick="selectModel('${esc(m.v)}','${esc(m.l)}')">
       <span style="font-size:13px">${esc(m.l)}</span>
+      ${badge}
       <span class="dd-item-tag">${esc(m.tag||'')}</span>
     </div>`;
+  };
   let html = '';
   if (local.length) html += '<div class="dd-header">💻 On this PC</div>' + local.map(row).join('');
   if (cloud.length) html += '<div class="dd-header">☁️ Cloud</div>' + cloud.map(row).join('');
@@ -4053,6 +4062,7 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
       if (ev.event) {
         const data = ev.data || {};
         if (ev.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
         if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); canvas.scrollTop = 9999; continue; }
         if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ ' + esc((data.result||data.error||'').slice(0,160))), tn); canvas.scrollTop = 9999; continue; }
@@ -4220,6 +4230,16 @@ async function doChat(text, files, signal) {
       canvas.scrollTop = 9999;
     };
 
+    // Helper: render a one-line inline notice (e.g. tools degraded for this model)
+    const _handleNotice = (n) => {
+      if (!n || !n.text) return;
+      const bar = document.createElement('div');
+      bar.className = 'inline-notice';
+      bar.innerHTML = '<span>ℹ️</span><span>' + esc(n.text) + '</span>';
+      content.insertBefore(bar, textNode);
+      canvas.scrollTop = 9999;
+    };
+
     // Helper: process a decoded content token (handles <think> tags inline)
     const _appendToken = (data) => {
       if (data === '' || data === '\n') { full += '\n'; textNode.innerHTML = renderMessage(full); canvas.scrollTop = 9999; return; }
@@ -4265,6 +4285,7 @@ async function doChat(text, files, signal) {
           if (obj.event === 'tool_result') { try { _handleToolResult(obj.data); } catch {} continue; }
           if (obj.event === 'approval_request') { try { _handleApproval(obj.data); } catch {} continue; }
           if (obj.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(obj.data), textNode); canvas.scrollTop = 9999; } catch {} continue; }
+          if (obj.event === 'notice') { try { _handleNotice(obj.data); } catch {} continue; }
           if (obj.done) break;
           if (typeof obj.response === 'string') _appendToken(obj.response);
           continue;
@@ -6383,6 +6404,7 @@ async function sendCloudMsg() {
         if (ev.event) {
           const data = ev.data || {};
           if (ev.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
           if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
           if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); canvas.scrollTop = 9999; continue; }
           if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ tool: ' + esc((data.result||data.error||'').slice(0,200))), tn); canvas.scrollTop = 9999; continue; }
