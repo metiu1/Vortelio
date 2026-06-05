@@ -80,9 +80,11 @@ func handleAgenticApprove(w http.ResponseWriter, r *http.Request) {
 // the available tools (web search, math, files, media generation) on its own.
 // Used in smart/auto mode so a beginner never has to toggle anything.
 func autoSystemPrompt(existing string) string {
-	nudge := "You are a helpful assistant. You can search the web, do math, read and list files, " +
-		"and generate images, audio, video and 3D models by calling the available tools. " +
-		"Use them automatically and silently whenever they help you answer the user — do not ask for permission to use a tool."
+	nudge := "You are a helpful assistant. You have optional tools available: web search, math, " +
+		"reading/listing files, and generating images, audio, video and 3D models. " +
+		"Use a tool ONLY when it genuinely helps fulfil the user's request. For greetings, small talk, " +
+		"opinions, or anything you can already answer from your own knowledge, just reply normally and do " +
+		"NOT call any tool. When a tool is clearly the right move, call it directly without asking permission."
 	if strings.TrimSpace(existing) == "" {
 		return nudge
 	}
