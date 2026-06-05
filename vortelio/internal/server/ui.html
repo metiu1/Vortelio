@@ -86,6 +86,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .new-chat-btn:hover { background: var(--bg3); border-color: var(--border2); color: var(--text); }
 
 .sidebar-section { font-size: 11px; font-weight: 500; color: var(--text3); padding: 8px 10px 4px; letter-spacing: .04em; text-transform: uppercase; }
+.sidebar-section.collapsible { display: flex; align-items: center; justify-content: space-between; width: 100%; border: none; background: transparent; cursor: pointer; font-family: var(--sans); }
+.sidebar-section.collapsible:hover { color: var(--text2); }
+.sec-chevron { width: 9px; height: 9px; transition: transform .18s cubic-bezier(.4,0,.2,1); opacity: .7; }
+.sidebar-section.collapsible[aria-expanded="true"] .sec-chevron { transform: rotate(-180deg); }
+.nav-group { overflow: hidden; max-height: 0; transition: max-height .22s cubic-bezier(.4,0,.2,1); }
+.nav-group.open { max-height: 320px; }
 
 .history-list { flex: 1; overflow-y: auto; }
 .hist-item {
@@ -1040,15 +1046,23 @@ textarea.inp::placeholder { color: var(--text3); }
     <button class="nav-item" id="nav-audio" onclick="studio('audio')"><span>🔊</span> Audio &amp; music</button>
     <button class="nav-item" id="nav-threed" onclick="studio('threed')"><span>🧊</span> 3D</button>
 
-    <div class="sidebar-section">Workspace</div>
-    <button class="nav-item" onclick="sideGo('models')"><span>💾</span> Models</button>
+    <div class="sidebar-section">Models</div>
+    <button class="nav-item" onclick="sideGo('models')"><span>💾</span> My models</button>
     <button class="nav-item" onclick="sideGo('registry')"><span>⬇️</span> Download models</button>
     <button class="nav-item" onclick="sideGo('cloud')"><span>☁️</span> Cloud keys</button>
-    <button class="nav-item" onclick="sideGo('agents')"><span>🧩</span> AI agents</button>
-    <button class="nav-item" onclick="sideGo('crewai')"><span>🤖</span> CrewAI</button>
-    <button class="nav-item" onclick="openMcpManager();clearNavActive()"><span>🔌</span> External tools (MCP)</button>
-    <button class="nav-item" onclick="openAgentConfig();clearNavActive()"><span>🎓</span> Skills &amp; agent</button>
-    <button class="nav-item" onclick="sideGo('tools')"><span>🔧</span> Advanced tools</button>
+
+    <!-- Power features tucked under a collapsible group to keep the default view calm -->
+    <button class="sidebar-section collapsible" id="adv-toggle" onclick="toggleNavGroup('adv')" aria-expanded="false">
+      <span>Advanced</span>
+      <svg class="sec-chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5l3 3 3-3"/></svg>
+    </button>
+    <div class="nav-group" id="nav-adv">
+      <button class="nav-item" onclick="openAgentConfig();clearNavActive()"><span>🎓</span> Skills &amp; agent</button>
+      <button class="nav-item" onclick="openMcpManager();clearNavActive()"><span>🔌</span> External tools (MCP)</button>
+      <button class="nav-item" onclick="sideGo('agents')"><span>🧩</span> AI agents</button>
+      <button class="nav-item" onclick="sideGo('crewai')"><span>🤖</span> CrewAI</button>
+      <button class="nav-item" onclick="sideGo('tools')"><span>🔧</span> Advanced tools</button>
+    </div>
   </div>
 
   <div class="sidebar-section" id="hist-section-lbl">Recent chats</div>
@@ -3841,6 +3855,13 @@ function fillPrompt(btn) {
 // ── Sidebar navigation: studios (Create) + workspace panels ──
 const STUDIO = { chat:['💬','Chat'], image:['🎨','Image'], audio:['🔊','Audio'], video:['🎬','Video'], threed:['🧊','3D'] };
 function clearNavActive() { document.querySelectorAll('.sidebar-nav .nav-item').forEach(x => x.classList.remove('active')); }
+function toggleNavGroup(id) {
+  const grp = document.getElementById('nav-' + id);
+  const tog = document.getElementById(id + '-toggle');
+  if (!grp || !tog) return;
+  const open = grp.classList.toggle('open');
+  tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
 function studio(type) {
   if (appMode === 'developer') setAppMode('assistant');
   showPanel('chat');
