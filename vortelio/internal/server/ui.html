@@ -4116,6 +4116,17 @@ async function doSend() {
   }
 }
 
+// ── Reasoning / "think" parsing ──────────────────────────────────────────────
+// Different models wrap their chain-of-thought in different tags. Accept them all
+// and route the content into the dedicated thinking block.
+const THINK_OPEN  = ['<think>','<thinking>','<reason>','<reasoning>','<reflection>','<analysis>','<thought>','<scratchpad>'];
+const THINK_CLOSE = ['</think>','</thinking>','</reason>','</reasoning>','</reflection>','</analysis>','</thought>','</scratchpad>'];
+function _findFirstTag(s, arr) {
+  let best = -1, tag = null;
+  for (const t of arr) { const i = s.toLowerCase().indexOf(t); if (i >= 0 && (best < 0 || i < best)) { best = i; tag = t; } }
+  return best < 0 ? null : { idx: best, len: tag.length };
+}
+
 // Mirrors runtime.ModelSupportsTools: models whose chat templates support native
 // function/tool calling (so web search / agentic features actually work).
 const TOOL_FAMILIES = ['llama-3.1','llama3.1','llama-3.2','llama3.2','llama-3.3','llama3.3','llama-4','llama4',
@@ -4318,6 +4329,7 @@ async function doChat(text, files, signal) {
 
     const reader = r.body.getReader(), dec = new TextDecoder();
     let buf = '', full = '';
+    let thinkBuf = '', inThink = false; // per-message reasoning parser state
     let _sseEventType = ''; // tracks current SSE "event:" field
     const _toolBlocks = {}; // map of call_id -> DOM element
 
@@ -4407,28 +4419,41 @@ async function doChat(text, files, signal) {
     };
 
     // Helper: process a decoded content token (handles <think> tags inline)
-    const _appendToken = (data) => {
-      if (data === '' || data === '\n') { full += '\n'; textNode.innerHTML = renderMessage(full); canvas.scrollTop = 9999; return; }
-      if (!window._pullaiThinkBuf) { window._pullaiThinkBuf = ''; window._pullaiInThink = false; }
-      window._pullaiThinkBuf += data;
+    // Streaming reasoning parser: recognises any THINK_OPEN/THINK_CLOSE tag pair,
+    // routes inner text to the thinking block, and holds back a trailing partial
+    // tag (e.g. "<thi") until more text arrives so tags split across tokens work.
+    const _appendToken = (data, flush) => {
+      thinkBuf += (data || '');
       let toDisplay = '';
-      while (window._pullaiThinkBuf.length > 0) {
-        if (window._pullaiInThink) {
-          const eIdx = window._pullaiThinkBuf.indexOf('</think>');
-          if (eIdx >= 0) {
-            _appendThink(window._pullaiThinkBuf.slice(0, eIdx));
-            window._pullaiThinkBuf = window._pullaiThinkBuf.slice(eIdx + 8);
-            window._pullaiInThink = false;
-          } else { break; }
-        } else {
-          const sIdx = window._pullaiThinkBuf.indexOf('<think>');
-          if (sIdx >= 0) {
-            toDisplay += window._pullaiThinkBuf.slice(0, sIdx);
-            window._pullaiThinkBuf = window._pullaiThinkBuf.slice(sIdx + 7);
-            window._pullaiInThink = true;
+      // emit everything except a possible partial tag at the end (unless flushing)
+      const safeCut = (s) => {
+        if (flush) return s.length;
+        const lt = s.lastIndexOf('<');
+        if (lt >= 0 && /^<\/?[a-z|_]*$/i.test(s.slice(lt))) return lt; // hold back partial tag
+        return s.length;
+      };
+      while (thinkBuf.length > 0) {
+        if (inThink) {
+          const f = _findFirstTag(thinkBuf, THINK_CLOSE);
+          if (f) {
+            if (f.idx > 0) _appendThink(thinkBuf.slice(0, f.idx));
+            thinkBuf = thinkBuf.slice(f.idx + f.len);
+            inThink = false;
           } else {
-            toDisplay += window._pullaiThinkBuf;
-            window._pullaiThinkBuf = '';
+            const cut = safeCut(thinkBuf);
+            if (cut > 0) { _appendThink(thinkBuf.slice(0, cut)); thinkBuf = thinkBuf.slice(cut); }
+            break;
+          }
+        } else {
+          const f = _findFirstTag(thinkBuf, THINK_OPEN);
+          if (f) {
+            toDisplay += thinkBuf.slice(0, f.idx);
+            thinkBuf = thinkBuf.slice(f.idx + f.len);
+            inThink = true;
+          } else {
+            const cut = safeCut(thinkBuf);
+            if (cut > 0) { toDisplay += thinkBuf.slice(0, cut); thinkBuf = thinkBuf.slice(cut); }
+            break;
           }
         }
       }
@@ -4481,6 +4506,7 @@ async function doChat(text, files, signal) {
         _appendToken(data);
       }
     }
+    _appendToken('', true); // flush any held-back tail
     chatHistory.push({role:'assistant', content:full});
     autoSaveCurrentChat();
     addMsgActions(grp, text, full);

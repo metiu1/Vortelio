@@ -568,13 +568,20 @@ func streamFromOllama(w http.ResponseWriter, model *hub.Model, req GenerateReque
 		for {
 			var chunk struct {
 				Message struct {
-					Content string `json:"content"`
+					Content  string `json:"content"`
+					Thinking string `json:"thinking"`
 				} `json:"message"`
 				Done  bool   `json:"done"`
 				Error string `json:"error"`
 			}
 			if err := dec.Decode(&chunk); err != nil {
 				break
+			}
+			if chunk.Message.Thinking != "" && streaming {
+				ensureHeaders()
+				writeNDJSON(map[string]interface{}{"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+					"thinking": chunk.Message.Thinking, "done": false})
+				flush()
 			}
 			if chunk.Error != "" {
 				if !forceCPU && !headersSet && isOOM(chunk.Error) {
