@@ -4112,6 +4112,8 @@ function friendlyError(msg) {
     return "This cloud assistant needs an API key. Open Settings → Cloud models to add one.";
   if (/tools_unsupported|does not support tools/i.test(m))
     return "This assistant can't use tools. Pick a newer model, or it will just chat normally.";
+  if (/could not be loaded|architecture|llama\.cpp|wrong number of tensors/i.test(m))
+    return "This model can't run here — it needs a different engine (some Ollama models like Gemma 3n) or is too big for your GPU. Pick a model marked 🛠 that fits, e.g. Qwen2.5 0.5B/7B or Llama 3.2 3B.";
   if (/connection|offline|unreachable|fetch failed|ECONNREFUSED|timeout/i.test(m))
     return "Can't reach the assistant. Make sure Vortelio is running, then try again.";
   if (/out of memory|CUDA|VRAM|allocat/i.test(m))
