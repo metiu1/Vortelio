@@ -48,6 +48,25 @@ var cloudModelChoices = map[string][][2]string{
 		{"openai/gpt-4o", "GPT-4o"},
 		{"deepseek/deepseek-r1", "DeepSeek R1"},
 	},
+	"xai": {
+		{"grok-2-latest", "Grok 2"},
+		{"grok-2-vision-latest", "Grok 2 Vision"},
+		{"grok-beta", "Grok Beta"},
+	},
+	"together": {
+		{"meta-llama/Llama-3.3-70B-Instruct-Turbo", "Llama 3.3 70B Turbo"},
+		{"Qwen/Qwen2.5-72B-Instruct-Turbo", "Qwen2.5 72B Turbo"},
+		{"mistralai/Mixtral-8x7B-Instruct-v0.1", "Mixtral 8x7B"},
+	},
+	"deepseek": {
+		{"deepseek-chat", "DeepSeek V3 (chat)"},
+		{"deepseek-reasoner", "DeepSeek R1 (reasoner)"},
+	},
+	"perplexity": {
+		{"sonar", "Sonar"},
+		{"sonar-pro", "Sonar Pro"},
+		{"sonar-reasoning", "Sonar Reasoning"},
+	},
 }
 
 // GET /api/cloud/providers

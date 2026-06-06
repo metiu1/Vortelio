@@ -4219,10 +4219,19 @@ async function toggleDictation() {
       toast('⏳ Trascrivo…');
       try {
         const blob = new Blob(_recChunks, { type: _recMedia.mimeType || 'audio/webm' });
+        if (!blob.size) { toast('🎤 Nessun audio registrato — controlla il microfono e riprova.', 'err'); return; }
         const ab = await blob.arrayBuffer();
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const audio = await ctx.decodeAudioData(ab);
-        const wav = _encodeWAV(audio);
+        // Resample to 16 kHz mono — exactly what Whisper expects (avoids empty results).
+        const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * 16000)), 16000);
+        const node = off.createBufferSource(); node.buffer = audio; node.connect(off.destination); node.start();
+        const rendered = await off.startRendering();
+        // Bail out if the mic captured basically silence.
+        const pcm = rendered.getChannelData(0); let peak = 0;
+        for (let i = 0; i < pcm.length; i += 64) { const a = Math.abs(pcm[i]); if (a > peak) peak = a; }
+        if (peak < 0.005) { toast('🎤 Audio troppo silenzioso — parla più vicino al microfono.', 'err'); return; }
+        const wav = _encodeWAV(rendered);
         const fd = new FormData();
         fd.append('file', wav, 'rec.wav');
         fd.append('model', audioModel.type + '/' + audioModel.name + ':' + audioModel.tag);
@@ -4609,9 +4618,16 @@ async function doChat(text, files, signal) {
   }
 
   try {
+    // If files are attached, tell the model their REAL paths so its file tools
+    // can read them (otherwise it invents a placeholder like /path/to/file).
+    let promptText = text;
+    const attachPaths = (files || []).map(f => f.serverPath).filter(Boolean);
+    if (attachPaths.length) {
+      promptText += '\n\n[File allegati dall\'utente — leggine il contenuto con lo strumento read_file usando ESATTAMENTE questo percorso: ' + attachPaths.join('  |  ') + ']';
+    }
     // Send full history so the LLM has conversation context
     const payload = {
-      model: selectedModel, prompt: text, stream: true,
+      model: selectedModel, prompt: promptText, stream: true,
       force_cpu: useCPU, context_size: contextSize,
       think: thinkOn, // enable chain-of-thought for reasoning models
       tools_enabled: toolsOn, // enable function calling / tool use
@@ -4620,7 +4636,7 @@ async function doChat(text, files, signal) {
     };
     const ag = buildAgenticPayload();
     if (ag) payload.agentic = ag;
-    if (files.length) payload.input_file = files[0].serverPath;
+    if (attachPaths.length) payload.input_file = attachPaths[0];
     const r = await fetchRetry('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal});
 
     pulse.remove();
