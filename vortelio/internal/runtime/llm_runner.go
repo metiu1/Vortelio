@@ -143,8 +143,12 @@ func (r *LLMRunner) ensureServer() error {
 		autoGL = 999
 	}
 	forcedGL := r.model.NumGPULayers > 0
+	forcedCPU := r.model.NumGPULayers < 0 // remembered: this model only loads on CPU here
 	if forcedGL {
 		autoGL = r.model.NumGPULayers
+	}
+	if forcedCPU {
+		autoGL = 0 // go straight to CPU — skip the slow GPU attempt
 	}
 
 	ctxSize := 4096
@@ -265,7 +269,7 @@ func (r *LLMRunner) ensureServer() error {
 	// First try with the auto/forced GPU layers. Keep this window short so a model
 	// that is too big for the GPU fails over to CPU quickly instead of hanging.
 	fmt.Println("⏳  Loading model…")
-	err := attempt(autoGL, 90)
+	err := attempt(autoGL, 60)
 	if err == nil {
 		fmt.Println("✅  Model ready")
 		return nil
@@ -282,6 +286,10 @@ func (r *LLMRunner) ensureServer() error {
 	if autoGL > 0 && !forcedGL {
 		fmt.Printf("⚠️  GPU load failed (%v).\n    Retrying on CPU — slower, but it will work…\n", err)
 		if cpuErr := attempt(0, 600); cpuErr == nil {
+			// Remember that this model only loads on CPU on this machine, so future
+			// loads skip the slow GPU attempt (no more long "Starting…" wait).
+			r.model.NumGPULayers = -1
+			_ = hub.NewModelStore().Save(r.model)
 			fmt.Println("✅  Model ready (CPU)")
 			return nil
 		} else {
