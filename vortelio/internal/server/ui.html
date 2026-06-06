@@ -1055,7 +1055,6 @@ textarea.inp::placeholder { color: var(--text3); }
     <div class="sidebar-section">Models</div>
     <button class="nav-item" onclick="sideGo('models')"><span>💾</span> My models</button>
     <button class="nav-item" onclick="sideGo('registry')"><span>⬇️</span> Download models</button>
-    <button class="nav-item" onclick="sideGo('cloud')"><span>☁️</span> Cloud keys</button>
 
     <!-- Power features tucked under a collapsible group to keep the default view calm -->
     <button class="sidebar-section collapsible" id="adv-toggle" onclick="toggleNavGroup('adv')" aria-expanded="false">
@@ -1300,7 +1299,10 @@ textarea.inp::placeholder { color: var(--text3); }
     <div class="panel-inner">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
         <div class="panel-title" style="margin:0" id="panel-models-title">Installed models</div>
-        <button class="btn primary" onclick="showPanel('registry')"><span id="download-more-lbl">⬇ Download more</span></button>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="openAddCloudModel()">☁️ Add cloud model</button>
+          <button class="btn primary" onclick="showPanel('registry')"><span id="download-more-lbl">⬇ Download more</span></button>
+        </div>
       </div>
       <div id="mlist"></div>
     </div>
@@ -1886,8 +1888,8 @@ textarea.inp::placeholder { color: var(--text3); }
         <button class="set-link" onclick="showPanel('registry');closeSettings()">
           <span class="sl-ic">⬇️</span><span><div>Download models</div><div class="sl-sub">Catalog + HuggingFace</div></span>
         </button>
-        <button class="set-link" onclick="showPanel('cloud');closeSettings()">
-          <span class="sl-ic">☁️</span><span><div>Cloud models</div><div class="sl-sub">Your API keys (BYOK)</div></span>
+        <button class="set-link" onclick="showPanel('models');closeSettings();setTimeout(openAddCloudModel,150)">
+          <span class="sl-ic">☁️</span><span><div>Add cloud model</div><div class="sl-sub">Provider, model &amp; API key (BYOK)</div></span>
         </button>
         <button class="set-link" onclick="showPanel('agents');closeSettings()">
           <span class="sl-ic">🧩</span><span><div>AI agents</div><div class="sl-sub">Open WebUI, OpenCode…</div></span>
@@ -2350,6 +2352,38 @@ textarea.inp::placeholder { color: var(--text3); }
       <input id="skill-desc" class="tool-input" placeholder="Short description" style="width:100%;margin-bottom:8px">
       <textarea id="skill-body" class="tool-input" rows="7" placeholder="Instructions for the model when this skill is active…" style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
       <button class="btn primary" id="skill-save-btn" onclick="saveSkill()">Save skill</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add cloud model dialog -->
+<div class="overlay" id="addcloud-overlay">
+  <div class="dialog" style="max-width:480px;width:92%;text-align:left">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h3 style="margin:0">☁️ Add cloud model</h3>
+      <button class="btn" onclick="closeAddCloudModel()">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Usa modelli via API (BYOK). La chiave resta solo sul tuo computer. I modelli aggiunti appaiono nel selettore in Assistant e Agent.</div>
+
+    <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Provider</label>
+    <select id="ac-provider" class="tool-input" style="width:100%;margin-bottom:12px" onchange="acProviderChanged()"></select>
+
+    <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Tipo</label>
+    <select id="ac-type" class="tool-input" style="width:100%;margin-bottom:12px">
+      <option value="llm">LLM (chat / testo)</option>
+    </select>
+
+    <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Modello</label>
+    <select id="ac-model" class="tool-input" style="width:100%;margin-bottom:8px" onchange="acModelChanged()"></select>
+    <input id="ac-model-custom" class="tool-input" placeholder="ID modello (es. gpt-4.1, claude-opus-4)" style="width:100%;margin-bottom:12px;display:none">
+
+    <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">API key <span id="ac-key-note" style="color:var(--text3);font-weight:400"></span></label>
+    <input id="ac-key" class="tool-input" type="password" placeholder="Incolla la tua API key" style="width:100%;margin-bottom:6px" autocomplete="off">
+    <a id="ac-key-link" href="#" target="_blank" style="font-size:11px;color:var(--accent);display:none">Dove trovo la chiave?</a>
+
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn primary" style="flex:1" onclick="saveAddCloudModel()">Aggiungi</button>
+      <button class="btn" onclick="closeAddCloudModel()">Annulla</button>
     </div>
   </div>
 </div>
@@ -3228,24 +3262,27 @@ function updateModelDDForDomain() {
     l: m.display_name || prettyModelName(m.name, m.tag),
     tag: m.size_human || '',
   }));
-  // For chat, also list cloud assistants — those with a key are ready to use;
-  // those without show a "add API key" entry that sets the key up inline.
+  // Assistant/Agent show ONLY ready-to-use models: local + cloud providers that
+  // have a key (presets) + any custom cloud models the user added. Cloud setup
+  // lives in the "Add cloud model" dialog (My models), not here.
   if (domain === 'chat') {
+    const seen = {};
     for (const p of (_cloudProviders || [])) {
-      if (p.has_key) {
-        for (const cm of (p.models || [])) {
-          models.push({ v: `cloud:${p.id}:${cm.id}`, l: cm.label || cm.id, tag: '☁️ ' + p.name, cloud: true });
-        }
-        // Let the user pick ANY model id the provider offers, not just the presets.
-        models.push({ v: `cloudcustom:${p.id}`, l: 'Altro modello ' + p.name + '…', tag: '✏️ ID a scelta', cloud: true, custom: true });
-      } else {
-        models.push({ v: `cloudkey:${p.id}`, l: p.name, tag: '🔒 aggiungi API key', cloud: true, locked: true });
+      if (!p.has_key) continue;
+      for (const cm of (p.models || [])) {
+        const v = `cloud:${p.id}:${cm.id}`; seen[v] = 1;
+        models.push({ v, l: cm.label || cm.id, tag: '☁️ ' + p.name, cloud: true });
       }
+    }
+    for (const cm of getCustomCloudModels()) {
+      const p = (_cloudProviders || []).find(x => x.id === cm.provider);
+      const v = `cloud:${cm.provider}:${cm.id}`;
+      if (p && p.has_key && !seen[v]) { seen[v] = 1; models.push({ v, l: cm.label || cm.id, tag: '☁️ ' + (p.name || cm.provider), cloud: true }); }
     }
   }
   buildModelDD(models);
   if (!models.find(m => m.v === selectedModel)) {
-    const first = models.find(m => !m.locked); // never auto-select a locked cloud entry
+    const first = models[0];
     if (first) selectModel(first.v, first.l);
     else { selectedModel = ''; selectedModelIsCloud = false; document.getElementById('model-lbl').textContent = 'No model'; }
   }
@@ -3345,6 +3382,63 @@ async function addCloudKeyInline(providerId) {
     if (p && (p.models||[]).length) selectModel(`cloud:${p.id}:${p.models[0].id}`, p.models[0].label || p.models[0].id);
     toast('☁️ Chiave salvata — modelli ' + providerId + ' pronti in Assistant e Agent', 'ok');
   } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+// ── Add cloud model dialog (BYOK) ───────────────────────────────────
+function getCustomCloudModels() {
+  try { return JSON.parse(localStorage.getItem('vortelio_cloud_models') || '[]'); } catch { return []; }
+}
+function saveCustomCloudModel(provider, id, label) {
+  const list = getCustomCloudModels();
+  if (!list.some(m => m.provider === provider && m.id === id)) {
+    list.push({ provider, id, label: label || id });
+    localStorage.setItem('vortelio_cloud_models', JSON.stringify(list));
+  }
+}
+function openAddCloudModel() {
+  const sel = document.getElementById('ac-provider');
+  if (!_cloudProviders || !_cloudProviders.length) { loadCloudProviders().then(openAddCloudModel); return; }
+  sel.innerHTML = _cloudProviders.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.has_key ? ' ✓' : ''}</option>`).join('');
+  acProviderChanged();
+  document.getElementById('ac-key').value = '';
+  document.getElementById('addcloud-overlay').classList.add('show');
+}
+function closeAddCloudModel() { document.getElementById('addcloud-overlay').classList.remove('show'); }
+function acProviderChanged() {
+  const p = (_cloudProviders || []).find(x => x.id === document.getElementById('ac-provider').value);
+  let opts = ((p && p.models) || []).map(cm => `<option value="${esc(cm.id)}">${esc(cm.label || cm.id)}</option>`).join('');
+  opts += `<option value="__custom__">✏️ Altro… (scrivi l'ID)</option>`;
+  document.getElementById('ac-model').innerHTML = opts;
+  acModelChanged();
+  document.getElementById('ac-key-note').textContent = (p && p.has_key) ? '— già salvata (lascia vuoto per tenerla)' : '— richiesta';
+  const link = document.getElementById('ac-key-link');
+  if (p && p.key_hint) { link.href = p.key_hint; link.style.display = 'inline'; } else link.style.display = 'none';
+}
+function acModelChanged() {
+  const custom = document.getElementById('ac-model').value === '__custom__';
+  document.getElementById('ac-model-custom').style.display = custom ? 'block' : 'none';
+}
+async function saveAddCloudModel() {
+  const pid = document.getElementById('ac-provider').value;
+  const p = (_cloudProviders || []).find(x => x.id === pid);
+  let modelId = document.getElementById('ac-model').value;
+  if (modelId === '__custom__') modelId = document.getElementById('ac-model-custom').value.trim();
+  if (!modelId) { toast('Scegli o scrivi un modello', 'err'); return; }
+  const key = document.getElementById('ac-key').value.trim();
+  if ((!p || !p.has_key) && !key) { toast('Inserisci la API key per questo provider', 'err'); return; }
+  try {
+    if (key) {
+      const r = await fetch('/api/cloud/key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: pid, key }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Errore salvataggio chiave');
+    }
+    saveCustomCloudModel(pid, modelId, modelId);
+    await loadCloudProviders();
+    updateModelDDForDomain();
+    selectModel('cloud:' + pid + ':' + modelId, modelId);
+    closeAddCloudModel();
+    toast('☁️ Aggiunto: ' + modelId + ' — pronto in Assistant e Agent', 'ok');
+  } catch (e) { toast('❌ ' + e.message, 'err'); }
 }
 
 // Use any model id the provider offers (e.g. gpt-4.1, claude-opus-4, gemini-2.5-pro).
@@ -4384,7 +4478,7 @@ function friendlyError(msg) {
   if (/llama-server not running|EnsureServer|failed to (load|start)|server (start|load)/i.test(m))
     return "The assistant couldn't start. It may still be loading the model — wait a few seconds and try again, or pick another assistant.";
   if (/no API key/i.test(m))
-    return "This cloud assistant needs an API key. Open Settings → Cloud models to add one.";
+    return "Questo modello cloud ha bisogno di una API key. Aggiungila da My models → ☁️ Add cloud model.";
   if (/tools_unsupported|does not support tools/i.test(m))
     return "This assistant can't use tools. Pick a newer model, or it will just chat normally.";
   if (/could not be loaded|architecture|llama\.cpp|wrong number of tensors/i.test(m))
