@@ -43,6 +43,10 @@ func (m *mediaProvider) Tools() []rt.ToolDef {
 			`{"type":"object","properties":{"input_file":{"type":"string","description":"Path to the audio file to transcribe."},"model":{"type":"string","description":"Optional audio model name."}},"required":["input_file"]}`),
 		toolDef("generate_3d", "Generate a 3D model (mesh) from a text prompt or an input image using a local 3D model. Returns the saved file path.",
 			`{"type":"object","properties":{"prompt":{"type":"string","description":"Text prompt describing the object."},"input_file":{"type":"string","description":"Optional input image path for image-to-3D."},"model":{"type":"string","description":"Optional 3D model name."}},"required":[]}`),
+		toolDef("list_models", "List the user's installed models and a set of models that can be installed on demand. Use this before generating media if you are unsure a suitable model is installed.",
+			`{"type":"object","properties":{},"required":[]}`),
+		toolDef("install_model", "Download and install a model so it can be used (e.g. an image model for generate_image). Accept a catalog ref like \"image/openjourney\" or a plain name like \"stable diffusion\", \"sdxl\", \"whisper\". The download can take a few minutes; when it finishes the model is ready to use.",
+			`{"type":"object","properties":{"model":{"type":"string","description":"Model to install: a catalog ref (image/openjourney, audio/whisper:base, llm/qwen2.5:7b) or a plain name."}},"required":["model"]}`),
 	}
 }
 
@@ -58,9 +62,106 @@ func (m *mediaProvider) Execute(name, argsJSON string) (string, error) {
 		return m.transcribe(argsJSON)
 	case "generate_3d":
 		return m.generate3D(argsJSON)
+	case "list_models":
+		return m.listModels()
+	case "install_model":
+		return m.installModel(argsJSON)
 	default:
 		return "", fmt.Errorf("unknown media tool: %s", name)
 	}
+}
+
+// listModels reports installed models + a curated set installable on demand.
+func (m *mediaProvider) listModels() (string, error) {
+	models, _ := hub.NewModelStore().List()
+	installed := []string{}
+	for _, md := range models {
+		installed = append(installed, md.Type+"/"+md.Name+":"+md.Tag)
+	}
+	installable := []map[string]string{
+		{"ref": "image/openjourney", "note": "Stable Diffusion 1.5 — light, good for 4GB GPUs"},
+		{"ref": "image/sdxl", "note": "Stable Diffusion XL — higher quality, needs more VRAM"},
+		{"ref": "image/flux:schnell", "note": "FLUX.1 Schnell — top quality, large"},
+		{"ref": "audio/whisper:base", "note": "Whisper — speech-to-text"},
+		{"ref": "audio/kokoro", "note": "Kokoro — text-to-speech"},
+		{"ref": "llm/qwen2.5:7b", "note": "Qwen2.5 7B — capable chat/coding"},
+		{"ref": "llm/llama3.2:3b", "note": "Llama 3.2 3B — light, fast"},
+	}
+	b, _ := json.Marshal(map[string]interface{}{"installed": installed, "installable": installable})
+	return string(b), nil
+}
+
+// resolveInstallRef maps a catalog ref or a plain model name to a catalog ref.
+func resolveInstallRef(q string) string {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return ""
+	}
+	if strings.Contains(q, "/") { // already a ref like image/openjourney[:tag]
+		return q
+	}
+	s := strings.ToLower(q)
+	switch {
+	case strings.Contains(s, "sdxl"), strings.Contains(s, "xl"):
+		return "image/sdxl:latest"
+	case strings.Contains(s, "flux"):
+		return "image/flux:schnell"
+	case strings.Contains(s, "openjourney"), strings.Contains(s, "midjourney"):
+		return "image/openjourney:latest"
+	case strings.Contains(s, "stable"), strings.Contains(s, "diffusion"), s == "sd", strings.Contains(s, "image"):
+		return "image/openjourney:latest" // SD 1.5 — lightest image model
+	case strings.Contains(s, "whisper"), strings.Contains(s, "transcri"), strings.Contains(s, "speech-to"):
+		return "audio/whisper:base"
+	case strings.Contains(s, "kokoro"), strings.Contains(s, "tts"), strings.Contains(s, "voice"), strings.Contains(s, "speech"):
+		return "audio/kokoro:latest"
+	case strings.Contains(s, "qwen"):
+		return "llm/qwen2.5:7b"
+	case strings.Contains(s, "llama"):
+		return "llm/llama3.2:3b"
+	}
+	return q
+}
+
+// installModel downloads a model on demand so it can be used by the other tools.
+func (m *mediaProvider) installModel(argsJSON string) (string, error) {
+	var a struct {
+		Model string `json:"model"`
+	}
+	json.Unmarshal([]byte(argsJSON), &a)
+	refStr := resolveInstallRef(a.Model)
+	if refStr == "" {
+		return "", fmt.Errorf("specify which model to install (e.g. \"image/openjourney\" or \"stable diffusion\")")
+	}
+	ref, err := hub.ParseModelRef(refStr)
+	if err != nil {
+		return "", fmt.Errorf("unknown model %q: %v", a.Model, err)
+	}
+	// Already installed? Then we're done.
+	if mdl, e := hub.NewModelStore().Resolve(ref); e == nil && mdl != nil {
+		b, _ := json.Marshal(map[string]interface{}{"status": "ok", "model": refStr, "note": "already installed"})
+		return string(b), nil
+	}
+	if m.emit != nil {
+		m.emit("tool_progress", map[string]string{"text": "Downloading " + refStr + " — this can take a few minutes…"})
+	}
+	d := hub.NewDownloader()
+	var lastPct int
+	if err := d.Pull(ref, func(done, total int64) {
+		if total > 0 && m.emit != nil {
+			p := int(done * 100 / total)
+			if p >= lastPct+10 {
+				lastPct = p
+				m.emit("tool_progress", map[string]string{"text": fmt.Sprintf("Downloading %s… %d%%", refStr, p)})
+			}
+		}
+	}); err != nil {
+		return "", fmt.Errorf("download failed for %s: %v", refStr, err)
+	}
+	b, _ := json.Marshal(map[string]interface{}{
+		"status": "ok", "model": refStr,
+		"note":   "Installed and ready. You can now use it (e.g. call generate_image again).",
+	})
+	return string(b), nil
 }
 
 // findMediaModel returns an installed model of the given type. If name is set it
@@ -94,7 +195,7 @@ func findMediaModel(typ, name string) (*hub.Model, error) {
 	if first != nil {
 		return first, nil
 	}
-	return nil, fmt.Errorf("no installed %s model found — download one first (vortelio pull %s:...)", typ, typ)
+	return nil, fmt.Errorf("no installed %s model found — call the install_model tool to download one (for images use model \"stable diffusion\"), then retry", typ)
 }
 
 // saveArtifact writes data to the default output dir with a timestamped name and
