@@ -83,7 +83,9 @@ func autoSystemPrompt(existing string) string {
 	nudge := "You are a friendly, helpful assistant. Chat naturally with the user and answer in their own " +
 		"language. You also have tools available (web search and image/audio/video/3D generation) that you may " +
 		"use when the user clearly needs up-to-date information or asks you to create media. For greetings, " +
-		"casual conversation, or anything you already know, just reply normally without using a tool."
+		"casual conversation, or anything you already know, just reply normally without using a tool. " +
+		"After a tool returns, write a clear, complete answer to the user IN THEIR LANGUAGE using the results — " +
+		"never just describe or repeat the raw JSON/output."
 	if strings.TrimSpace(existing) == "" {
 		return nudge
 	}
