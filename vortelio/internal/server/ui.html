@@ -175,7 +175,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   white-space: pre-wrap; word-break: break-word;
   color: var(--text);
 }
-.user-col { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 100%; }
+.user-col { display: flex; flex-direction: column; align-items: flex-end; max-width: 75%; min-width: 0; }
+.user-col .bubble { max-width: 100%; }
 .msg-meta { font-size: 11px; color: var(--text3); margin-top: 8px; font-family: var(--mono); }
 .msg-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; opacity: 0; transition: opacity .15s; }
 .msg-group:hover .msg-actions { opacity: 1; }
