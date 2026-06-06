@@ -516,7 +516,7 @@ func toolWebSearch(argsJSON string) (string, error) {
 		return "", fmt.Errorf("query is required")
 	}
 
-	results, err := WebSearch(args.Query, 6)
+	results, err := WebSearch(args.Query, 4)
 	if err != nil {
 		out := map[string]interface{}{
 			"query":  args.Query,
@@ -525,6 +525,12 @@ func toolWebSearch(argsJSON string) (string, error) {
 		}
 		b, _ := json.Marshal(out)
 		return string(b), nil
+	}
+	// Trim snippets to keep the result compact in the model's context window.
+	for i := range results {
+		if len(results[i].Snippet) > 160 {
+			results[i].Snippet = results[i].Snippet[:160] + "…"
+		}
 	}
 	out := map[string]interface{}{
 		"query":   args.Query,

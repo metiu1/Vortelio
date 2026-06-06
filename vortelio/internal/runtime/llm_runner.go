@@ -799,10 +799,10 @@ func (r *LLMRunner) StreamToWriterWithTools(opts *RunOptions, emit func(string),
 				})
 			}
 
-			// Add tool result message
+			// Add tool result message (truncated to protect the context window)
 			messages = append(messages, map[string]string{
 				"role":         "tool",
-				"content":      resultStr,
+				"content":      TruncateForContext(resultStr, 2000),
 				"tool_call_id": tc.ID,
 			})
 		}
@@ -1451,7 +1451,7 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 				})
 			}
 			messages = append(messages, map[string]string{
-				"role": "tool", "content": resultStr, "tool_call_id": tc.ID,
+				"role": "tool", "content": TruncateForContext(resultStr, 2000), "tool_call_id": tc.ID,
 			})
 		}
 	}

@@ -365,6 +365,7 @@ textarea.inp::placeholder { color: var(--text3); }
   transition: all .13s;
 }
 .attach-input-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+.attach-input-btn.listening { color: #fff; background: #dc2626; border-color: #dc2626; animation: pulse 1.1s infinite; }
 
 /* ── PANELS ──────────────────────────────────── */
 .panel { display: none; }
@@ -1173,6 +1174,9 @@ textarea.inp::placeholder { color: var(--text3); }
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 8.5L8 15a5 5 0 01-7.07-7.07L8 1a3.33 3.33 0 014.71 4.71L5.64 13a1.67 1.67 0 01-2.36-2.36L10 4"/></svg>
           </button>
           <input type="file" id="fi" style="display:none" multiple onchange="handleFiles(this.files)">
+          <button class="attach-input-btn" id="mic-btn" onclick="toggleDictation()" title="Detta col microfono">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1" width="6" height="9" rx="3"/><path d="M3 7a5 5 0 0010 0M8 12v3M5.5 15h5"/></svg>
+          </button>
           <textarea class="inp" id="inp" rows="1" placeholder="Write a message..."
           oninput="autoSize(this)" onkeydown="onKey(event)"
           ondragover="event.preventDefault()" ondrop="handleDrop(event)"></textarea>
@@ -3921,6 +3925,35 @@ function autoSize(el) {
 }
 function onKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+}
+
+// ── Voice input (browser Web Speech API — free, no model) ───────────
+let _recog = null, _recogOn = false;
+function toggleDictation() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById('mic-btn');
+  const inp = document.getElementById('inp');
+  if (!SR) { toast('🎤 Riconoscimento vocale non supportato da questo browser — usa Chrome o Edge.', 'err'); return; }
+  if (_recogOn) { try { _recog.stop(); } catch {} return; }
+  _recog = new SR();
+  _recog.lang = (typeof currentLang !== 'undefined' && currentLang === 'en') ? 'en-US' : 'it-IT';
+  _recog.continuous = true;
+  _recog.interimResults = true;
+  let base = inp.value;
+  _recog.onstart  = () => { _recogOn = true; btn.classList.add('listening'); toast('🎤 Sto ascoltando… (ritocca il mic per fermare)'); };
+  _recog.onend    = () => { _recogOn = false; btn.classList.remove('listening'); inp.focus(); };
+  _recog.onerror  = (e) => { if (e.error !== 'aborted' && e.error !== 'no-speech') toast('🎤 ' + e.error, 'err'); };
+  _recog.onresult = (ev) => {
+    let finalT = '', interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const t = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) finalT += t; else interim += t;
+    }
+    if (finalT) base = (base ? base.replace(/\s*$/, '') + ' ' : '') + finalT.trim();
+    inp.value = (base + (interim ? ' ' + interim : '')).replace(/^\s+/, '');
+    autoSize(inp);
+  };
+  try { _recog.start(); } catch (e) { toast('🎤 ' + e.message, 'err'); }
 }
 
 function fillPrompt(btn) {
