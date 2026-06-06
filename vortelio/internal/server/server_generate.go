@@ -498,14 +498,6 @@ func streamFromOllama(w http.ResponseWriter, model *hub.Model, req GenerateReque
 	}
 
 	streaming := req.Stream == nil || *req.Stream
-	body, _ := json.Marshal(map[string]interface{}{"model": ollamaModel, "messages": msgs, "stream": streaming})
-
-	resp, err := http.Post(base+"/api/chat", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
 	modelID := req.Model
 	writeNDJSON := func(obj map[string]interface{}) {
 		line, _ := json.Marshal(obj)
@@ -518,74 +510,123 @@ func streamFromOllama(w http.ResponseWriter, model *hub.Model, req GenerateReque
 		}
 	}
 
-	if streaming {
-		w.Header().Set("Content-Type", "application/x-ndjson")
-		w.Header().Set("Cache-Control", "no-cache")
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-	}
-
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		writeNDJSON(map[string]interface{}{
-			"model": modelID, "done": true, "done_reason": "error",
-			"error": "Ollama could not run this model: " + strings.TrimSpace(string(b)),
-		})
-		flush()
-		return true
-	}
-
-	var full strings.Builder
-	dec := json.NewDecoder(resp.Body)
-	for {
-		var chunk struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-			Done  bool   `json:"done"`
-			Error string `json:"error"`
+	// attempt runs one /api/chat call. forceCPU passes options.num_gpu=0 so a
+	// model whose GPU offload OOMs (e.g. Gemma 3n on a small card) runs on CPU
+	// instead. It only writes to w once it has real output, so an OOM detected
+	// before any token lets us cleanly retry on CPU. Returns (handled, oom).
+	attempt := func(forceCPU bool) (handled bool, oom bool) {
+		payload := map[string]interface{}{"model": ollamaModel, "messages": msgs, "stream": streaming}
+		if forceCPU {
+			payload["options"] = map[string]interface{}{"num_gpu": 0}
 		}
-		if err := dec.Decode(&chunk); err != nil {
-			break
+		body, _ := json.Marshal(payload)
+		resp, err := http.Post(base+"/api/chat", "application/json", bytes.NewReader(body))
+		if err != nil {
+			return false, false
 		}
-		if chunk.Error != "" {
-			writeNDJSON(map[string]interface{}{"model": modelID, "done": true, "done_reason": "error", "error": chunk.Error})
+		defer resp.Body.Close()
+
+		isOOM := func(s string) bool {
+			s = strings.ToLower(s)
+			return strings.Contains(s, "out of memory") || strings.Contains(s, "cuda error")
+		}
+
+		if resp.StatusCode != 200 {
+			b, _ := io.ReadAll(resp.Body)
+			if !forceCPU && isOOM(string(b)) {
+				return false, true
+			}
+			w.Header().Set("Content-Type", "application/x-ndjson")
+			writeNDJSON(map[string]interface{}{"model": modelID, "done": true, "done_reason": "error",
+				"error": "Ollama could not run this model: " + strings.TrimSpace(string(b))})
 			flush()
-			return true
+			return true, false
 		}
-		if c := chunk.Message.Content; c != "" {
-			full.WriteString(c)
+
+		var full strings.Builder
+		headersSet := false
+		ensureHeaders := func() {
+			if headersSet {
+				return
+			}
+			headersSet = true
 			if streaming {
-				writeNDJSON(map[string]interface{}{
-					"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
-					"response": c, "done": false,
-				})
+				w.Header().Set("Content-Type", "application/x-ndjson")
+				w.Header().Set("Cache-Control", "no-cache")
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+			}
+			if forceCPU && streaming {
+				notice, _ := json.Marshal(map[string]string{"level": "info",
+					"text": "Running this model on CPU (it doesn't fit your GPU) — replies may be slower."})
+				writeNDJSON(map[string]interface{}{"model": modelID, "event": "notice", "data": json.RawMessage(notice), "done": false})
 				flush()
 			}
 		}
-		if chunk.Done {
-			break
+
+		dec := json.NewDecoder(resp.Body)
+		for {
+			var chunk struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+				Done  bool   `json:"done"`
+				Error string `json:"error"`
+			}
+			if err := dec.Decode(&chunk); err != nil {
+				break
+			}
+			if chunk.Error != "" {
+				if !forceCPU && !headersSet && isOOM(chunk.Error) {
+					return false, true // clean retry on CPU — nothing written yet
+				}
+				ensureHeaders()
+				writeNDJSON(map[string]interface{}{"model": modelID, "done": true, "done_reason": "error", "error": chunk.Error})
+				flush()
+				return true, false
+			}
+			if c := chunk.Message.Content; c != "" {
+				ensureHeaders()
+				full.WriteString(c)
+				if streaming {
+					writeNDJSON(map[string]interface{}{"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+						"response": c, "done": false})
+					flush()
+				}
+			}
+			if chunk.Done {
+				break
+			}
 		}
+
+		ensureHeaders()
+		doneObj := map[string]interface{}{"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+			"done": true, "done_reason": "stop"}
+		if streaming {
+			doneObj["response"] = ""
+		} else {
+			doneObj["response"] = full.String()
+		}
+		writeNDJSON(doneObj)
+		flush()
+
+		if req.Prompt != "" && full.Len() > 0 && !req.Incognito {
+			convID := fmt.Sprintf("%d", time.Now().UnixNano())
+			history.Append(
+				history.Entry{ID: convID, Model: req.Model, Role: "user", Content: req.Prompt},
+				history.Entry{ID: convID, Model: req.Model, Role: "assistant", Content: full.String()},
+			)
+		}
+		return true, false
 	}
 
-	doneObj := map[string]interface{}{
-		"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
-		"done": true, "done_reason": "stop",
+	handled, oom := attempt(false)
+	if !handled && oom {
+		// GPU offload OOM'd in Ollama — retry on CPU (slower, but it runs).
+		handled, _ = attempt(true)
 	}
-	if streaming {
-		doneObj["response"] = ""
-	} else {
-		doneObj["response"] = full.String()
-	}
-	writeNDJSON(doneObj)
-	flush()
-
-	if req.Prompt != "" && full.Len() > 0 && !req.Incognito {
-		convID := fmt.Sprintf("%d", time.Now().UnixNano())
-		history.Append(
-			history.Entry{ID: convID, Model: req.Model, Role: "user", Content: req.Prompt},
-			history.Entry{ID: convID, Model: req.Model, Role: "assistant", Content: full.String()},
-		)
+	if !handled {
+		return false // Ollama became unreachable mid-call; let llama.cpp try
 	}
 	return true
 }
