@@ -136,7 +136,9 @@ func (r *LLMRunner) ensureServer() error {
 	autoGL := 0
 	switch r.hw.Backend {
 	case BackendCUDA:
-		autoGL = gpuLayersForVRAM(r.hw.VRAM)
+		// Fit as many layers as the card can actually hold (like Ollama), based on
+		// the model's size — not a flat per-VRAM number that OOMs on big models.
+		autoGL = gpuLayersForModel(r.hw.VRAM, r.model.SizeBytes)
 	case BackendMetal:
 		autoGL = 999
 	}
@@ -428,6 +430,42 @@ func gpuLayersForVRAM(vram int64) int {
 	default:
 		return 0
 	}
+}
+
+// gpuLayersForModel decides how many transformer layers to offload to the GPU
+// based on BOTH the available VRAM and the model's size — the way Ollama does it.
+// A flat per-VRAM number (gpuLayersForVRAM) tries to push the same count onto the
+// card regardless of model size, which OOMs on large models and forces a slow
+// full-CPU fallback. Here we instead fit as many layers as the card can hold and
+// let llama.cpp run the rest on the CPU (partial offload), which is much faster.
+func gpuLayersForModel(vram, modelBytes int64) int {
+	if vram <= 0 {
+		return 0
+	}
+	if modelBytes <= 0 {
+		return gpuLayersForVRAM(vram) // unknown size — fall back to the old table
+	}
+	// Reserve VRAM for the KV cache, compute buffers and driver overhead.
+	const overhead = 1024 * 1024 * 1024 // ~1 GB
+	budget := int64(float64(vram)*0.92) - overhead
+	if budget <= 0 {
+		return 0 // not enough VRAM for any layer — run on CPU
+	}
+	// We don't know the exact layer count up-front, so estimate per-layer weight
+	// size assuming a typical ~40-block transformer. n = budget / perLayer.
+	const assumedLayers = 40
+	perLayer := modelBytes / assumedLayers
+	if perLayer <= 0 {
+		return 0
+	}
+	n := int(budget / perLayer)
+	if n <= 0 {
+		return 0
+	}
+	if n > 999 {
+		n = 999 // model fits entirely — offload everything (llama.cpp clamps)
+	}
+	return n
 }
 
 func (r *LLMRunner) fallbackPrint() error {
