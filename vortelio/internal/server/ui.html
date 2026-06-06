@@ -171,10 +171,20 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   margin-top: 3px;
 }
 .msg-ai .content {
-  flex: 1; font-size: 15px; line-height: 1.72;
+  flex: 1; min-width: 0; font-size: 15px; line-height: 1.72;
   white-space: pre-wrap; word-break: break-word;
   color: var(--text);
 }
+.msg-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; opacity: .55; transition: opacity .15s; }
+.msg-group:hover .msg-actions { opacity: 1; }
+.msg-act {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; padding: 3px 9px; border-radius: var(--radius-xs);
+  border: 1px solid var(--border); background: var(--bg); color: var(--text2);
+  cursor: pointer; font-family: var(--sans); transition: all .12s;
+}
+.msg-act:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+.msg-act:active { transform: scale(.96); }
 .thinking-block {
   background: #fffbf0; border: 1px solid #f0d060;
   border-radius: var(--radius-xs); padding: 10px 14px; margin-bottom: 12px;
@@ -4032,6 +4042,10 @@ function updateWelcomeSuggestions() {
 
 // ── Send ──────────────────────────────────────────
 async function doSend() {
+  // Block overlapping sends: a second request (e.g. pressing Enter while a reply
+  // is still generating) would race on the same model and attach its answer to
+  // the wrong message. Ignore until the current one finishes (or is stopped).
+  if (isGenerating) return;
   const field = document.getElementById('inp');
   const text = field.value.trim();
   if (!text && !attachments.length) return;
@@ -4092,11 +4106,14 @@ async function doSend() {
     }
   }
 
-  if (domain === 'chat') await doChat(text, uploaded, signal);
-  else await doGenerate(text, uploaded, signal);
-
-  setGenerating(false);
-  currentAbortController = null;
+  try {
+    if (domain === 'chat') await doChat(text, uploaded, signal);
+    else await doGenerate(text, uploaded, signal);
+  } finally {
+    // Always release the lock so a failed/odd reply never blocks future sends.
+    setGenerating(false);
+    currentAbortController = null;
+  }
 }
 
 // Mirrors runtime.ModelSupportsTools: models whose chat templates support native
@@ -4248,6 +4265,7 @@ async function doChat(text, files, signal) {
       const full = await streamCloudInto(selectedCloudProvider, selectedCloudModel, chatHistory.slice(), content, canvas, signal);
       chatHistory.push({role:'assistant', content: full || '(empty response)'});
       autoSaveCurrentChat();
+      addMsgActions(grp, text, full || '');
     } catch (e) {
       if (content.querySelector('.dot-pulse')) pulse.remove();
       if (e.name !== 'AbortError') content.innerHTML += `<span style="color:#dc2626">⚠️ ${esc(friendlyError(e.message))}</span>`;
@@ -4465,6 +4483,7 @@ async function doChat(text, files, signal) {
     }
     chatHistory.push({role:'assistant', content:full});
     autoSaveCurrentChat();
+    addMsgActions(grp, text, full);
   } catch (e) {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
     if (content.querySelector('.dot-pulse')) pulse.remove();
@@ -5216,7 +5235,9 @@ async function pullModel(ref, btn) {
 
 
 // ── Stop generation ───────────────────────────────────
+let isGenerating = false;
 function setGenerating(on) {
+  isGenerating = on;
   const btn = document.getElementById('send-btn');
   const sendIcon = document.getElementById('send-icon');
   const stopIcon = document.getElementById('stop-icon');
@@ -5344,6 +5365,41 @@ function setAutoSave(on) {
   const cb = document.getElementById('set-autosave'); if (cb) cb.checked = autoSaveOn;
   toast(autoSaveOn ? '💾 Auto-save on' : 'Auto-save off');
 }
+// Action buttons under each assistant reply: copy reply, regenerate, edit the
+// question, copy the question.
+function addMsgActions(grp, userText, responseText) {
+  if (!grp) return;
+  const content = grp.querySelector('.content');
+  if (!content || content.querySelector('.msg-actions')) return;
+  const bar = document.createElement('div');
+  bar.className = 'msg-actions';
+  const mk = (label, title) => { const b = document.createElement('button'); b.className = 'msg-act'; b.title = title; b.textContent = label; return b; };
+  const bCopyA = mk('📋 Copia', 'Copia la risposta');
+  const bRegen = mk('↻ Rigenera', 'Rigenera la risposta');
+  const bEdit  = mk('✏️ Modifica', 'Modifica la tua domanda');
+  const bCopyQ = mk('📝 Domanda', 'Copia la tua domanda');
+  bCopyA.onclick = () => { navigator.clipboard.writeText(responseText || ''); toast('📋 Risposta copiata'); };
+  bCopyQ.onclick = () => { navigator.clipboard.writeText(userText || ''); toast('📝 Domanda copiata'); };
+  bEdit.onclick  = () => editLastTurn(userText, false);
+  bRegen.onclick = () => editLastTurn(userText, true);
+  bar.append(bCopyA, bRegen, bEdit, bCopyQ);
+  content.appendChild(bar);
+}
+
+// Remove the last user+assistant turn (history + DOM), put the question back in
+// the box. resend=true sends it again immediately (regenerate); false lets the
+// user edit it first.
+function editLastTurn(userText, resend) {
+  if (isGenerating) return;
+  if (chatHistory.length && chatHistory[chatHistory.length - 1].role === 'assistant') chatHistory.pop();
+  if (chatHistory.length && chatHistory[chatHistory.length - 1].role === 'user') chatHistory.pop();
+  const msgs = document.getElementById('msgs');
+  if (msgs) { if (msgs.lastElementChild) msgs.lastElementChild.remove(); if (msgs.lastElementChild) msgs.lastElementChild.remove(); }
+  const inp = document.getElementById('inp');
+  if (inp) { inp.value = userText || ''; autoSize(inp); inp.focus(); }
+  if (resend) doSend();
+}
+
 function autoSaveCurrentChat() {
   if (!autoSaveOn || incognitoOn) return;        // never auto-save private chats
   if (!chatHistory || !chatHistory.length) return;
