@@ -33,6 +33,19 @@ func ModelSupportsTools(modelRef string) bool {
 	return false
 }
 
+// TruncateForContext caps a tool result that gets fed back into the model's
+// context so large outputs (e.g. web_search JSON) don't waste the context
+// window. The UI still receives the full result via the tool event.
+func TruncateForContext(s string, max int) string {
+	if max <= 0 {
+		max = 2000
+	}
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "\n…[risultato troncato per risparmiare contesto]"
+}
+
 // ToolSupportMessage returns a user-facing explanation when a model does not
 // support native tool calling.
 func ToolSupportMessage(modelRef string) string {
