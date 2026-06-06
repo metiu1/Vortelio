@@ -265,6 +265,17 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   transition: border-color .15s, box-shadow .15s;
   position: relative;
 }
+.composer-pop {
+  position: absolute; left: 12px; right: 12px; bottom: calc(100% + 6px);
+  background: var(--bg); border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  box-shadow: 0 6px 24px rgba(0,0,0,.14); max-height: 260px; overflow-y: auto; z-index: 50; padding: 4px;
+}
+.composer-pop .cp-head { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; padding: 6px 10px 3px; }
+.composer-pop .cp-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--radius-xs); cursor: pointer; font-size: 13px; color: var(--text); }
+.composer-pop .cp-item:hover, .composer-pop .cp-item.sel { background: var(--accent-light); }
+.composer-pop .cp-item .cp-ic { width: 18px; text-align: center; flex-shrink: 0; }
+.composer-pop .cp-item .cp-sub { font-size: 11px; color: var(--text3); margin-left: auto; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.composer-pop .cp-empty { padding: 8px 10px; font-size: 12px; color: var(--text3); }
 .input-box.drag-over {
   border-color: var(--accent) !important;
   background: var(--accent-light) !important;
@@ -1169,6 +1180,7 @@ textarea.inp::placeholder { color: var(--text3); }
     <!-- INPUT ZONE -->
     <div class="input-zone">
       <div class="input-box" id="input-box" ondragover="inputDragOver(event)" ondragleave="inputDragLeave(event)" ondrop="handleDrop(event)">
+        <div class="composer-pop" id="composer-pop" style="display:none"></div>
         <div class="attach-row" id="attach-row" style="display:none"></div>
         <div class="text-row">
           <button class="attach-input-btn" onclick="document.getElementById('fi').click()" title="Attach file">
@@ -1179,7 +1191,7 @@ textarea.inp::placeholder { color: var(--text3); }
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1" width="6" height="9" rx="3"/><path d="M3 7a5 5 0 0010 0M8 12v3M5.5 15h5"/></svg>
           </button>
           <textarea class="inp" id="inp" rows="1" placeholder="Write a message..."
-          oninput="autoSize(this)" onkeydown="onKey(event)"
+          oninput="autoSize(this);onComposerInput()" onkeydown="onKey(event)"
           ondragover="event.preventDefault()" ondrop="handleDrop(event)"></textarea>
           <button class="send-btn" id="send-btn" onclick="doSend()">
             <svg id="send-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2L14.5 8L1.5 14L1.5 9.5L10 8L1.5 6.5Z"/></svg>
@@ -3925,8 +3937,110 @@ function autoSize(el) {
   el.style.height = Math.min(el.scrollHeight, 200) + 'px';
 }
 function onKey(e) {
+  const pop = document.getElementById('composer-pop');
+  if (pop && pop.style.display !== 'none' && _cpItems.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); _cpMove(1); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); _cpMove(-1); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); if (_cpSel >= 0) cpPick(_cpSel); return; }
+    if (e.key === 'Escape')    { e.preventDefault(); closeComposerPop(); return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
 }
+
+// ── Composer autocomplete: '/' (skills & tools, Agent) and '@' (files, Developer) ──
+let _cpItems = [], _cpSel = -1, _cpOnSelect = null, _cpStart = -1;
+function onComposerInput() {
+  const inp = document.getElementById('inp');
+  const before = inp.value.slice(0, inp.selectionStart);
+  let m;
+  if (appMode === 'agent' && (m = before.match(/(?:^|\s)\/([\w-]*)$/))) {
+    _cpStart = inp.selectionStart - m[1].length - 1;
+    openSlashMenu(m[1]); return;
+  }
+  if (appMode === 'agent' && codingOn && (m = before.match(/(?:^|\s)@([\w./\\-]*)$/))) {
+    _cpStart = inp.selectionStart - m[1].length - 1;
+    openAtMenu(m[1]); return;
+  }
+  closeComposerPop();
+}
+function renderComposerPop(head, items, emptyMsg, onSelect) {
+  const pop = document.getElementById('composer-pop');
+  _cpItems = items; _cpSel = items.length ? 0 : -1; _cpOnSelect = onSelect;
+  let html = '<div class="cp-head">' + esc(head) + '</div>';
+  if (!items.length) html += '<div class="cp-empty">' + esc(emptyMsg || 'Nessun risultato') + '</div>';
+  else html += items.map((it, i) =>
+    `<div class="cp-item${i === 0 ? ' sel' : ''}" data-i="${i}"><span class="cp-ic">${it.ic || ''}</span><span>${esc(it.label)}</span>${it.sub ? '<span class="cp-sub">' + esc(it.sub) + '</span>' : ''}</div>`).join('');
+  pop.innerHTML = html;
+  pop.style.display = 'block';
+  pop.querySelectorAll('.cp-item').forEach(el => { el.onmousedown = (ev) => { ev.preventDefault(); cpPick(parseInt(el.dataset.i)); }; });
+}
+function closeComposerPop() { const p = document.getElementById('composer-pop'); if (p) { p.style.display = 'none'; p.innerHTML = ''; } _cpItems = []; _cpSel = -1; _cpOnSelect = null; }
+function cpPick(i) { const it = _cpItems[i]; if (it && _cpOnSelect) _cpOnSelect(it); }
+function _cpMove(d) {
+  const els = document.querySelectorAll('#composer-pop .cp-item'); if (!els.length) return;
+  if (els[_cpSel]) els[_cpSel].classList.remove('sel');
+  _cpSel = (_cpSel + d + els.length) % els.length;
+  els[_cpSel].classList.add('sel'); els[_cpSel].scrollIntoView({ block: 'nearest' });
+}
+function _cpReplace(text) {
+  const inp = document.getElementById('inp');
+  const pos = inp.selectionStart;
+  inp.value = inp.value.slice(0, _cpStart) + text + inp.value.slice(pos);
+  const np = _cpStart + text.length;
+  inp.setSelectionRange(np, np); autoSize(inp); inp.focus();
+}
+function openSlashMenu(query) {
+  const q = query.toLowerCase();
+  const tools = [
+    { ic: '🌐', label: 'Web search', key: 'web' },
+    { ic: '🎨', label: 'Create media', key: 'media' },
+    { ic: '💡', label: 'Think step by step', key: 'think' },
+    { ic: '🔌', label: 'External tools (MCP)', key: 'mcp' },
+    { ic: '💻', label: 'Developer (file & shell)', key: 'dev' },
+  ];
+  const items = [];
+  tools.filter(t => !q || t.label.toLowerCase().includes(q)).forEach(t => items.push({ ic: t.ic, label: t.label, sub: 'tool', _tool: t.key }));
+  (typeof allSkills !== 'undefined' ? allSkills : []).filter(s => !q || (s.name || '').toLowerCase().includes(q))
+    .forEach(s => items.push({ ic: '🎓', label: s.name, sub: 'skill', _skill: s.id }));
+  renderComposerPop('Skill e tool — / per attivarli', items, 'Nessuna skill o tool', (it) => {
+    _cpReplace('');
+    if (it._tool === 'web') toggleWeb();
+    else if (it._tool === 'media') toggleMedia();
+    else if (it._tool === 'think') toggleThink();
+    else if (it._tool === 'mcp') { agentCfg.mcp = !agentCfg.mcp; if (typeof syncCaps === 'function') syncCaps(); toast(agentCfg.mcp ? '🔌 MCP attivo' : 'MCP off'); }
+    else if (it._tool === 'dev') toggleCoding();
+    else if (it._skill) { toggleSkill(it._skill); toast('🎓 Skill attivata'); }
+    closeComposerPop();
+  });
+}
+async function openAtMenu(query) {
+  const root = (document.getElementById('dev-workspace').value || '').trim();
+  if (!root) { renderComposerPop('File del workspace', [], 'Imposta prima una cartella di lavoro (barra in alto).'); return; }
+  let sub = root, frag = query;
+  const sl = Math.max(query.lastIndexOf('/'), query.lastIndexOf('\\'));
+  if (sl >= 0) { sub = root.replace(/[\\/]+$/, '') + '/' + query.slice(0, sl); frag = query.slice(sl + 1); }
+  const entries = await dxList(sub);
+  if (entries === null) { renderComposerPop('File del workspace', [], 'Cartella non leggibile.'); return; }
+  frag = frag.toLowerCase();
+  const items = entries
+    .filter(e => !frag || e.name.toLowerCase().includes(frag))
+    .slice(0, 30)
+    .map(e => ({ ic: e.dir ? '📁' : '📄', label: e.name + (e.dir ? '/' : ''), sub: '', _path: e.path, _dir: e.dir }));
+  renderComposerPop('File del workspace — @ per indicarli', items, 'Nessun file', (it) => {
+    if (it._dir) {
+      // descend into the folder: rewrite the @token with the folder + '/'
+      const rel = it._path.replace(root.replace(/[\\/]+$/, ''), '').replace(/^[\\/]+/, '');
+      _cpReplace('@' + rel.replace(/\\/g, '/') + '/');
+      onComposerInput();
+    } else {
+      _cpReplace('"' + it._path + '" ');
+      closeComposerPop();
+    }
+  });
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#composer-pop') && e.target.id !== 'inp') closeComposerPop();
+});
 
 // ── Voice input ─────────────────────────────────────────────────────
 // Preferred: record the mic and transcribe with a local Whisper model (works in
