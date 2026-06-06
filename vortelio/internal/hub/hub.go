@@ -527,20 +527,22 @@ var hfRegistry = map[string]HFEntry{
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen2.5:7b": {
-		Repo:   "Qwen/Qwen2.5-7B-Instruct-GGUF",
-		File:   "qwen2.5-7b-instruct-q4_k_m.gguf",
+		// Official Qwen GGUF repo ships this size as split shards (single-file 404s);
+		// bartowski provides a verified single-file Q4_K_M.
+		Repo:   "bartowski/Qwen2.5-7B-Instruct-GGUF",
+		File:   "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "7B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen2.5:14b": {
-		Repo:   "Qwen/Qwen2.5-14B-Instruct-GGUF",
-		File:   "qwen2.5-14b-instruct-q4_k_m.gguf",
+		Repo:   "bartowski/Qwen2.5-14B-Instruct-GGUF",
+		File:   "Qwen2.5-14B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "14B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
 	"llm/qwen2.5-coder:7b": {
-		Repo:   "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
-		File:   "qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+		Repo:   "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
+		File:   "Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
 		Format: "gguf", Params: "7B", License: "Apache-2.0",
 		ChatTemplate: "chatml", StopTokens: []string{"<|im_end|>"},
 	},
@@ -563,13 +565,14 @@ var hfRegistry = map[string]HFEntry{
 		ChatTemplate: "mistral", StopTokens: []string{"[INST]", "[/INST]"},
 	},
 	"llm/gemma3:4b": {
-		Repo:   "bartowski/gemma-3-4b-it-GGUF",
+		// bartowski's Gemma 3 GGUFs are gated (401); unsloth mirrors them ungated.
+		Repo:   "unsloth/gemma-3-4b-it-GGUF",
 		File:   "gemma-3-4b-it-Q4_K_M.gguf",
 		Format: "gguf", Params: "4B", License: "Gemma",
 		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
 	},
 	"llm/gemma3:12b": {
-		Repo:   "bartowski/gemma-3-12b-it-GGUF",
+		Repo:   "unsloth/gemma-3-12b-it-GGUF",
 		File:   "gemma-3-12b-it-Q4_K_M.gguf",
 		Format: "gguf", Params: "12B", License: "Gemma",
 		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
