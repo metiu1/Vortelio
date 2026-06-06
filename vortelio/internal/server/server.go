@@ -252,6 +252,7 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/skills", ca(handleSkills))
 	mux.HandleFunc("/api/skills/delete", ca(handleSkillDelete))
 	mux.HandleFunc("/api/agentic/approve", ca(handleAgenticApprove))
+	mux.HandleFunc("/api/run-code", ca(handleRunCode))
 
 	// ── Developer file explorer (read-only) ───────────────────────────────────
 	mux.HandleFunc("/api/fs/list", ca(handleFsList))
