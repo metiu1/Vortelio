@@ -4601,6 +4601,8 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
   });
   if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || 'HTTP ' + r.status); }
   const tn = document.createElement('div'); tn.style.width = '100%'; content.appendChild(tn);
+  // Drop the "typing" dots as soon as the first byte arrives (same UX as local).
+  const _killPulse = () => { const p = content.querySelector('.dot-pulse'); if (p) p.remove(); };
   const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = ''; let fullText = '';
   outer: while (true) {
     const {done, value} = await reader.read(); if (done) break;
@@ -4611,6 +4613,7 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
       const raw = line.slice(6).trim();
       if (raw === '[DONE]') break outer;
       let ev; try { ev = JSON.parse(raw); } catch(_) { continue; }
+      _killPulse();
       if (ev.error) throw new Error(ev.error);
       if (ev.event) {
         const data = ev.data || {};
@@ -4665,7 +4668,7 @@ async function doChat(text, files, signal) {
   // Cloud assistant: stream from the provider and finish here.
   if (selectedModelIsCloud) {
     try {
-      pulse.remove();
+      // Keep the typing dots until the first token (streamCloudInto removes them).
       const full = await streamCloudInto(selectedCloudProvider, selectedCloudModel, chatHistory.slice(), content, canvas, signal);
       chatHistory.push({role:'assistant', content: full || '(empty response)'});
       autoSaveCurrentChat();
