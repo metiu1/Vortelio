@@ -1,15 +1,18 @@
 package server
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/vortelio/vortelio/internal/config"
 	"github.com/vortelio/vortelio/internal/history"
 	"github.com/vortelio/vortelio/internal/hub"
 	"github.com/vortelio/vortelio/internal/runtime"
@@ -81,6 +84,17 @@ func handleGenerate(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model, hw *runtime.Hardware, opts *runtime.RunOptions, req GenerateRequest) {
+	// Models imported from Ollama may use an engine/format llama.cpp can't load
+	// (e.g. Gemma 3n, Qwen3). If the local Ollama server is running, forward the
+	// chat to it — it already runs these models. This is the "it worked before"
+	// path: Vortelio acting as an Ollama-compatible front-end.
+	if strings.HasPrefix(model.Source, "ollama-import") {
+		if streamFromOllama(w, model, req) {
+			return
+		}
+		// If Ollama isn't reachable we fall through and let llama.cpp try.
+	}
+
 	// Parse format field
 	var formatStr string
 	if req.Format != nil {
@@ -447,4 +461,131 @@ func saveContext(prevCtx []int, prompt, response string, existingMsgs []map[stri
 	contextSessions.mu.Unlock()
 
 	return newCtx
+}
+
+// streamFromOllama forwards a chat to the local Ollama server for models that
+// were imported from Ollama (and that llama.cpp may not be able to load itself,
+// e.g. Gemma 3n / Qwen3). Returns true if it handled the request (Ollama was
+// reachable); false means Ollama is down and the caller should try llama.cpp.
+func streamFromOllama(w http.ResponseWriter, model *hub.Model, req GenerateRequest) bool {
+	port := config.Get().OllamaPort
+	if port == 0 {
+		port = 11434
+	}
+	base := fmt.Sprintf("http://localhost:%d", port)
+
+	// Reachability probe — if Ollama isn't running, let the caller fall through.
+	probe, err := (&http.Client{Timeout: 2 * time.Second}).Get(base + "/api/tags")
+	if err != nil {
+		return false
+	}
+	probe.Body.Close()
+
+	ollamaModel := model.Name
+	if model.Tag != "" {
+		ollamaModel += ":" + model.Tag
+	}
+
+	var msgs []map[string]string
+	if s := strings.TrimSpace(req.System); s != "" {
+		msgs = append(msgs, map[string]string{"role": "system", "content": s})
+	}
+	for _, m := range req.Messages {
+		msgs = append(msgs, map[string]string{"role": m.Role, "content": m.Content})
+	}
+	if req.Prompt != "" {
+		msgs = append(msgs, map[string]string{"role": "user", "content": req.Prompt})
+	}
+
+	streaming := req.Stream == nil || *req.Stream
+	body, _ := json.Marshal(map[string]interface{}{"model": ollamaModel, "messages": msgs, "stream": streaming})
+
+	resp, err := http.Post(base+"/api/chat", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	modelID := req.Model
+	writeNDJSON := func(obj map[string]interface{}) {
+		line, _ := json.Marshal(obj)
+		w.Write(line)
+		w.Write([]byte("\n"))
+	}
+	flush := func() {
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}
+
+	if streaming {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Cache-Control", "no-cache")
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+	}
+
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		writeNDJSON(map[string]interface{}{
+			"model": modelID, "done": true, "done_reason": "error",
+			"error": "Ollama could not run this model: " + strings.TrimSpace(string(b)),
+		})
+		flush()
+		return true
+	}
+
+	var full strings.Builder
+	dec := json.NewDecoder(resp.Body)
+	for {
+		var chunk struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			Done  bool   `json:"done"`
+			Error string `json:"error"`
+		}
+		if err := dec.Decode(&chunk); err != nil {
+			break
+		}
+		if chunk.Error != "" {
+			writeNDJSON(map[string]interface{}{"model": modelID, "done": true, "done_reason": "error", "error": chunk.Error})
+			flush()
+			return true
+		}
+		if c := chunk.Message.Content; c != "" {
+			full.WriteString(c)
+			if streaming {
+				writeNDJSON(map[string]interface{}{
+					"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+					"response": c, "done": false,
+				})
+				flush()
+			}
+		}
+		if chunk.Done {
+			break
+		}
+	}
+
+	doneObj := map[string]interface{}{
+		"model": modelID, "created_at": time.Now().UTC().Format(time.RFC3339Nano),
+		"done": true, "done_reason": "stop",
+	}
+	if streaming {
+		doneObj["response"] = ""
+	} else {
+		doneObj["response"] = full.String()
+	}
+	writeNDJSON(doneObj)
+	flush()
+
+	if req.Prompt != "" && full.Len() > 0 && !req.Incognito {
+		convID := fmt.Sprintf("%d", time.Now().UnixNano())
+		history.Append(
+			history.Entry{ID: convID, Model: req.Model, Role: "user", Content: req.Prompt},
+			history.Entry{ID: convID, Model: req.Model, Role: "assistant", Content: full.String()},
+		)
+	}
+	return true
 }
