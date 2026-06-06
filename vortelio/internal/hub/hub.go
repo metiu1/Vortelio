@@ -577,6 +577,15 @@ var hfRegistry = map[string]HFEntry{
 		Format: "gguf", Params: "12B", License: "Gemma",
 		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
 	},
+	"llm/gemma3n:e4b": {
+		// Gemma 3n in a llama.cpp-compatible GGUF (unsloth, ungated). Runs natively
+		// in Vortelio — unlike the Ollama 'gemma4' blob, which is in Ollama's own
+		// engine format that llama.cpp can't read.
+		Repo:   "unsloth/gemma-3n-E4B-it-GGUF",
+		File:   "gemma-3n-E4B-it-Q4_K_M.gguf",
+		Format: "gguf", Params: "4B (E4B)", License: "Gemma",
+		ChatTemplate: "gemma", StopTokens: []string{"<end_of_turn>"},
+	},
 	"llm/deepseek-r1:7b": {
 		Repo:   "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF",
 		File:   "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
