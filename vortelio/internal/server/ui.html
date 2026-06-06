@@ -4184,7 +4184,7 @@ async function doChat(text, files, signal) {
     const ag = buildAgenticPayload();
     if (ag) payload.agentic = ag;
     if (files.length) payload.input_file = files[0].serverPath;
-    const r = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal});
+    const r = await fetchRetry('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal});
 
     pulse.remove();
     const textNode = document.createElement('div'); textNode.style.width='100%';
@@ -4361,9 +4361,10 @@ async function doChat(text, files, signal) {
       }
     }
     chatHistory.push({role:'assistant', content:full});
-  } catch {
-    pulse.remove();
-    content.innerHTML += '<span style="color:#e04040">⚠️ Server unreachable</span>';
+  } catch (e) {
+    if (content.querySelector('.dot-pulse')) pulse.remove();
+    if (e && e.name === 'AbortError') { content.innerHTML += '<span style="color:var(--text3)">[cancelled]</span>'; return; }
+    content.innerHTML += '<span style="color:#e04040">⚠️ Couldn\'t reach the local server. It may still be starting — try again in a moment.</span>';
   }
 }
 
@@ -5177,6 +5178,23 @@ function toast(msg, type='') {
 }
 // apiFetch: alias for fetch that goes through the fetch interceptor (injects Firebase token)
 function apiFetch(url, opts) { return fetch(url, opts); }
+
+// Retry a fetch when the call itself throws (TCP refused / connection reset),
+// which happens for a second or two while the local server is (re)starting or
+// the model is cold-loading. Never retries on HTTP error status or user abort —
+// only on a genuine network throw. Kills the transient "Server unreachable".
+async function fetchRetry(url, opts, tries = 4, delayMs = 700) {
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try { return await fetch(url, opts); }
+    catch (e) {
+      if (e && e.name === 'AbortError') throw e; // user cancelled — do not retry
+      lastErr = e;
+      if (i < tries - 1) await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
