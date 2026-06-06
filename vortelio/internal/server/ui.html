@@ -175,16 +175,17 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   white-space: pre-wrap; word-break: break-word;
   color: var(--text);
 }
-.msg-actions { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; opacity: .55; transition: opacity .15s; }
+.user-col { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 100%; }
+.msg-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; opacity: 0; transition: opacity .15s; }
 .msg-group:hover .msg-actions { opacity: 1; }
 .msg-act {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11.5px; padding: 3px 9px; border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; font-size: 14px; line-height: 1; border-radius: var(--radius-xs);
   border: 1px solid var(--border); background: var(--bg); color: var(--text2);
-  cursor: pointer; font-family: var(--sans); transition: all .12s;
+  cursor: pointer; font-family: var(--sans); transition: all .12s; padding: 0;
 }
 .msg-act:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
-.msg-act:active { transform: scale(.96); }
+.msg-act:active { transform: scale(.92); }
 .thinking-block {
   background: #fffbf0; border: 1px solid #f0d060;
   border-radius: var(--radius-xs); padding: 10px 14px; margin-bottom: 12px;
@@ -4251,12 +4252,8 @@ async function doChat(text, files, signal) {
   const content = document.createElement('div');
   content.className = 'content';
 
-  if (thinkOn) {
-    const tb = document.createElement('div');
-    tb.className = 'thinking-block';
-    tb.innerHTML = '<div class="thinking-label">💡 Deep Thinking</div><div class="dot-pulse"><span></span><span></span><span></span></div>';
-    content.appendChild(tb);
-  }
+  // The think block is created lazily (in _appendThink) only when the model
+  // actually emits reasoning — so it never appears for models that don't think.
 
   const pulse = document.createElement('div');
   pulse.className = 'dot-pulse';
@@ -4778,7 +4775,16 @@ function addUserMsg(text, files) {
   const grp = document.createElement('div');
   grp.className = 'msg-group msg-user';
   const imgHtml = files.filter(f=>f.isImg).map(f=>`<img src="${f.dataUrl}" style="max-width:180px;border-radius:8px;margin-bottom:6px;display:block">`).join('');
-  grp.innerHTML = `<div class="msg-inner"><div class="bubble">${imgHtml}${esc(text)||'(attachment)'}</div></div>`;
+  grp.innerHTML = `<div class="msg-inner"><div class="user-col">` +
+    `<div class="bubble">${imgHtml}${esc(text)||'(attachment)'}</div>` +
+    `<div class="msg-actions"></div></div></div>`;
+  // Icon-only actions under the question bubble: edit, copy question.
+  const bar = grp.querySelector('.msg-actions');
+  const mk = (icon, title, fn) => { const b = document.createElement('button'); b.className = 'msg-act'; b.title = title; b.textContent = icon; b.onclick = fn; return b; };
+  bar.append(
+    mk('✏️', 'Modifica la domanda', () => { const inp = document.getElementById('inp'); if (inp) { inp.value = text || ''; autoSize(inp); inp.focus(); } }),
+    mk('📝', 'Copia la domanda', () => { navigator.clipboard.writeText(text || ''); toast('📝 Domanda copiata'); })
+  );
   msgs.appendChild(grp);
   document.getElementById('canvas').scrollTop = 9999;
 }
@@ -5399,16 +5405,12 @@ function addMsgActions(grp, userText, responseText) {
   if (!content || content.querySelector('.msg-actions')) return;
   const bar = document.createElement('div');
   bar.className = 'msg-actions';
-  const mk = (label, title) => { const b = document.createElement('button'); b.className = 'msg-act'; b.title = title; b.textContent = label; return b; };
-  const bCopyA = mk('📋 Copia', 'Copia la risposta');
-  const bRegen = mk('↻ Rigenera', 'Rigenera la risposta');
-  const bEdit  = mk('✏️ Modifica', 'Modifica la tua domanda');
-  const bCopyQ = mk('📝 Domanda', 'Copia la tua domanda');
-  bCopyA.onclick = () => { navigator.clipboard.writeText(responseText || ''); toast('📋 Risposta copiata'); };
-  bCopyQ.onclick = () => { navigator.clipboard.writeText(userText || ''); toast('📝 Domanda copiata'); };
-  bEdit.onclick  = () => editLastTurn(userText, false);
-  bRegen.onclick = () => editLastTurn(userText, true);
-  bar.append(bCopyA, bRegen, bEdit, bCopyQ);
+  const mk = (icon, title, fn) => { const b = document.createElement('button'); b.className = 'msg-act'; b.title = title; b.textContent = icon; b.onclick = fn; return b; };
+  // Icon-only: copy reply, regenerate.
+  bar.append(
+    mk('📋', 'Copia la risposta', () => { navigator.clipboard.writeText(responseText || ''); toast('📋 Risposta copiata'); }),
+    mk('↻', 'Rigenera la risposta', () => editLastTurn(userText, true))
+  );
   content.appendChild(bar);
 }
 
