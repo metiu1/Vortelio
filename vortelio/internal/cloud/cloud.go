@@ -831,6 +831,12 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 		Parts []part `json:"parts"`
 	}
 
+	// Gemini has a dedicated systemInstruction field. Collecting system messages
+	// there (instead of injecting a synthetic "user" turn) keeps the contents
+	// strictly alternating user/model — otherwise a system prompt followed by the
+	// first real user message yields two consecutive user turns, which the API
+	// rejects with 400.
+	var systemTexts []string
 	var contents []content
 	for _, m := range messages {
 		role := m.Role
@@ -838,7 +844,9 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 			role = "model"
 		}
 		if role == "system" {
-			contents = append(contents, content{Role: "user", Parts: []part{{Text: m.Content}}})
+			if strings.TrimSpace(m.Content) != "" {
+				systemTexts = append(systemTexts, m.Content)
+			}
 			continue
 		}
 		contents = append(contents, content{Role: role, Parts: []part{{Text: m.Content}}})
@@ -855,6 +863,11 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 		body := map[string]interface{}{
 			"contents": contents,
 			"tools":    geminiTools,
+		}
+		if len(systemTexts) > 0 {
+			body["systemInstruction"] = map[string]interface{}{
+				"parts": []map[string]string{{"text": strings.Join(systemTexts, "\n\n")}},
+			}
 		}
 		data, _ := json.Marshal(body)
 
@@ -992,6 +1005,7 @@ func chatGemini(p Provider, apiKey string, messages []Message, onToken func(stri
 		Parts []part `json:"parts"`
 	}
 
+	var systemTexts []string
 	var contents []content
 	for _, m := range messages {
 		role := m.Role
@@ -999,8 +1013,11 @@ func chatGemini(p Provider, apiKey string, messages []Message, onToken func(stri
 			role = "model"
 		}
 		if role == "system" {
-			// Gemini doesn't have system role in contents, prepend as user
-			contents = append(contents, content{Role: "user", Parts: []part{{Text: m.Content}}})
+			// Gemini has no system role in contents; collect into systemInstruction
+			// so the conversation turns stay strictly alternating user/model.
+			if strings.TrimSpace(m.Content) != "" {
+				systemTexts = append(systemTexts, m.Content)
+			}
 			continue
 		}
 		contents = append(contents, content{Role: role, Parts: []part{{Text: m.Content}}})
@@ -1008,6 +1025,11 @@ func chatGemini(p Provider, apiKey string, messages []Message, onToken func(stri
 
 	body := map[string]interface{}{
 		"contents": contents,
+	}
+	if len(systemTexts) > 0 {
+		body["systemInstruction"] = map[string]interface{}{
+			"parts": []map[string]string{{"text": strings.Join(systemTexts, "\n\n")}},
+		}
 	}
 	data, _ := json.Marshal(body)
 
