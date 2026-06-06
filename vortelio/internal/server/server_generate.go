@@ -83,6 +83,85 @@ func handleGenerate(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]interface{}{"model": req.Model, "status": "done"})
 }
 
+// estTokens is a rough token estimate (~4 chars per token).
+func estTokens(s string) int { return (len(s) + 3) / 4 }
+
+// compactStringMessages is the Ollama-path equivalent of compactMessages: it
+// keeps a system message and trims the oldest turns to fit the context window.
+func compactStringMessages(msgs []map[string]string, ctxSize int) []map[string]string {
+	if ctxSize <= 0 {
+		ctxSize = 4096
+	}
+	budget := ctxSize - ctxSize/3
+	if budget < 256 {
+		budget = 256
+	}
+	total := 0
+	for _, m := range msgs {
+		total += estTokens(m["content"]) + 4
+	}
+	if total <= budget || len(msgs) <= 2 {
+		return msgs
+	}
+	// Preserve a leading system message, trim oldest of the rest.
+	var sys []map[string]string
+	rest := msgs
+	if len(msgs) > 0 && msgs[0]["role"] == "system" {
+		sys = msgs[:1]
+		rest = msgs[1:]
+		total -= 0
+	}
+	for total > budget && len(rest) > 1 {
+		total -= estTokens(rest[0]["content"]) + 4
+		rest = rest[1:]
+	}
+	return append(append([]map[string]string{}, sys...), rest...)
+}
+
+// compactMessages keeps the conversation within the model's context window by
+// dropping the oldest turns when the history would overflow. It reserves room for
+// the system prompt, the new prompt and the reply, and leaves a short note in
+// place of the trimmed turns. Cheap and reliable for small local models.
+func compactMessages(messages []map[string]interface{}, system, prompt string, ctxSize int) []map[string]interface{} {
+	if len(messages) == 0 {
+		return messages
+	}
+	reserve := ctxSize / 3
+	if reserve > 1024 {
+		reserve = 1024
+	}
+	if reserve < 256 {
+		reserve = 256
+	}
+	budget := ctxSize - reserve - estTokens(system) - estTokens(prompt)
+	if budget < 256 {
+		budget = 256
+	}
+	total := 0
+	for _, m := range messages {
+		if c, ok := m["content"].(string); ok {
+			total += estTokens(c) + 4
+		}
+	}
+	if total <= budget {
+		return messages
+	}
+	dropped := 0
+	for total > budget && len(messages) > 1 {
+		if c, ok := messages[0]["content"].(string); ok {
+			total -= estTokens(c) + 4
+		}
+		messages = messages[1:]
+		dropped++
+	}
+	if dropped > 0 {
+		note := map[string]interface{}{"role": "system",
+			"content": fmt.Sprintf("[Note: %d earlier messages were omitted to stay within the model's context window. Summarise from what remains.]", dropped)}
+		messages = append([]map[string]interface{}{note}, messages...)
+	}
+	return messages
+}
+
 func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model, hw *runtime.Hardware, opts *runtime.RunOptions, req GenerateRequest) {
 	// Models imported from Ollama may use an engine/format llama.cpp can't load
 	// (e.g. Gemma 3n, Qwen3). If the local Ollama server is running, forward the
@@ -184,6 +263,14 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 	if req.Agentic != nil && req.Agentic.Auto {
 		systemPrompt = autoSystemPrompt(systemPrompt)
 	}
+
+	// Compact the conversation for small context windows: drop the oldest turns
+	// (leaving a note) so small models don't overflow near saturation.
+	ctxBudget := req.ContextSize
+	if ctxBudget <= 0 {
+		ctxBudget = 4096
+	}
+	messages = compactMessages(messages, systemPrompt, req.Prompt, ctxBudget)
 
 	sopts := runtime.StreamOpts{
 		Prompt:       req.Prompt,
@@ -496,6 +583,7 @@ func streamFromOllama(w http.ResponseWriter, model *hub.Model, req GenerateReque
 	if req.Prompt != "" {
 		msgs = append(msgs, map[string]string{"role": "user", "content": req.Prompt})
 	}
+	msgs = compactStringMessages(msgs, req.ContextSize)
 
 	streaming := req.Stream == nil || *req.Stream
 	modelID := req.Model

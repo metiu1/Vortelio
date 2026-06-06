@@ -176,6 +176,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   color: var(--text);
 }
 .user-col { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 100%; }
+.msg-meta { font-size: 11px; color: var(--text3); margin-top: 8px; font-family: var(--mono); }
 .msg-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; opacity: 0; transition: opacity .15s; }
 .msg-group:hover .msg-actions { opacity: 1; }
 .msg-act {
@@ -791,62 +792,39 @@ textarea.inp::placeholder { color: var(--text3); }
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
 .code-writing{font-size:10px;color:var(--text3);animation:blink 1s infinite}
 
-/* ── Tool call / result blocks ───────────────────────────── */
-.tool-block {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--radius-xs); padding: 0; margin: 5px 0;
-  overflow: hidden; font-size: 13px;
-  animation: msgIn .2s ease;
-}
+/* ── Tool call / result — minimal expandable line with shimmer ─── */
+.tool-block { background: transparent; border: none; margin: 3px 0; font-size: 12.5px; }
 .tool-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 12px; background: var(--bg3);
-  border-bottom: none;
-  cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 0; background: transparent; cursor: pointer; user-select: none;
+  color: var(--text3);
 }
-.tool-block.open .tool-header { border-bottom: 1px solid var(--border); }
-.tool-header:hover { background: var(--border); }
-.tool-icon { font-size: 15px; flex-shrink: 0; }
-.tool-name { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--accent); }
-.tool-status {
-  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
-  margin-left: auto; letter-spacing: .03em;
+.tool-header:hover { color: var(--text2); }
+.tool-icon { font-size: 13px; flex-shrink: 0; opacity: .8; }
+.tool-name { font-family: var(--mono); font-weight: 500; font-size: 12.5px; color: var(--text2); }
+/* Light-reflection shimmer that sweeps across the name while the tool runs */
+.tool-name.shimmer {
+  background: linear-gradient(90deg, var(--text3) 20%, var(--text) 45%, #fff 50%, var(--text) 55%, var(--text3) 80%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: toolShimmer 1.3s linear infinite;
 }
-.tool-status.calling {
-  background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa;
-  animation: pulse 1s infinite;
-}
-.tool-status.done {
-  background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0;
-}
-.tool-status.error {
-  background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
-}
-.tool-chevron {
-  width: 12px; height: 12px; transition: transform .15s;
-  color: var(--text3); flex-shrink: 0;
-}
+@keyframes toolShimmer { from { background-position: 220% 0; } to { background-position: -220% 0; } }
+.tool-status { font-size: 11px; font-weight: 500; letter-spacing: .02em; display: none; } /* hidden — shimmer is the activity cue */
+.tool-status.error { display: inline; color: #dc2626; }
+.tool-chevron { width: 9px; height: 9px; transition: transform .15s; color: var(--text3); flex-shrink: 0; opacity: .55; }
 .tool-block.open .tool-chevron { transform: rotate(90deg); }
 .tool-body {
-  display: none; padding: 10px 14px;
-  font-family: var(--mono); font-size: 12px; line-height: 1.6;
+  display: none; padding: 8px 12px; margin: 4px 0 4px 14px;
+  border-left: 2px solid var(--border);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.55;
   color: var(--text2); white-space: pre-wrap; word-break: break-all;
 }
 .tool-block.open .tool-body { display: block; }
-.tool-label {
-  font-size: 10px; font-weight: 600; color: var(--text3);
-  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px;
-}
-.tool-json {
-  background: var(--bg3); border-radius: 6px; padding: 8px 10px;
-  margin-bottom: 8px; overflow-x: auto;
-}
-.dark .tool-block { background: var(--bg2) !important; border-color: var(--border) !important; }
-.dark .tool-header { background: var(--bg3) !important; border-color: var(--border) !important; }
-.dark .tool-header:hover { background: var(--border) !important; }
-.dark .tool-body { color: var(--text2) !important; }
+.tool-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.tool-json { background: var(--bg3); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; overflow-x: auto; }
 .dark .tool-json { background: #11111b !important; }
-.dark .tool-status.calling { background: #3b1a00 !important; color: #fb923c !important; border-color: #92400e !important; }
 .dark .tool-status.done { background: #052e16 !important; color: #86efac !important; border-color: #166534 !important; }
 .dark .tool-status.error { background: #450a0a !important; color: #fca5a5 !important; border-color: #991b1b !important; }
 /* ── Account dropdown ─────────────────────────────────────────── */
@@ -4241,6 +4219,7 @@ async function doChat(text, files, signal) {
 
   addUserMsg(text, files);
   chatHistory.push({role:'user', content:text});
+  const _t0 = Date.now(); // response chronometer start
 
   // AI msg
   const grp = document.createElement('div');
@@ -4273,6 +4252,7 @@ async function doChat(text, files, signal) {
       const full = await streamCloudInto(selectedCloudProvider, selectedCloudModel, chatHistory.slice(), content, canvas, signal);
       chatHistory.push({role:'assistant', content: full || '(empty response)'});
       autoSaveCurrentChat();
+      addReplyMeta(grp, _t0, full || '');
       addMsgActions(grp, text, full || '');
     } catch (e) {
       if (content.querySelector('.dot-pulse')) pulse.remove();
@@ -4350,11 +4330,17 @@ async function doChat(text, files, signal) {
       block.id = 'tool-' + tc.id;
       let argsFormatted = tc.arguments || '{}';
       try { argsFormatted = JSON.stringify(JSON.parse(argsFormatted), null, 2); } catch {}
+      const _icon = (raw) => { const n = String(raw||'').toLowerCase(); return n.includes('search')||n.includes('web') ? '🔍'
+        : n.includes('image')||n.includes('media') ? '🎨'
+        : (n.includes('install')||n.includes('model')) ? '📦'
+        : (n.includes('file')||n.includes('read')||n.includes('write')||n.includes('dir')||n.includes('grep')||n.includes('glob')) ? '📁'
+        : n.includes('shell')||n.includes('run') ? '⌨️'
+        : n.includes('time') ? '🕐' : '🔧'; };
       block.innerHTML = `
         <div class="tool-header" onclick="this.parentElement.classList.toggle('open')">
-          <span class="tool-icon">🔧</span>
-          <span class="tool-name">${esc(tc.name)}</span>
-          <span class="tool-status calling">CALLING…</span>
+          <span class="tool-icon">${_icon(tc.name)}</span>
+          <span class="tool-name shimmer">${esc(tc.name)}</span>
+          <span class="tool-status"></span>
           <svg class="tool-chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 1l4 4-4 4"/></svg>
         </div>
         <div class="tool-body">
@@ -4373,12 +4359,14 @@ async function doChat(text, files, signal) {
       const block = _toolBlocks[tr.call_id];
       if (!block) return;
       const statusEl = block.querySelector('.tool-status');
+      const nameEl = block.querySelector('.tool-name');
+      if (nameEl) nameEl.classList.remove('shimmer'); // stop the light-reflection animation
       const resultArea = block.querySelector('.tool-result-area');
       if (tr.error) {
-        statusEl.className = 'tool-status error'; statusEl.textContent = 'ERROR';
+        statusEl.className = 'tool-status error'; statusEl.textContent = '✕ errore';
         resultArea.innerHTML = '<code style="color:#dc2626">' + esc(tr.error) + '</code>';
       } else {
-        statusEl.className = 'tool-status done'; statusEl.textContent = 'DONE';
+        statusEl.className = 'tool-status done'; statusEl.textContent = '';
         let rf = tr.result || '';
         try { rf = JSON.stringify(JSON.parse(rf), null, 2); } catch {}
         resultArea.innerHTML = '<code>' + esc(rf) + '</code>';
@@ -4506,6 +4494,7 @@ async function doChat(text, files, signal) {
     _appendToken('', true); // flush any held-back tail
     chatHistory.push({role:'assistant', content:full});
     autoSaveCurrentChat();
+    addReplyMeta(grp, _t0, full);
     addMsgActions(grp, text, full);
   } catch (e) {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
@@ -5412,6 +5401,20 @@ function addMsgActions(grp, userText, responseText) {
     mk('↻', 'Rigenera la risposta', () => editLastTurn(userText, true))
   );
   content.appendChild(bar);
+}
+
+// Small meta line under a reply: response time (chronometer) + approx tokens.
+function addReplyMeta(grp, t0, text) {
+  if (!grp) return;
+  const content = grp.querySelector('.content');
+  if (!content || content.querySelector('.msg-meta')) return;
+  const secs = (Date.now() - t0) / 1000;
+  const tok = Math.max(1, Math.round((text || '').length / 4)); // ~4 chars/token
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  meta.textContent = `⏱ ${secs.toFixed(1)}s · ~${tok} token`;
+  meta.title = 'Tempo di risposta · token stimati';
+  content.appendChild(meta);
 }
 
 // Remove the last user+assistant turn (history + DOM), put the question back in

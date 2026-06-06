@@ -47,6 +47,8 @@ func (m *mediaProvider) Tools() []rt.ToolDef {
 			`{"type":"object","properties":{},"required":[]}`),
 		toolDef("install_model", "Download and install a model so it can be used (e.g. an image model for generate_image). Accept a catalog ref like \"image/openjourney\" or a plain name like \"stable diffusion\", \"sdxl\", \"whisper\". The download can take a few minutes; when it finishes the model is ready to use.",
 			`{"type":"object","properties":{"model":{"type":"string","description":"Model to install: a catalog ref (image/openjourney, audio/whisper:base, llm/qwen2.5:7b) or a plain name."}},"required":["model"]}`),
+		toolDef("rename_file", "Rename or move a file on the user's computer (e.g. rename a generated image). Use this to actually perform the rename yourself instead of telling the user how to do it.",
+			`{"type":"object","properties":{"path":{"type":"string","description":"Current full file path."},"new_name":{"type":"string","description":"New name. A bare name keeps the same folder and extension; a full path moves it there."}},"required":["path","new_name"]}`),
 	}
 }
 
@@ -66,9 +68,46 @@ func (m *mediaProvider) Execute(name, argsJSON string) (string, error) {
 		return m.listModels()
 	case "install_model":
 		return m.installModel(argsJSON)
+	case "rename_file":
+		return m.renameFile(argsJSON)
 	default:
 		return "", fmt.Errorf("unknown media tool: %s", name)
 	}
+}
+
+// renameFile renames (or moves) a file. A bare new_name keeps the original folder
+// and, if no extension is given, the original extension.
+func (m *mediaProvider) renameFile(argsJSON string) (string, error) {
+	var a struct {
+		Path    string `json:"path"`
+		NewName string `json:"new_name"`
+	}
+	json.Unmarshal([]byte(argsJSON), &a)
+	src := strings.TrimSpace(a.Path)
+	nn := strings.TrimSpace(a.NewName)
+	if src == "" || nn == "" {
+		return "", fmt.Errorf("path and new_name are required")
+	}
+	if _, err := os.Stat(src); err != nil {
+		return "", fmt.Errorf("file not found: %s", src)
+	}
+	var dst string
+	if strings.ContainsAny(nn, `/\`) || filepath.IsAbs(nn) {
+		dst = nn // full/relative path provided
+	} else {
+		dst = filepath.Join(filepath.Dir(src), nn) // bare name → same folder
+	}
+	if filepath.Ext(dst) == "" {
+		dst += filepath.Ext(src) // keep original extension
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(src, dst); err != nil {
+		return "", fmt.Errorf("rename failed: %v", err)
+	}
+	b, _ := json.Marshal(map[string]interface{}{"status": "ok", "from": src, "to": dst, "note": "File renamed."})
+	return string(b), nil
 }
 
 // listModels reports installed models + a curated set installable on demand.
