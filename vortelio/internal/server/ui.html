@@ -2311,13 +2311,21 @@ textarea.inp::placeholder { color: var(--text3); }
 <div class="overlay" id="skill-overlay">
   <div class="dialog" style="max-width:560px;width:92%;text-align:left">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <h3 style="margin:0">🎓 New skill</h3>
+      <h3 style="margin:0">🎓 Skills</h3>
       <button class="btn" onclick="closeSkillEditor()">✕</button>
     </div>
-    <input id="skill-name" class="tool-input" placeholder="Skill name (e.g. SQL Expert)" style="width:100%;margin-bottom:8px">
-    <input id="skill-desc" class="tool-input" placeholder="Short description" style="width:100%;margin-bottom:8px">
-    <textarea id="skill-body" class="tool-input" rows="8" placeholder="Instructions for the model when this skill is active…" style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
-    <button class="btn primary" onclick="saveSkill()">Save skill</button>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">A skill is a reusable instruction set the model follows when you switch it on. Built-in skills can't be changed; your own can be edited or removed.</div>
+    <div id="skill-manage-list" style="margin-bottom:14px"></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div id="skill-form-title" style="font-size:12px;font-weight:500">Create a new skill</div>
+        <a href="#" id="skill-form-cancel" onclick="resetSkillForm();return false" style="font-size:11px;color:var(--accent);display:none">Cancel edit</a>
+      </div>
+      <input id="skill-name" class="tool-input" placeholder="Skill name (e.g. SQL Expert)" style="width:100%;margin-bottom:8px">
+      <input id="skill-desc" class="tool-input" placeholder="Short description" style="width:100%;margin-bottom:8px">
+      <textarea id="skill-body" class="tool-input" rows="7" placeholder="Instructions for the model when this skill is active…" style="width:100%;margin-bottom:10px;resize:vertical"></textarea>
+      <button class="btn primary" id="skill-save-btn" onclick="saveSkill()">Save skill</button>
+    </div>
   </div>
 </div>
 
@@ -3684,8 +3692,62 @@ function toggleSkill(id) {
   renderSkillChips();
   renderCapChips();
 }
-function openSkillEditor() { document.getElementById('skill-overlay').classList.add('show'); }
-function closeSkillEditor() { document.getElementById('skill-overlay').classList.remove('show'); }
+let _editingSkillId = null;
+function openSkillEditor() { resetSkillForm(); renderSkillManageList(); document.getElementById('skill-overlay').classList.add('show'); }
+function closeSkillEditor() { document.getElementById('skill-overlay').classList.remove('show'); resetSkillForm(); }
+// Render the manage list (custom skills get Edit/Delete; built-ins are read-only).
+function renderSkillManageList() {
+  const box = document.getElementById('skill-manage-list');
+  if (!box) return;
+  if (!allSkills.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px">No skills yet.</div>'; return; }
+  box.innerHTML = allSkills.map(s => {
+    const actions = s.builtin
+      ? '<span style="font-size:10px;color:var(--text3)">built-in</span>'
+      : `<button class="btn" style="padding:3px 8px;font-size:11px" onclick="editSkill('${esc(s.id)}')">Edit</button>
+         <button class="btn danger" style="padding:3px 8px;font-size:11px" onclick="deleteSkillById('${esc(s.id)}','${esc(s.name)}')">🗑</button>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${esc(s.name)}</div>
+        <div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.description||'')}</div>
+      </div>${actions}
+    </div>`;
+  }).join('');
+}
+function resetSkillForm() {
+  _editingSkillId = null;
+  document.getElementById('skill-name').value = '';
+  document.getElementById('skill-desc').value = '';
+  document.getElementById('skill-body').value = '';
+  document.getElementById('skill-form-title').textContent = 'Create a new skill';
+  document.getElementById('skill-save-btn').textContent = 'Save skill';
+  document.getElementById('skill-form-cancel').style.display = 'none';
+}
+function editSkill(id) {
+  const s = allSkills.find(x => x.id === id);
+  if (!s) return;
+  _editingSkillId = id;
+  document.getElementById('skill-name').value = s.name || '';
+  document.getElementById('skill-desc').value = s.description || '';
+  document.getElementById('skill-body').value = s.body || '';
+  document.getElementById('skill-form-title').textContent = 'Edit “' + s.name + '”';
+  document.getElementById('skill-save-btn').textContent = 'Update skill';
+  document.getElementById('skill-form-cancel').style.display = '';
+  document.getElementById('skill-name').focus();
+}
+async function deleteSkillById(id, name) {
+  if (!confirm('Delete skill “' + name + '”? This cannot be undone.')) return;
+  try {
+    const r = await fetch('/api/skills/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})});
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error||'Error'), 'err'); return; }
+    allSkills = d.skills || [];
+    // Drop it from the active selection if it was on.
+    const i = agentCfg.skills.indexOf(id); if (i >= 0) agentCfg.skills.splice(i, 1);
+    if (_editingSkillId === id) resetSkillForm();
+    renderSkillManageList(); renderSkillChips(); renderCapChips();
+    toast('🗑 Skill deleted');
+  } catch { toast('❌ Server error', 'err'); }
+}
 async function saveSkill() {
   const name = document.getElementById('skill-name').value.trim();
   const description = document.getElementById('skill-desc').value.trim();
@@ -3696,12 +3758,11 @@ async function saveSkill() {
     const d = await r.json();
     if (!r.ok) { toast('❌ ' + (d.error||'Error'), 'err'); return; }
     allSkills = d.skills || [];
-    document.getElementById('skill-name').value = '';
-    document.getElementById('skill-desc').value = '';
-    document.getElementById('skill-body').value = '';
+    const wasEditing = !!_editingSkillId;
+    resetSkillForm();
+    renderSkillManageList();
     renderSkillChips();
-    closeSkillEditor();
-    toast('✅ Skill saved');
+    toast(wasEditing ? '✅ Skill updated' : '✅ Skill saved');
   } catch { toast('❌ Server error', 'err'); }
 }
 
