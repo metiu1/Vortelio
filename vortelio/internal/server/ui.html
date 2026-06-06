@@ -3228,18 +3228,22 @@ function updateModelDDForDomain() {
     l: m.display_name || prettyModelName(m.name, m.tag),
     tag: m.size_human || '',
   }));
-  // For chat, also offer cloud assistants whose API key is configured.
+  // For chat, also list cloud assistants — those with a key are ready to use;
+  // those without show a "add API key" entry that sets the key up inline.
   if (domain === 'chat') {
     for (const p of (_cloudProviders || [])) {
-      if (!p.has_key) continue;
-      for (const cm of (p.models || [])) {
-        models.push({ v: `cloud:${p.id}:${cm.id}`, l: cm.label || cm.id, tag: '☁️ ' + p.name, cloud: true });
+      if (p.has_key) {
+        for (const cm of (p.models || [])) {
+          models.push({ v: `cloud:${p.id}:${cm.id}`, l: cm.label || cm.id, tag: '☁️ ' + p.name, cloud: true });
+        }
+      } else {
+        models.push({ v: `cloudkey:${p.id}`, l: p.name, tag: '🔒 aggiungi API key', cloud: true, locked: true });
       }
     }
   }
   buildModelDD(models);
   if (!models.find(m => m.v === selectedModel)) {
-    const first = models[0];
+    const first = models.find(m => !m.locked); // never auto-select a locked cloud entry
     if (first) selectModel(first.v, first.l);
     else { selectedModel = ''; selectedModelIsCloud = false; document.getElementById('model-lbl').textContent = 'No model'; }
   }
@@ -3294,6 +3298,12 @@ function buildModelDD(models) {
   const local = models.filter(m => !m.cloud);
   const cloud = models.filter(m => m.cloud);
   const row = m => {
+    if (m.locked) { // cloud provider without a key — click to add it inline
+      return `<div class="dd-item" onclick="addCloudKeyInline('${esc(m.v.slice(9))}')">
+        <span style="font-size:13px">${esc(m.l)}</span>
+        <span class="dd-item-tag">${esc(m.tag||'')}</span>
+      </div>`;
+    }
     const caps = m.cloud || modelSupportsTools(m.v);
     const badge = caps
       ? '<span class="model-cap" title="Supports web search & agentic tools">🛠 tools</span>'
@@ -3310,6 +3320,24 @@ function buildModelDD(models) {
   dd.innerHTML = html;
 }
 
+
+// Add a cloud provider's API key inline from the model picker, then make its
+// models immediately available (and selected) alongside the local ones.
+async function addCloudKeyInline(providerId) {
+  closeAllDD();
+  const key = prompt('Incolla la tua API key per "' + providerId + '"\n(resta solo sul tuo computer):');
+  if (!key || !key.trim()) return;
+  try {
+    const r = await fetch('/api/cloud/key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: providerId, key: key.trim() }) });
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.error || 'Errore nel salvataggio');
+    await loadCloudProviders();
+    updateModelDDForDomain();
+    const p = (_cloudProviders||[]).find(x => x.id === providerId);
+    if (p && (p.models||[]).length) selectModel(`cloud:${p.id}:${p.models[0].id}`, p.models[0].label || p.models[0].id);
+    toast('☁️ Chiave salvata — modelli ' + providerId + ' pronti in Assistant e Agent', 'ok');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
 
 function selectModel(v, l) {
   selectedModel = v;
