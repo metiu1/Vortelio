@@ -776,6 +776,8 @@ textarea.inp::placeholder { color: var(--text3); }
 .dark .code-block pre { background: #11111b; }
 .code-block pre code { font-family: inherit; white-space: pre; display: block; }
 .code-partial .code-header { border-bottom: 1px dashed rgba(255,255,255,.15); }
+.code-output { background: #0d0d12; color: #cdd6f4; font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 10px 14px; white-space: pre-wrap; word-break: break-word; border-top: 1px solid rgba(255,255,255,.1); max-height: 320px; overflow: auto; }
+.code-output.err { color: #f7768e; }
 .inline-code {
   font-family: var(--mono); font-size: 12.5px; padding: 1px 6px;
   border-radius: 4px; background: var(--bg3); border: 1px solid var(--border);
@@ -4988,17 +4990,35 @@ function renderMessage(text) {
       // ── Complete block ─────────────────────────────────────
       const code = text.slice(codeStart, close);
       const raw64 = btoa(unescape(encodeURIComponent(code)));
+      const lc = (lang || '').toLowerCase();
+      const runnable = /^(python|py|python3|javascript|js|node|nodejs|bash|sh|shell|powershell|ps|ps1|go|golang)$/.test(lc);
       result += '<div class="code-block">' +
         '<div class="code-header">' +
         '<span class="code-lang">' + _he(lang || 'code') + '</span>' +
+        (runnable ? '<button class="code-copy-btn" onclick="runCodeB64(\'' + raw64 + '\',\'' + lc + '\',this)">▶ Esegui</button>' : '') +
         '<button class="code-copy-btn" onclick="copyCodeB64(\'' + raw64 + '\',this)">📋 Copia</button>' +
         '</div>' +
         '<pre id="' + id + '" data-raw="' + raw64 + '"><code>' + _he(code) + '</code></pre>' +
+        '<div class="code-output" style="display:none"></div>' +
         '</div>';
       pos = close + 3;
     }
   }
   return result;
+}
+async function runCodeB64(b64, lang, btn) {
+  let code; try { code = decodeURIComponent(escape(atob(b64))); } catch { code = atob(b64); }
+  const block = btn.closest('.code-block');
+  const out = block.querySelector('.code-output');
+  out.style.display = 'block'; out.classList.remove('err'); out.textContent = '⏳ Esecuzione…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/run-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: lang, code }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { out.textContent = '❌ ' + (d.error || ('HTTP ' + r.status)); out.classList.add('err'); }
+    else { out.textContent = (d.output && d.output.length) ? d.output : '(nessun output)'; if (!d.ok) out.classList.add('err'); }
+  } catch (e) { out.textContent = '❌ ' + e.message; out.classList.add('err'); }
+  btn.disabled = false;
 }
 function _he(s) {
   return String(s)
@@ -5270,11 +5290,12 @@ async function loadModels() {
     const r = await fetch('/api/models');
     const d = await r.json();
     const models = d.models || [];
-    if (!models.length) {
-      el.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:20px 0">No models installed. <button class="btn primary" onclick="showPanel(\'registry\')" style="margin-left:8px">↓ Download now</button></div>';
+    const cloudHtml = buildCloudModelsHtml();
+    if (!models.length && !cloudHtml) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:20px 0">No models installed. <button class="btn primary" onclick="showPanel(\'registry\')" style="margin-left:8px">↓ Download now</button> <button class="btn" onclick="openAddCloudModel()" style="margin-left:4px">☁️ Add cloud model</button></div>';
       return;
     }
-    el.innerHTML = models.map(m => {
+    const localHtml = models.map(m => {
       const ref = `${m.type}/${m.name}:${m.tag}`;
       const displayName = m.display_name ? `<strong>${esc(m.display_name)}</strong> <span style="font-size:11px;color:var(--text3)">(${esc(m.name)}:${esc(m.tag)})</span>` : `${esc(m.name)}:${esc(m.tag)}`;
       const caps = m.capabilities && m.capabilities.length
@@ -5299,7 +5320,44 @@ async function loadModels() {
         </div>
       </div>`;
     }).join('');
+    el.innerHTML =
+      (localHtml ? '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:4px 0 8px">💻 Sul tuo PC</div>' + localHtml : '') +
+      cloudHtml;
   } catch { el.innerHTML = '<div style="color:var(--err,#dc2626);padding:12px 0">Error loading models</div>'; }
+}
+
+// Cloud + self-hosted models configured by the user, shown in Installed models.
+function buildCloudModelsHtml() {
+  const rows = [];
+  for (const p of (_cloudProviders || [])) {
+    if (!p.has_key) continue;
+    rows.push(`<div class="mtrow">
+      <span class="type-pill tp-llm">☁️</span>
+      <div style="flex:1;min-width:0"><div style="font-weight:500;font-size:14px">${esc(p.name)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px">API key configurata · ${(p.models||[]).length} modelli + custom</div></div>
+      <button class="btn danger" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="removeCloudKey('${esc(p.id)}')">🗑 Rimuovi chiave</button>
+    </div>`);
+  }
+  for (const ep of getCustomEndpoints()) {
+    rows.push(`<div class="mtrow">
+      <span class="type-pill tp-llm">🖥</span>
+      <div style="flex:1;min-width:0"><div style="font-weight:500;font-size:14px">${esc(ep.name||'Server')} <span style="font-size:11px;color:var(--text3)">(${esc(ep.model)})</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px">${esc(ep.baseURL)}</div></div>
+      <button class="btn danger" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="removeCustomEndpoint('${esc(ep.id)}')">🗑 Rimuovi</button>
+    </div>`);
+  }
+  if (!rows.length) return '';
+  return '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">☁️ Cloud &amp; server</div>' + rows.join('');
+}
+async function removeCloudKey(providerId) {
+  if (!confirm('Rimuovere la API key di ' + providerId + '?')) return;
+  try { await fetch('/api/cloud/key', { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: providerId}) }); } catch {}
+  await loadCloudProviders(); updateModelDDForDomain(); loadModels(); toast('Chiave rimossa');
+}
+function removeCustomEndpoint(id) {
+  const list = getCustomEndpoints().filter(e => e.id !== id);
+  localStorage.setItem('vortelio_custom_endpoints', JSON.stringify(list));
+  updateModelDDForDomain(); loadModels(); toast('Server rimosso');
 }
 
 let pendingDel = null;
