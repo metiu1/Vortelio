@@ -4192,6 +4192,7 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
 async function doChat(text, files, signal) {
   const msgs = document.getElementById('msgs');
   const canvas = document.getElementById('canvas');
+  let loadTimer = null; // model-loading status ticker (cleared on first data / error)
 
   addUserMsg(text, files);
   chatHistory.push({role:'user', content:text});
@@ -4256,11 +4257,26 @@ async function doChat(text, files, signal) {
     pulse.remove();
     const textNode = document.createElement('div'); textNode.style.width='100%';
     content.appendChild(textNode);
-    // Local models can take a moment to load on the first message — reassure the user.
-    if (!selectedModelIsCloud) textNode.innerHTML = '<span style="color:var(--text3)">Starting the assistant… the first reply can take a moment.</span>';
+    // Local models can take a moment to load on the first message. Show a live,
+    // ticking status so a long first load never looks frozen.
+    if (!selectedModelIsCloud) {
+      const t0 = Date.now();
+      const tick = () => {
+        const s = Math.round((Date.now() - t0) / 1000);
+        const extra = s >= 20 ? ' Large models load on CPU the first time — this can take a minute.' : '';
+        textNode.innerHTML = '<span style="color:var(--text3)">⏳ Loading the model… ' + s + 's.' + extra + '</span>';
+      };
+      tick();
+      loadTimer = setInterval(tick, 1000);
+    }
+    const stopLoadTimer = () => {
+      if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
+      if (textNode.innerHTML.indexOf('Loading the model') !== -1) textNode.innerHTML = '';
+    };
 
     if (!r.ok) {
       const d = await r.json().catch(()=>({}));
+      stopLoadTimer();
       textNode.innerHTML = '⚠️ ' + esc(friendlyError(d.error));
       return;
     }
@@ -4392,6 +4408,7 @@ async function doChat(text, files, signal) {
         // ── NDJSON format (new /api/generate output) ──
         if (line.startsWith('{')) {
           let obj; try { obj = JSON.parse(line); } catch { continue; }
+          stopLoadTimer(); // any data means the model is up — drop the loading status
           if (obj.error) { textNode.textContent += '\n⚠️ ' + friendlyError(obj.error); break; }
           if (obj.thinking) { _appendThink(obj.thinking); continue; }
           if (obj.event === 'tool_call') { try { _handleToolCall(obj.data); } catch {} continue; }
@@ -4429,6 +4446,7 @@ async function doChat(text, files, signal) {
     }
     chatHistory.push({role:'assistant', content:full});
   } catch (e) {
+    if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
     if (content.querySelector('.dot-pulse')) pulse.remove();
     if (e && e.name === 'AbortError') { content.innerHTML += '<span style="color:var(--text3)">[cancelled]</span>'; return; }
     content.innerHTML += '<span style="color:#e04040">⚠️ Couldn\'t reach the local server. It may still be starting — try again in a moment.</span>';
