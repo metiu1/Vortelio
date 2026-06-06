@@ -1118,13 +1118,13 @@ textarea.inp::placeholder { color: var(--text3); }
       </div>
       <div style="flex:1"></div>
       <div class="topbar-modes" id="topbar-modes">
-        <button class="tm active" id="mode-assistant" onclick="setAppMode('assistant')" title="Chat e assistente agentico, per tutti">
+        <button class="tm active" id="mode-assistant" onclick="setAppMode('assistant')" title="Normal chat — just talk, like a regular LLM chat">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 7a6 6 0 1112 0 6 6 0 01-9 5l-3 1 1-3a6 6 0 01-1-3z"/></svg>
           Assistant
         </button>
-        <button class="tm" id="mode-developer" onclick="setAppMode('developer')" title="Agente coding con accesso a file e shell">
+        <button class="tm" id="mode-developer" onclick="setAppMode('agent')" title="Full agent — web, media, skills, MCP, and Developer (code with files &amp; shell)">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4L2 7l3 3M9 4l3 3-3 3"/></svg>
-          Developer
+          Agent
         </button>
       </div>
       <div style="flex:1"></div>
@@ -1213,6 +1213,7 @@ textarea.inp::placeholder { color: var(--text3); }
               <div class="dd-item cap-item dev-only" id="cap-incognito" onclick="toggleIncognito();event.stopPropagation()"><span>🕶</span> Private chat <i class="cap-dot"></i></div>
               <div class="dd-item dev-only" id="cap-skills" onclick="openAgentConfig()"><span>🎓</span> Skills &amp; agent… <span class="dd-arrow">›</span></div>
               <div class="dd-item dev-only" id="cap-mcp" onclick="openMcpManager()"><span>🔌</span> External tools (MCP)… <span class="dd-arrow">›</span></div>
+              <div class="dd-item cap-item dev-only" id="cap-developer" onclick="toggleCoding();event.stopPropagation()"><span>💻</span> Developer — read, edit &amp; run code <i class="cap-dot"></i></div>
 
               <div class="dd-sep dev-only"></div>
               <div class="dd-header dev-only">Hardware</div>
@@ -2926,7 +2927,9 @@ let thinkOn = false;
 let toolsOn = false;
 let webOn = false;   // Assistant is a plain chat by default; web is an opt-in toggle
 let incognitoOn = false;
-let appMode = 'assistant';            // 'assistant' | 'developer'
+let appMode = 'assistant';            // 'assistant' | 'agent'
+let codingOn = false;                 // Developer (coding) sub-mode of Agent
+let _agentInit = false;               // one-time default capability enable for Agent
 let codeMode = 'ask';                 // 'plan' | 'ask' | 'auto'
 let agentCfg = { web:false, builtins:false, coding:false, mcp:false, media:false, skills:[] };
 let useCPU = false;
@@ -3367,6 +3370,8 @@ function syncCaps() {
   setOn('cap-media', agentCfg.media);
   setOn('cap-think', thinkOn);
   setOn('cap-incognito', incognitoOn);
+  setOn('cap-developer', codingOn);
+  setOn('cap-mcp', agentCfg.mcp);
   const pb = document.getElementById('private-btn'); if (pb) pb.classList.toggle('on', incognitoOn);
   const b = document.getElementById('ag-builtins'); if (b) b.checked = toolsOn;
   renderCapChips();
@@ -3394,45 +3399,60 @@ function renderCapChips() {
 // ── App mode (Assistant / Developer) ──────────────
 function setAppMode(mode) {
   appMode = mode;
+  const agent = mode === 'agent';
   document.getElementById('mode-assistant').classList.toggle('active', mode === 'assistant');
-  document.getElementById('mode-developer').classList.toggle('active', mode === 'developer');
-  const dev = mode === 'developer';
-  document.getElementById('dev-bar').classList.toggle('on', dev);
-  document.getElementById('ws-chat').classList.toggle('dev-active', dev);
-  document.getElementById('codemode-wrap').style.display = dev ? '' : 'none';
-  // The "+" menu is available in both views. Developer exposes the full power set
-  // (output types, every ability toggle, hardware). Assistant keeps it friendly:
-  // web/files/media run automatically, so we only surface the user-facing extras
-  // (Think, Skills, MCP) plus a short note. Items tagged .dev-only are hidden in
-  // Assistant; .asst-only items show only in Assistant.
+  document.getElementById('mode-developer').classList.toggle('active', agent);
+  // Developer (coding) is an opt-in sub-mode of Agent: the workspace bar, file
+  // explorer and coding tools only show when the user turns Developer on.
+  const coding = agent && codingOn;
+  document.getElementById('dev-bar').classList.toggle('on', coding);
+  document.getElementById('ws-chat').classList.toggle('dev-active', coding);
+  document.getElementById('codemode-wrap').style.display = coding ? '' : 'none';
+  // The "+" menu: Assistant keeps a friendly minimal set (.asst-only note + Web +
+  // Think). Agent exposes the full power set (.dev-only items: media, skills, MCP,
+  // Private, Developer toggle, hardware).
   const plus = document.getElementById('plus-wrap');
   if (plus) plus.style.display = '';
-  document.querySelectorAll('#plus-dd .dev-only').forEach(el => el.style.display = dev ? '' : 'none');
-  document.querySelectorAll('#plus-dd .asst-only').forEach(el => el.style.display = dev ? 'none' : '');
-  // A dedicated one-tap Private toggle lives next to the composer in Assistant.
+  document.querySelectorAll('#plus-dd .dev-only').forEach(el => el.style.display = agent ? '' : 'none');
+  document.querySelectorAll('#plus-dd .asst-only').forEach(el => el.style.display = agent ? 'none' : '');
   const priv = document.getElementById('private-btn');
-  if (priv) priv.style.display = dev ? 'none' : '';
-  // Capability chips (active toggles) only matter in Developer's explicit view.
+  if (priv) priv.style.display = agent ? 'none' : '';
   const chips = document.getElementById('cap-chips');
-  if (chips) chips.style.display = dev ? '' : 'none';
-  // Output-type picker only matters in Developer's "+" menu.
+  if (chips) chips.style.display = agent ? '' : 'none';
   const outHd = document.getElementById('plus-out-hd');
-  document.querySelectorAll('#plus-dd .type-item').forEach(el => el.style.display = dev ? 'none' : '');
-  if (outHd) outHd.style.display = dev ? 'none' : '';
-  // In developer mode, coding tools are implied on.
-  agentCfg.coding = dev;
-  if (dev) { toolsOn = true; loadDevTree(); }
-  else { toolsOn = false; }   // Assistant is a plain chat — no tools unless Web search is toggled on
-  // Make sure we are on the chat panel.
+  document.querySelectorAll('#plus-dd .type-item').forEach(el => el.style.display = agent ? 'none' : '');
+  if (outHd) outHd.style.display = agent ? 'none' : '';
+  if (agent) {
+    // First time into Agent, switch on the agentic capabilities so it genuinely
+    // acts as a full agent. Coding stays gated behind the Developer toggle.
+    if (!_agentInit) { agentCfg.web = true; agentCfg.builtins = true; agentCfg.media = true; webOn = true; _agentInit = true; }
+    agentCfg.coding = coding;
+    toolsOn = true;
+    if (coding) loadDevTree();
+  } else {
+    toolsOn = false;
+    agentCfg.coding = false;
+  }
   showPanel('chat');
   const wt = document.getElementById('welcome-title');
-  if (wt) wt.textContent = dev ? 'What do you want to build?' : 'How can I help you?';
+  if (wt) wt.textContent = agent ? (coding ? 'What do you want to build?' : 'What should the agent do?') : 'How can I help you?';
   const ws = document.getElementById('welcome-sub');
-  if (ws) ws.textContent = dev
-    ? 'Set a working folder above, pick a model, and describe the task. The agent reads, edits and runs code — asking before anything risky.'
-    : 'Just type below. I can search the web, work with your files, and create images — automatically, whenever it helps.';
+  if (ws) ws.textContent = agent
+    ? (coding
+        ? 'Developer mode: set a working folder, then describe the task. The agent reads, edits and runs code — asking before anything risky.'
+        : 'Full agent: web search, media generation, skills and MCP tools. Turn on Developer in “+” to let it read, edit and run code.')
+    : 'A normal chat. Turn on Web search in “+” if you want me to look things up.';
   updateWelcomeSuggestions();
   if (typeof syncCaps === 'function') syncCaps();
+}
+
+// Developer (coding) is a sub-mode of Agent — toggled from the Agent "+" menu.
+function toggleCoding() {
+  codingOn = !codingOn;
+  if (appMode !== 'agent') appMode = 'agent';
+  setAppMode('agent');
+  if (codingOn) toast('💻 Developer mode on — I can read, edit and run code in your folder');
+  closeAllDD();
 }
 
 function updateComposerForMode() {
@@ -3537,7 +3557,7 @@ function showCodeViewer(name, path, content, truncated) {
 // Reload the tree when the workspace path changes.
 document.addEventListener('DOMContentLoaded', () => {
   const wi = document.getElementById('dev-workspace');
-  if (wi) wi.addEventListener('change', () => { if (appMode === 'developer') loadDevTree(); });
+  if (wi) wi.addEventListener('change', () => { if (appMode === 'agent') loadDevTree(); });
 });
 
 // ── Folder / file picker (server-side browse) ───────
@@ -3862,7 +3882,7 @@ function toggleNavGroup(id) {
   tog.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function studio(type) {
-  if (appMode === 'developer') setAppMode('assistant');
+  if (appMode === 'agent') setAppMode('assistant');
   showPanel('chat');
   newChat();
   const [ic, lbl] = STUDIO[type] || STUDIO.chat;
@@ -3890,7 +3910,7 @@ function newChat() {
 
 function updateWelcomeSuggestions() {
   // Per-domain welcome + examples so each studio feels dedicated.
-  const dev = appMode === 'developer';
+  const dev = appMode === 'agent';
   const wt = document.getElementById('welcome-title');
   const ws = document.getElementById('welcome-sub');
   let title, sub, sets;
@@ -4036,14 +4056,16 @@ function friendlyError(msg) {
   return m || 'Something went wrong.';
 }
 
-// Build the agentic capability payload. Assistant view = full smart auto (the
-// model decides when to use web/tools/media). Developer view = explicit toggles.
+// Build the agentic capability payload.
+//   Assistant = normal chat (no tools unless the user toggles Web search).
+//   Agent     = full agent: web + media + skills + MCP, plus coding when the
+//               Developer sub-mode is on. Tools come from the agentCfg toggles.
 function buildAgenticPayload() {
-  const dev = appMode === 'developer';
-  if (!dev) {
+  const agent = appMode === 'agent';
+  if (!agent) {
     // Assistant = a normal LLM chat. By default it has NO tools, so it answers
     // instantly like any chat app. The only optional tool here is Web search;
-    // everything agentic (media, skills, MCP, coding) lives in Developer mode.
+    // everything agentic lives in Agent mode.
     if (!agentCfg.web) return null;
     return {
       auto: true, web_search: true, builtins: false, media: false,
@@ -4051,9 +4073,10 @@ function buildAgenticPayload() {
     };
   }
   const ag = {
-    web_search: agentCfg.web || webOn, builtins: agentCfg.builtins, mcp: agentCfg.mcp,
-    coding: agentCfg.coding || dev, media: agentCfg.media, skills: agentCfg.skills,
-    mode: codeMode, working_dir: document.getElementById('dev-workspace').value.trim(),
+    auto: true,
+    web_search: !!agentCfg.web, builtins: !!agentCfg.builtins, mcp: !!agentCfg.mcp,
+    coding: !!agentCfg.coding, media: !!agentCfg.media, skills: agentCfg.skills || [],
+    mode: codeMode, working_dir: (document.getElementById('dev-workspace').value || '').trim(),
     session_id: 'sess-' + Date.now()
   };
   if (ag.web_search || ag.builtins || ag.mcp || ag.coding || ag.media || (ag.skills && ag.skills.length)) return ag;
@@ -6383,7 +6406,7 @@ async function sendCloudMsg() {
     };
     // Same agentic capabilities as local models: web, tools, media, skills, MCP.
     {
-      const dev = appMode === 'developer';
+      const dev = appMode === 'agent';
       const ag = {
         web_search: agentCfg.web || webOn,
         builtins: agentCfg.builtins,
