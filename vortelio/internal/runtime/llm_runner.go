@@ -205,16 +205,20 @@ func (r *LLMRunner) ensureServer() error {
 		}
 
 		cmd := HideWindow(exec.Command(srv, args...))
-		cmd.Stdout = nil
-		cmd.Stderr = nil
+		// Capture the tail of llama-server's output (it writes load errors to both
+		// stdout and stderr) so we can report the REAL failure — unsupported
+		// architecture, bad file, OOM — instead of guessing.
+		sb := &tailBuf{max: 16384}
+		cmd.Stdout = sb
+		cmd.Stderr = sb
 
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("llama-server start failed: %w\n    Path: %s", err, srv)
 		}
 		r.proc = cmd
 
-		// Watch for early process exit (e.g. VRAM OOM) so we can fail over fast
-		// instead of polling /health until the deadline.
+		// Watch for early process exit (e.g. VRAM OOM, bad model) so we can fail
+		// over fast instead of polling /health until the deadline.
 		exited := make(chan error, 1)
 		go func() { exited <- cmd.Wait() }()
 
@@ -225,7 +229,10 @@ func (r *LLMRunner) ensureServer() error {
 		for time.Now().Before(deadline) {
 			select {
 			case <-exited:
-				return fmt.Errorf("llama-server exited during load — the model is likely too large for the available memory")
+				if reason := classifyLoadError(sb.String()); reason != "" {
+					return loadError{reason: reason, fatal: isFatalLoadError(sb.String())}
+				}
+				return fmt.Errorf("llama-server exited during load")
 			case <-time.After(500 * time.Millisecond):
 			}
 			resp, err := client.Get(r.apiURL + "/health")
@@ -248,6 +255,10 @@ func (r *LLMRunner) ensureServer() error {
 		if r.proc != nil && r.proc.Process != nil {
 			r.proc.Process.Kill()
 		}
+		<-exited // let Wait finish so stderr is fully flushed
+		if reason := classifyLoadError(sb.String()); reason != "" {
+			return loadError{reason: reason, fatal: isFatalLoadError(sb.String())}
+		}
 		return fmt.Errorf("timeout: model did not become ready within %ds", deadlineSecs)
 	}
 
@@ -262,8 +273,12 @@ func (r *LLMRunner) ensureServer() error {
 
 	// If the GPU attempt failed — most often VRAM OOM on a model too large for the
 	// card — fall back to CPU so the chat still works instead of hard-failing.
-	// Slower, but it always answers. We skip this only when the user forced a
-	// specific GPU-layer count (then the failure is intentional/explicit).
+	// Slower, but it always answers. We skip CPU retry when the user forced a
+	// GPU-layer count, or when the failure is FATAL (bad file / unsupported model
+	// architecture) — CPU can't fix those, so retrying just wastes time.
+	if le, ok := err.(loadError); ok && le.fatal {
+		return fmt.Errorf("%s", le.reason)
+	}
 	if autoGL > 0 && !forcedGL {
 		fmt.Printf("⚠️  GPU load failed (%v).\n    Retrying on CPU — slower, but it will work…\n", err)
 		if cpuErr := attempt(0, 600); cpuErr == nil {
@@ -273,7 +288,12 @@ func (r *LLMRunner) ensureServer() error {
 			err = cpuErr
 		}
 	}
-	return fmt.Errorf("the model could not be loaded — it may be too large for this machine (%s). Try a smaller model. [%v]", r.hw.String(), err)
+	if le, ok := err.(loadError); ok {
+		return fmt.Errorf("%s", le.reason)
+	}
+	return fmt.Errorf("this model could not be loaded. Two common causes: it is too large for this machine (%s) — try a smaller model; "+
+		"or it uses a newer architecture (e.g. Gemma 3n) that the bundled llama.cpp can't read yet — update llama.cpp (run `vortelio setup`, "+
+		"or replace the binaries in ~/.vortelio/bin with a recent llama.cpp release). [%v]", r.hw.String(), err)
 }
 
 func (r *LLMRunner) stopServer() {
@@ -466,6 +486,66 @@ func gpuLayersForModel(vram, modelBytes int64) int {
 		n = 999 // model fits entirely — offload everything (llama.cpp clamps)
 	}
 	return n
+}
+
+// tailBuf keeps only the last `max` bytes written to it — used to capture the
+// tail of llama-server's stderr without growing unbounded while it runs.
+type tailBuf struct {
+	b   []byte
+	max int
+}
+
+func (t *tailBuf) Write(p []byte) (int, error) {
+	t.b = append(t.b, p...)
+	if len(t.b) > t.max {
+		t.b = t.b[len(t.b)-t.max:]
+	}
+	return len(p), nil
+}
+func (t *tailBuf) String() string { return string(t.b) }
+
+// loadError carries a human-readable reason for a model-load failure, plus a
+// `fatal` flag meaning a CPU retry can't help (bad file / unsupported model).
+type loadError struct {
+	reason string
+	fatal  bool
+}
+
+func (e loadError) Error() string { return e.reason }
+
+// isFatalLoadError reports whether the llama-server log shows a failure that a
+// CPU retry won't fix (the model file is unreadable or its architecture isn't
+// supported by this llama.cpp build).
+func isFatalLoadError(log string) bool {
+	l := strings.ToLower(log)
+	return strings.Contains(l, "wrong number of tensors") ||
+		strings.Contains(l, "unknown model architecture") ||
+		strings.Contains(l, "unsupported model architecture") ||
+		strings.Contains(l, "unknown architecture")
+}
+
+// classifyLoadError turns a raw llama-server stderr tail into a short, clear
+// explanation for the user. Returns "" when nothing recognisable is found.
+func classifyLoadError(log string) string {
+	l := strings.ToLower(log)
+	switch {
+	case strings.Contains(l, "wrong number of tensors") ||
+		strings.Contains(l, "unknown model architecture") ||
+		strings.Contains(l, "unsupported model architecture") ||
+		strings.Contains(l, "unknown architecture"):
+		return "This model's architecture isn't supported by the bundled llama.cpp engine. " +
+			"Update llama.cpp to a newer build (run `vortelio setup`, or replace the binaries in ~/.vortelio/bin) to run this model."
+	case strings.Contains(l, "out of memory") ||
+		strings.Contains(l, "cudamalloc") ||
+		strings.Contains(l, "failed to allocate") ||
+		strings.Contains(l, "insufficient memory"):
+		return "Not enough memory to load this model. Try a smaller model, or it will run on CPU."
+	case strings.Contains(l, "no such file") || strings.Contains(l, "failed to open"):
+		return "The model file could not be opened. It may be missing or corrupted — re-download it."
+	case strings.Contains(l, "error loading model") || strings.Contains(l, "failed to load model"):
+		return "llama-server could not load this model file."
+	}
+	return ""
 }
 
 func (r *LLMRunner) fallbackPrint() error {
