@@ -293,7 +293,7 @@ func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string {
 		``,
 		`if _lib == "faster-whisper":`,
 		`    _ct = "float16" if _dev == "cuda" else "int8"`,
-		`    print("Loading: " + _fw_model + " (" + _ct + ")")`,
+		`    print("Loading: " + _fw_model + " (" + _ct + ")", file=sys.stderr)`,
 		`    _m = _FW(_fw_model, device=_dev, compute_type=_ct)`,
 		`    _segs, _ = _m.transcribe("""` + inputPath + `""", beam_size=5)`,
 		`    _text = "".join(seg.text for seg in _segs)`,
@@ -334,7 +334,22 @@ func (r *AudioRunner) TranscribeText(inputFile string) (string, error) {
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "PYTHONUTF8=1")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("transcription failed: %w", err)
+		// Surface the Python stderr so the real cause is visible (missing ffmpeg,
+		// package not installed, model download failure, …) instead of "exit 1".
+		detail := ""
+		if ee, ok := err.(*exec.ExitError); ok {
+			detail = strings.TrimSpace(string(ee.Stderr))
+		}
+		if detail == "" {
+			detail = strings.TrimSpace(string(out))
+		}
+		if detail == "" {
+			detail = err.Error()
+		}
+		if len(detail) > 500 {
+			detail = "…" + detail[len(detail)-500:]
+		}
+		return "", fmt.Errorf("transcription failed: %s", detail)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	// The last non-empty line is the transcribed text
