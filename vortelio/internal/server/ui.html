@@ -782,17 +782,18 @@ textarea.inp::placeholder { color: var(--text3); }
 
 /* ── Tool call / result blocks ───────────────────────────── */
 .tool-block {
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: var(--radius-xs); padding: 0; margin: 10px 0;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-xs); padding: 0; margin: 5px 0;
   overflow: hidden; font-size: 13px;
   animation: msgIn .2s ease;
 }
 .tool-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; background: var(--bg3);
-  border-bottom: 1px solid var(--border);
+  padding: 5px 12px; background: var(--bg3);
+  border-bottom: none;
   cursor: pointer; user-select: none;
 }
+.tool-block.open .tool-header { border-bottom: 1px solid var(--border); }
 .tool-header:hover { background: var(--border); }
 .tool-icon { font-size: 15px; flex-shrink: 0; }
 .tool-name { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--accent); }
@@ -1933,6 +1934,20 @@ textarea.inp::placeholder { color: var(--text3); }
       </div>
     </div>
 
+    <!-- Chats -->
+    <div class="settings-section">
+      <div class="settings-section-title">Chat</div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <div class="settings-row-label">Salvataggio automatico</div>
+          <div class="settings-row-sub">Salva ogni chat nella cronologia in automatico (le chat private non vengono mai salvate).</div>
+        </div>
+        <div class="settings-row-ctrl">
+          <label class="switch"><input type="checkbox" id="set-autosave" checked onchange="setAutoSave(this.checked)"><span class="sl"></span></label>
+        </div>
+      </div>
+    </div>
+
     <!-- LLM -->
     <div class="settings-section">
       <div class="settings-section-title" data-i18n="llmSettings">Modelli LLM</div>
@@ -2771,6 +2786,7 @@ let contextSize = parseInt(localStorage.getItem('pullai_ctx') || '4096');
 function openSettings() {
   document.getElementById('settings-panel').classList.add('open');
   document.getElementById('settings-overlay').classList.add('open');
+  const as = document.getElementById('set-autosave'); if (as) as.checked = autoSaveOn;
   const sl = document.getElementById('ctx-slider');
   if (sl) { sl.value = contextSize; updateCtxLabel(contextSize); }
   const verEl = document.getElementById('ver');
@@ -4231,6 +4247,7 @@ async function doChat(text, files, signal) {
       pulse.remove();
       const full = await streamCloudInto(selectedCloudProvider, selectedCloudModel, chatHistory.slice(), content, canvas, signal);
       chatHistory.push({role:'assistant', content: full || '(empty response)'});
+      autoSaveCurrentChat();
     } catch (e) {
       if (content.querySelector('.dot-pulse')) pulse.remove();
       if (e.name !== 'AbortError') content.innerHTML += `<span style="color:#dc2626">⚠️ ${esc(friendlyError(e.message))}</span>`;
@@ -4339,7 +4356,9 @@ async function doChat(text, files, signal) {
         try { rf = JSON.stringify(JSON.parse(rf), null, 2); } catch {}
         resultArea.innerHTML = '<code>' + esc(rf) + '</code>';
       }
-      block.classList.add('open'); canvas.scrollTop = 9999;
+      // Keep the block COLLAPSED by default — it's just a compact line; the user
+      // clicks the header to expand and see arguments/result.
+      canvas.scrollTop = 9999;
     };
 
     // Helper: render an approval request card (risky coding action)
@@ -4445,6 +4464,7 @@ async function doChat(text, files, signal) {
       }
     }
     chatHistory.push({role:'assistant', content:full});
+    autoSaveCurrentChat();
   } catch (e) {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
     if (content.querySelector('.dot-pulse')) pulse.remove();
@@ -5313,6 +5333,32 @@ function doSaveChat() {
 
 function loadSavedChats() {
   try { savedChats = JSON.parse(localStorage.getItem('pullai_chats') || '[]'); } catch(e) { savedChats = []; }
+  renderChatHistory();
+}
+
+// Auto-save: every chat is saved silently after each reply (on by default).
+let autoSaveOn = localStorage.getItem('pullai_autosave') !== 'false';
+function setAutoSave(on) {
+  autoSaveOn = !!on;
+  localStorage.setItem('pullai_autosave', autoSaveOn ? 'true' : 'false');
+  const cb = document.getElementById('set-autosave'); if (cb) cb.checked = autoSaveOn;
+  toast(autoSaveOn ? '💾 Auto-save on' : 'Auto-save off');
+}
+function autoSaveCurrentChat() {
+  if (!autoSaveOn || incognitoOn) return;        // never auto-save private chats
+  if (!chatHistory || !chatHistory.length) return;
+  const id = currentChatId || Date.now().toString();
+  currentChatId = id;
+  // Name from the first user message (trimmed), else a timestamp.
+  let name = '';
+  const firstUser = (chatHistory.find(m => m.role === 'user') || {}).content || '';
+  name = firstUser.trim().slice(0, 42) || ('Chat ' + new Date().toLocaleTimeString());
+  const msgsHtml = document.getElementById('msgs').innerHTML;
+  const chatData = { id, name, messages: chatHistory.slice(), msgsHtml, domain, model: selectedModel, savedAt: new Date().toISOString() };
+  const idx = savedChats.findIndex(c => c.id === id);
+  if (idx >= 0) savedChats[idx] = chatData; else savedChats.unshift(chatData);
+  if (savedChats.length > 50) savedChats = savedChats.slice(0, 50);
+  try { localStorage.setItem('pullai_chats', JSON.stringify(savedChats)); } catch(e) {}
   renderChatHistory();
 }
 
