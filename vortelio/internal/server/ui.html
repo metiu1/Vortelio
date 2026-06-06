@@ -95,9 +95,10 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 .history-list { flex: 1; overflow-y: auto; }
 .hist-item {
+  display: flex; align-items: center; gap: 4px;
   padding: 7px 10px; border-radius: var(--radius-xs);
   cursor: pointer; font-size: 13px; color: var(--text2);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  overflow: hidden;
   transition: background .1s;
 }
 .hist-item:hover { background: var(--border); color: var(--text); }
@@ -3927,13 +3928,64 @@ function onKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
 }
 
-// ── Voice input (browser Web Speech API — free, no model) ───────────
+// ── Voice input ─────────────────────────────────────────────────────
+// Preferred: record the mic and transcribe with a local Whisper model (works in
+// ANY browser, incl. Brave). Fallback: the browser Web Speech API (Chrome/Edge).
+let _recMedia = null, _recChunks = [], _recOn = false, _recStream = null;
 let _recog = null, _recogOn = false;
-function toggleDictation() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function _encodeWAV(audioBuffer) {
+  const sr = audioBuffer.sampleRate;
+  const s = audioBuffer.getChannelData(0);
+  const buf = new ArrayBuffer(44 + s.length * 2), view = new DataView(buf);
+  const wr = (o, str) => { for (let i = 0; i < str.length; i++) view.setUint8(o + i, str.charCodeAt(i)); };
+  wr(0, 'RIFF'); view.setUint32(4, 36 + s.length * 2, true); wr(8, 'WAVE'); wr(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  wr(36, 'data'); view.setUint32(40, s.length * 2, true);
+  let o = 44; for (let i = 0; i < s.length; i++) { let v = Math.max(-1, Math.min(1, s[i])); view.setInt16(o, v < 0 ? v * 0x8000 : v * 0x7FFF, true); o += 2; }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+async function toggleDictation() {
   const btn = document.getElementById('mic-btn');
   const inp = document.getElementById('inp');
-  if (!SR) { toast('🎤 Riconoscimento vocale non supportato da questo browser — usa Chrome o Edge.', 'err'); return; }
+  const audioModel = (typeof installedModels !== 'undefined') ? installedModels.find(m => m.type === 'audio') : null;
+
+  // Path A — local Whisper (browser-independent).
+  if (audioModel) {
+    if (_recOn) { try { _recMedia.stop(); } catch {} return; }
+    try { _recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { toast('🎤 Permesso microfono negato.', 'err'); return; }
+    _recChunks = []; _recMedia = new MediaRecorder(_recStream);
+    _recMedia.ondataavailable = e => { if (e.data && e.data.size) _recChunks.push(e.data); };
+    _recMedia.onstart = () => { _recOn = true; btn.classList.add('listening'); toast('🎤 Registro… ritocca il mic per trascrivere'); };
+    _recMedia.onstop = async () => {
+      _recOn = false; btn.classList.remove('listening');
+      try { _recStream.getTracks().forEach(t => t.stop()); } catch {}
+      toast('⏳ Trascrivo…');
+      try {
+        const blob = new Blob(_recChunks, { type: _recMedia.mimeType || 'audio/webm' });
+        const ab = await blob.arrayBuffer();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const audio = await ctx.decodeAudioData(ab);
+        const wav = _encodeWAV(audio);
+        const fd = new FormData();
+        fd.append('file', wav, 'rec.wav');
+        fd.append('model', audioModel.type + '/' + audioModel.name + ':' + audioModel.tag);
+        const r = await fetch('/v1/audio/transcriptions', { method: 'POST', body: fd });
+        const d = await r.json().catch(() => ({}));
+        if (d.text) { inp.value = (inp.value ? inp.value.replace(/\s*$/, '') + ' ' : '') + String(d.text).trim(); autoSize(inp); inp.focus(); }
+        else toast('🎤 ' + (d.error || 'Nessun testo riconosciuto'), 'err');
+      } catch (e) { toast('🎤 ' + (e.message || 'errore trascrizione'), 'err'); }
+    };
+    _recMedia.start();
+    return;
+  }
+
+  // Path B — browser Web Speech API (Chrome/Edge; blocked in Brave).
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('🎤 Per dettare: scarica un modello Whisper (Download models → whisper) per la trascrizione locale, oppure usa Chrome/Edge.', 'err'); return; }
   if (_recogOn) { try { _recog.stop(); } catch {} return; }
   _recog = new SR();
   _recog.lang = (typeof currentLang !== 'undefined' && currentLang === 'en') ? 'en-US' : 'it-IT';
