@@ -2368,6 +2368,14 @@ textarea.inp::placeholder { color: var(--text3); }
     <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Provider</label>
     <select id="ac-provider" class="tool-input" style="width:100%;margin-bottom:12px" onchange="acProviderChanged()"></select>
 
+    <div id="ac-custom-fields" style="display:none">
+      <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Nome (a tua scelta)</label>
+      <input id="ac-name" class="tool-input" placeholder="es. Server di casa / Vast.ai" style="width:100%;margin-bottom:12px">
+      <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Indirizzo server (OpenAI/Ollama compatibile)</label>
+      <input id="ac-baseurl" class="tool-input" placeholder="es. http://192.168.1.50:11434  oppure  https://host-vast:porta/v1" style="width:100%;margin-bottom:4px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Accetta IP:porta, .../v1 o l'URL completo. Per Ollama remoto basta http://IP:11434</div>
+    </div>
+
     <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Tipo</label>
     <select id="ac-type" class="tool-input" style="width:100%;margin-bottom:12px">
       <option value="llm">LLM (chat / testo)</option>
@@ -3006,6 +3014,8 @@ let selectedModel = '';
 let selectedModelIsCloud = false;   // true when the picked assistant is a cloud model
 let selectedCloudProvider = '';     // provider id when cloud (e.g. "openai")
 let selectedCloudModel = '';        // model id when cloud (e.g. "gpt-4o")
+let selectedCustomBaseURL = '';     // base URL when using a custom/self-hosted endpoint
+let selectedCustomKey = '';         // optional key for the custom endpoint
 let chatHistory = [];
 let sessions = [];
 let currentSession = null;
@@ -3279,6 +3289,10 @@ function updateModelDDForDomain() {
       const v = `cloud:${cm.provider}:${cm.id}`;
       if (p && p.has_key && !seen[v]) { seen[v] = 1; models.push({ v, l: cm.label || cm.id, tag: '☁️ ' + (p.name || cm.provider), cloud: true }); }
     }
+    // Custom / self-hosted endpoints (always usable).
+    for (const ep of getCustomEndpoints()) {
+      models.push({ v: 'customep:' + ep.id, l: ep.label || ep.model, tag: '🖥 ' + (ep.name || 'server'), cloud: true });
+    }
   }
   buildModelDD(models);
   if (!models.find(m => m.v === selectedModel)) {
@@ -3388,6 +3402,15 @@ async function addCloudKeyInline(providerId) {
 function getCustomCloudModels() {
   try { return JSON.parse(localStorage.getItem('vortelio_cloud_models') || '[]'); } catch { return []; }
 }
+// Custom/self-hosted endpoints (vast.ai, home server, remote Ollama): {id,name,baseURL,key,model,label}
+function getCustomEndpoints() {
+  try { return JSON.parse(localStorage.getItem('vortelio_custom_endpoints') || '[]'); } catch { return []; }
+}
+function saveCustomEndpoint(ep) {
+  const list = getCustomEndpoints().filter(e => e.id !== ep.id);
+  list.push(ep);
+  localStorage.setItem('vortelio_custom_endpoints', JSON.stringify(list));
+}
 function saveCustomCloudModel(provider, id, label) {
   const list = getCustomCloudModels();
   if (!list.some(m => m.provider === provider && m.id === id)) {
@@ -3398,17 +3421,31 @@ function saveCustomCloudModel(provider, id, label) {
 function openAddCloudModel() {
   const sel = document.getElementById('ac-provider');
   if (!_cloudProviders || !_cloudProviders.length) { loadCloudProviders().then(openAddCloudModel); return; }
-  sel.innerHTML = _cloudProviders.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.has_key ? ' ✓' : ''}</option>`).join('');
+  sel.innerHTML = _cloudProviders.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.has_key ? ' ✓' : ''}</option>`).join('')
+    + `<option value="__custom__">🖥 Server personalizzato (vast.ai / casa / Ollama)</option>`;
   acProviderChanged();
   document.getElementById('ac-key').value = '';
   document.getElementById('addcloud-overlay').classList.add('show');
 }
 function closeAddCloudModel() { document.getElementById('addcloud-overlay').classList.remove('show'); }
 function acProviderChanged() {
-  const p = (_cloudProviders || []).find(x => x.id === document.getElementById('ac-provider').value);
+  const pid = document.getElementById('ac-provider').value;
+  const isCustom = pid === '__custom__';
+  document.getElementById('ac-custom-fields').style.display = isCustom ? 'block' : 'none';
+  if (isCustom) {
+    // Self-hosted/remote endpoint: model is a free-typed id, key optional.
+    document.getElementById('ac-model').innerHTML = `<option value="__custom__">Scrivi l'ID del modello</option>`;
+    acModelChanged();
+    document.getElementById('ac-model-custom').placeholder = 'ID modello sul server (es. llama3.1:8b, qwen2.5:7b)';
+    document.getElementById('ac-key-note').textContent = '— opzionale (solo se il server la richiede)';
+    document.getElementById('ac-key-link').style.display = 'none';
+    return;
+  }
+  const p = (_cloudProviders || []).find(x => x.id === pid);
   let opts = ((p && p.models) || []).map(cm => `<option value="${esc(cm.id)}">${esc(cm.label || cm.id)}</option>`).join('');
   opts += `<option value="__custom__">✏️ Altro… (scrivi l'ID)</option>`;
   document.getElementById('ac-model').innerHTML = opts;
+  document.getElementById('ac-model-custom').placeholder = 'ID modello (es. gpt-4.1, claude-opus-4)';
   acModelChanged();
   document.getElementById('ac-key-note').textContent = (p && p.has_key) ? '— già salvata (lascia vuoto per tenerla)' : '— richiesta';
   const link = document.getElementById('ac-key-link');
@@ -3420,9 +3457,26 @@ function acModelChanged() {
 }
 async function saveAddCloudModel() {
   const pid = document.getElementById('ac-provider').value;
-  const p = (_cloudProviders || []).find(x => x.id === pid);
   let modelId = document.getElementById('ac-model').value;
   if (modelId === '__custom__') modelId = document.getElementById('ac-model-custom').value.trim();
+
+  // Custom / self-hosted server (vast.ai, home server, remote Ollama).
+  if (pid === '__custom__') {
+    const name = (document.getElementById('ac-name').value.trim()) || 'Server';
+    const baseURL = document.getElementById('ac-baseurl').value.trim();
+    const key = document.getElementById('ac-key').value.trim();
+    if (!baseURL) { toast('Inserisci l\'indirizzo del server', 'err'); return; }
+    if (!modelId) { toast('Scrivi l\'ID del modello (es. llama3.1:8b)', 'err'); return; }
+    const id = 'ep' + Date.now();
+    saveCustomEndpoint({ id, name, baseURL, key, model: modelId, label: modelId + ' · ' + name });
+    updateModelDDForDomain();
+    selectModel('customep:' + id, modelId + ' · ' + name);
+    closeAddCloudModel();
+    toast('🖥 Server aggiunto: ' + name, 'ok');
+    return;
+  }
+
+  const p = (_cloudProviders || []).find(x => x.id === pid);
   if (!modelId) { toast('Scegli o scrivi un modello', 'err'); return; }
   const key = document.getElementById('ac-key').value.trim();
   if ((!p || !p.has_key) && !key) { toast('Inserisci la API key per questo provider', 'err'); return; }
@@ -3452,7 +3506,13 @@ function addCustomCloudModel(providerId) {
 
 function selectModel(v, l) {
   selectedModel = v;
-  if (v.startsWith('cloud:')) {
+  selectedCustomBaseURL = ''; selectedCustomKey = '';
+  if (v.startsWith('customep:')) {
+    // A saved custom/self-hosted endpoint (vast.ai, home server, remote Ollama).
+    const ep = getCustomEndpoints().find(e => e.id === v.slice(9));
+    selectedModelIsCloud = true; selectedCloudProvider = 'custom';
+    if (ep) { selectedCloudModel = ep.model; selectedCustomBaseURL = ep.baseURL; selectedCustomKey = ep.key || ''; l = l || ep.label; }
+  } else if (v.startsWith('cloud:')) {
     const parts = v.split(':');
     selectedModelIsCloud = true;
     selectedCloudProvider = parts[1] || '';
@@ -4532,6 +4592,8 @@ function buildAgenticPayload() {
 // Shared by the unified assistant chat and the legacy Cloud Models panel.
 async function streamCloudInto(provider, model, history, content, canvas, signal) {
   const payload = { provider, model, messages: history };
+  // Custom / self-hosted endpoint (vast.ai, home server, remote Ollama).
+  if (provider === 'custom') { payload.base_url = selectedCustomBaseURL || ''; payload.key = selectedCustomKey || ''; }
   const ag = buildAgenticPayload(); if (ag) payload.agentic = ag;
   const r = await apiFetch('/api/cloud/chat', {
     method: 'POST', headers: {'Content-Type':'application/json'},
