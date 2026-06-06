@@ -211,14 +211,20 @@ func (r *LLMRunner) ensureServer() error {
 		}
 		r.proc = cmd
 
+		// Watch for early process exit (e.g. VRAM OOM) so we can fail over fast
+		// instead of polling /health until the deadline.
+		exited := make(chan error, 1)
+		go func() { exited <- cmd.Wait() }()
+
 		// Wait until /health returns {"status":"ok"} — during loading it returns
 		// 200 {"status":"loading model"}, so we must wait for "ok" specifically.
 		deadline := time.Now().Add(time.Duration(deadlineSecs) * time.Second)
 		client := &http.Client{Timeout: 2 * time.Second}
 		for time.Now().Before(deadline) {
-			time.Sleep(500 * time.Millisecond)
-			if r.proc.ProcessState != nil {
-				return fmt.Errorf("llama-server exited (code %d) — likely out of memory", r.proc.ProcessState.ExitCode())
+			select {
+			case <-exited:
+				return fmt.Errorf("llama-server exited during load — the model is likely too large for the available memory")
+			case <-time.After(500 * time.Millisecond):
 			}
 			resp, err := client.Get(r.apiURL + "/health")
 			if err != nil {
@@ -243,9 +249,10 @@ func (r *LLMRunner) ensureServer() error {
 		return fmt.Errorf("timeout: model did not become ready within %ds", deadlineSecs)
 	}
 
-	// First try with the auto/forced GPU layers.
+	// First try with the auto/forced GPU layers. Keep this window short so a model
+	// that is too big for the GPU fails over to CPU quickly instead of hanging.
 	fmt.Println("⏳  Loading model…")
-	err := attempt(autoGL, 180)
+	err := attempt(autoGL, 90)
 	if err == nil {
 		fmt.Println("✅  Model ready")
 		return nil
