@@ -136,6 +136,16 @@ var Providers = []Provider{
 		Format:       FormatOpenAI,
 		KeyHint:      "https://www.perplexity.ai/settings/api",
 	},
+	{
+		ID:           "ollamacloud",
+		Name:         "Ollama Cloud",
+		DefaultModel: "gpt-oss:120b",
+		BaseURL:      "https://ollama.com/v1/chat/completions",
+		AuthHeader:   "Authorization",
+		AuthPrefix:   "Bearer ",
+		Format:       FormatOpenAI,
+		KeyHint:      "https://ollama.com/settings/keys",
+	},
 }
 
 func FindProvider(id string) (Provider, bool) {

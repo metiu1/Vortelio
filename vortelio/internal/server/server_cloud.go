@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/vortelio/vortelio/internal/cloud"
 )
@@ -67,10 +68,37 @@ var cloudModelChoices = map[string][][2]string{
 		{"sonar-pro", "Sonar Pro"},
 		{"sonar-reasoning", "Sonar Reasoning"},
 	},
+	"ollamacloud": {
+		{"gpt-oss:120b", "gpt-oss 120B"},
+		{"deepseek-v3.1:671b", "DeepSeek V3.1 671B"},
+		{"qwen3-coder:480b", "Qwen3 Coder 480B"},
+		{"kimi-k2:1t", "Kimi K2 1T"},
+	},
 }
 
 // GET /api/cloud/providers
 // Lists providers, whether a key is stored, and the model choices.
+// normalizeChatURL turns a user-supplied server address into a full OpenAI-style
+// chat-completions URL. Accepts "host:port", "http://host:port", ".../v1", or a
+// full ".../chat/completions" URL.
+func normalizeChatURL(u string) string {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return ""
+	}
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		u = "http://" + u
+	}
+	if strings.Contains(u, "/chat/completions") {
+		return u
+	}
+	u = strings.TrimRight(u, "/")
+	if strings.HasSuffix(u, "/v1") {
+		return u + "/chat/completions"
+	}
+	return u + "/v1/chat/completions"
+}
+
 func handleCloudProviders(w http.ResponseWriter, r *http.Request) {
 	type modelOut struct {
 		ID    string `json:"id"`
@@ -159,30 +187,48 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 		Messages []cloud.Message `json:"messages"`
 		Agentic  *AgenticConfig  `json:"agentic"`
 		System   string          `json:"system"`
+		BaseURL  string          `json:"base_url"` // custom/self-hosted endpoint (vast.ai, home server, Ollama)
+		Key      string          `json:"key"`      // optional key for the custom endpoint
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		jsonError(w, 400, "invalid request")
-		return
-	}
-	p, ok := cloud.FindProvider(req.Provider)
-	if !ok {
-		jsonError(w, 400, "unknown provider")
-		return
-	}
-	key := cloud.LoadKey(req.Provider)
-	if key == "" {
-		jsonError(w, 400, fmt.Sprintf("no API key for %s — add your own key in Cloud Models", p.Name))
 		return
 	}
 	if len(req.Messages) == 0 {
 		jsonError(w, 400, "messages required")
 		return
 	}
-	// Override the model if the caller picked one.
-	if req.Model != "" {
-		p.DefaultModel = req.Model
-		if p.Format == cloud.FormatGemini {
-			p.BaseURL = "https://generativelanguage.googleapis.com/v1beta/models/" + req.Model + ":generateContent"
+
+	var p cloud.Provider
+	var key string
+	if req.Provider == "custom" || req.BaseURL != "" {
+		// Custom / self-hosted OpenAI- or Ollama-compatible endpoint.
+		bu := normalizeChatURL(req.BaseURL)
+		if bu == "" {
+			jsonError(w, 400, "base_url required for a custom server")
+			return
+		}
+		p = cloud.Provider{ID: "custom", Name: "Custom server", BaseURL: bu,
+			AuthHeader: "Authorization", AuthPrefix: "Bearer ", Format: cloud.FormatOpenAI, DefaultModel: req.Model}
+		key = req.Key // may be empty for no-auth home servers
+	} else {
+		var ok bool
+		p, ok = cloud.FindProvider(req.Provider)
+		if !ok {
+			jsonError(w, 400, "unknown provider")
+			return
+		}
+		key = cloud.LoadKey(req.Provider)
+		if key == "" {
+			jsonError(w, 400, fmt.Sprintf("no API key for %s — add your own key in Cloud Models", p.Name))
+			return
+		}
+		// Override the model if the caller picked one.
+		if req.Model != "" {
+			p.DefaultModel = req.Model
+			if p.Format == cloud.FormatGemini {
+				p.BaseURL = "https://generativelanguage.googleapis.com/v1beta/models/" + req.Model + ":generateContent"
+			}
 		}
 	}
 
