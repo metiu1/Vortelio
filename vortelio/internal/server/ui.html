@@ -3236,6 +3236,8 @@ function updateModelDDForDomain() {
         for (const cm of (p.models || [])) {
           models.push({ v: `cloud:${p.id}:${cm.id}`, l: cm.label || cm.id, tag: '☁️ ' + p.name, cloud: true });
         }
+        // Let the user pick ANY model id the provider offers, not just the presets.
+        models.push({ v: `cloudcustom:${p.id}`, l: 'Altro modello ' + p.name + '…', tag: '✏️ ID a scelta', cloud: true, custom: true });
       } else {
         models.push({ v: `cloudkey:${p.id}`, l: p.name, tag: '🔒 aggiungi API key', cloud: true, locked: true });
       }
@@ -3304,6 +3306,12 @@ function buildModelDD(models) {
         <span class="dd-item-tag">${esc(m.tag||'')}</span>
       </div>`;
     }
+    if (m.custom) { // type any model id for this provider
+      return `<div class="dd-item" onclick="addCustomCloudModel('${esc(m.v.slice(12))}')">
+        <span style="font-size:13px">${esc(m.l)}</span>
+        <span class="dd-item-tag">${esc(m.tag||'')}</span>
+      </div>`;
+    }
     const caps = m.cloud || modelSupportsTools(m.v);
     const badge = caps
       ? '<span class="model-cap" title="Supports web search & agentic tools">🛠 tools</span>'
@@ -3337,6 +3345,15 @@ async function addCloudKeyInline(providerId) {
     if (p && (p.models||[]).length) selectModel(`cloud:${p.id}:${p.models[0].id}`, p.models[0].label || p.models[0].id);
     toast('☁️ Chiave salvata — modelli ' + providerId + ' pronti in Assistant e Agent', 'ok');
   } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+// Use any model id the provider offers (e.g. gpt-4.1, claude-opus-4, gemini-2.5-pro).
+function addCustomCloudModel(providerId) {
+  closeAllDD();
+  const id = prompt('Scrivi l\'ID esatto del modello "' + providerId + '" che vuoi usare\n(es. gpt-4.1 · claude-3-7-sonnet-latest · gemini-2.5-pro · llama-3.3-70b-versatile):');
+  if (!id || !id.trim()) return;
+  selectModel('cloud:' + providerId + ':' + id.trim(), id.trim());
+  toast('☁️ Modello impostato: ' + id.trim(), 'ok');
 }
 
 function selectModel(v, l) {
@@ -4136,7 +4153,14 @@ async function toggleDictation() {
   let base = inp.value;
   _recog.onstart  = () => { _recogOn = true; btn.classList.add('listening'); toast('🎤 Sto ascoltando… (ritocca il mic per fermare)'); };
   _recog.onend    = () => { _recogOn = false; btn.classList.remove('listening'); inp.focus(); };
-  _recog.onerror  = (e) => { if (e.error !== 'aborted' && e.error !== 'no-speech') toast('🎤 ' + e.error, 'err'); };
+  _recog.onerror  = (e) => {
+    if (e.error === 'aborted' || e.error === 'no-speech') return;
+    if (e.error === 'network' || e.error === 'service-not-allowed')
+      toast('🎤 Questo browser (es. Brave) blocca il riconoscimento vocale di Google. Scarica un modello Whisper (Download → whisper) per la dettatura locale, oppure usa Chrome/Edge.', 'err');
+    else if (e.error === 'not-allowed')
+      toast('🎤 Permesso microfono negato. Consentilo nelle impostazioni del sito e riprova.', 'err');
+    else toast('🎤 Errore vocale: ' + e.error, 'err');
+  };
   _recog.onresult = (ev) => {
     let finalT = '', interim = '';
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
@@ -5543,10 +5567,15 @@ function handleDrop(e) {
 }
 
 // ── Utils ─────────────────────────────────────────
+let _toastTimer = null;
 function toast(msg, type='') {
   const el = document.getElementById('toast');
   el.textContent = msg; el.className = 'toast show' + (type ? ' '+type : '');
-  setTimeout(() => el.className = 'toast', 3000);
+  el.title = 'Clicca per chiudere';
+  el.onclick = () => { el.className = 'toast'; };
+  if (_toastTimer) clearTimeout(_toastTimer);
+  // Errors stay long enough to read (and can be dismissed by clicking).
+  _toastTimer = setTimeout(() => el.className = 'toast', type === 'err' ? 9000 : 3000);
 }
 // apiFetch: alias for fetch that goes through the fetch interceptor (injects Firebase token)
 function apiFetch(url, opts) { return fetch(url, opts); }
