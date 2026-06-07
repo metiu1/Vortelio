@@ -1,0 +1,199 @@
+package commands
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+
+	"golang.org/x/term"
+)
+
+// readLine reads a line of input with a framed box and live autocomplete for
+// '/' commands and '@' file references. Returns (line, exitRequested).
+func (s *codeSession) readLine() (string, bool) {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		// Non-interactive (piped): plain read.
+		in, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil { return "", true }
+		return in, false
+	}
+	old, err := term.MakeRaw(fd)
+	if err != nil {
+		in, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return in, false
+	}
+	defer term.Restore(fd, old)
+
+	r := bufio.NewReader(os.Stdin)
+	var buf []rune
+	suggIdx := 0
+	prevLines := 0
+
+	render := func() {
+		kind, frag, sugg := s.suggestions(string(buf))
+		if suggIdx >= len(sugg) { suggIdx = 0 }
+		w := termWidth() - 4
+		if w < 20 { w = 20 }
+		if w > 100 { w = 100 }
+
+		var lines []string
+		lines = append(lines, cDim+"╭"+strings.Repeat("─", w)+"╮"+cReset)
+		shown := string(buf)
+		// keep the tail visible if too long
+		if len([]rune(shown)) > w-4 {
+			rs := []rune(shown)
+			shown = "…" + string(rs[len(rs)-(w-5):])
+		}
+		pad := w - 3 - len([]rune(shown))
+		if pad < 0 { pad = 0 }
+		lines = append(lines, cDim+"│"+cReset+" "+cCyan+"›"+cReset+" "+shown+cInv+" "+cReset+strings.Repeat(" ", pad)+cDim+"│"+cReset)
+		lines = append(lines, cDim+"╰"+strings.Repeat("─", w)+"╯"+cReset)
+
+		if kind != 0 && len(sugg) > 0 {
+			max := len(sugg)
+			if max > 6 { max = 6 }
+			for i := 0; i < max; i++ {
+				sg := sugg[i]
+				if i == suggIdx {
+					lines = append(lines, "  "+cInv+" "+sg+" "+cReset)
+				} else {
+					lines = append(lines, "  "+cDim+sg+cReset)
+				}
+			}
+			hint := "Tab/→ completa · ↑↓ scegli · Invio invia"
+			lines = append(lines, "  "+cDim+hint+cReset)
+		}
+		_ = frag
+
+		// Clear previous render and draw.
+		if prevLines > 0 {
+			fmt.Printf("\033[%dA", prevLines-1)
+		}
+		fmt.Print("\r\033[J")
+		fmt.Print(strings.Join(lines, "\r\n"))
+		prevLines = len(lines)
+	}
+
+	complete := func() {
+		kind, frag, sugg := s.suggestions(string(buf))
+		if kind == 0 || len(sugg) == 0 { return }
+		if suggIdx >= len(sugg) { suggIdx = 0 }
+		sel := sugg[suggIdx]
+		if kind == '/' {
+			buf = []rune(strings.Fields(sel)[0] + " ")
+		} else { // '@'
+			// replace the current @token with @<sel>
+			line := string(buf)
+			at := strings.LastIndex(line, "@")
+			if at >= 0 {
+				// keep dir prefix already typed before the fragment
+				base := line[:at+1]
+				if d := strings.LastIndexAny(frag, "/\\"); d >= 0 {
+					base += frag[:d+1]
+				}
+				buf = []rune(base + sel)
+			}
+		}
+		suggIdx = 0
+	}
+
+	render()
+	for {
+		ch, _, err := r.ReadRune()
+		if err != nil { return "", true }
+		switch ch {
+		case 3: // Ctrl+C
+			fmt.Print("\r\n")
+			return "", true
+		case 4: // Ctrl+D
+			if len(buf) == 0 { fmt.Print("\r\n"); return "", true }
+		case '\r', '\n':
+			fmt.Print("\r\033[J")
+			line := string(buf)
+			fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, line)
+			return line, false
+		case '\t':
+			complete(); render()
+		case 127, 8: // backspace
+			if len(buf) > 0 { buf = buf[:len(buf)-1] }
+			suggIdx = 0
+			render()
+		case 27: // ESC — maybe an arrow
+			b1, _, _ := r.ReadRune()
+			if b1 == '[' {
+				b2, _, _ := r.ReadRune()
+				switch b2 {
+				case 'A': // up
+					if suggIdx > 0 { suggIdx-- }
+					render()
+				case 'B': // down
+					suggIdx++
+					render()
+				case 'C': // right → complete
+					complete(); render()
+				case 'D': // left — ignore
+				}
+			}
+		default:
+			if ch >= 32 {
+				buf = append(buf, ch)
+				suggIdx = 0
+				render()
+			}
+		}
+	}
+}
+
+// suggestions returns (kind, fragment, list) for the current input.
+// kind is '/' for commands, '@' for files, 0 for none.
+func (s *codeSession) suggestions(line string) (byte, string, []string) {
+	if strings.HasPrefix(line, "/") && !strings.Contains(line, " ") {
+		var vals []string
+		for _, c := range slashCmds {
+			if strings.HasPrefix(c.Cmd, line) {
+				vals = append(vals, fmt.Sprintf("%-9s %s", c.Cmd, c.Desc))
+			}
+		}
+		return '/', line, vals
+	}
+	at := strings.LastIndex(line, "@")
+	if at >= 0 {
+		after := line[at+1:]
+		if strings.ContainsAny(after, " \t") {
+			return 0, "", nil
+		}
+		dir := s.workdir
+		frag := after
+		if d := strings.LastIndexAny(after, "/\\"); d >= 0 {
+			dir = s.workdir + string(os.PathSeparator) + after[:d]
+			frag = after[d+1:]
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil { return '@', after, nil }
+		var out []string
+		fl := strings.ToLower(frag)
+		for _, e := range entries {
+			name := e.Name()
+			if strings.HasPrefix(name, ".") && fl == "" { continue }
+			if fl == "" || strings.Contains(strings.ToLower(name), fl) {
+				if e.IsDir() { name += "/" }
+				out = append(out, name)
+			}
+		}
+		sort.Strings(out)
+		if len(out) > 20 { out = out[:20] }
+		return '@', after, out
+	}
+	return 0, "", nil
+}
+
+func cDimInline(s string) string { return cDim + s + cReset }
+
+func termWidth() int {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || w <= 0 { return 80 }
+	return w
+}

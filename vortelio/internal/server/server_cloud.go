@@ -108,7 +108,7 @@ func CloudModelsForCLI() []CLICloudModel {
 
 // RunCLICloudTurn streams one cloud chat turn for the CLI, using the same agentic
 // harness (tools) as the GUI. Returns the full assistant text.
-func RunCLICloudTurn(providerID, model, workdir string, autonomous, mcpOn bool, skills []string, history []map[string]string, onToken func(string), emit rt.ToolEventEmitter) (string, error) {
+func RunCLICloudTurn(providerID, model, workdir, mode string, autonomous, mcpOn bool, skills []string, history []map[string]string, onToken func(string), emit rt.ToolEventEmitter, approve func(tool, summary, args string) bool) (string, error) {
 	p, ok := cloud.FindProvider(providerID)
 	if !ok {
 		return "", fmt.Errorf("provider cloud sconosciuto: %s", providerID)
@@ -123,7 +123,7 @@ func RunCLICloudTurn(providerID, model, workdir string, autonomous, mcpOn bool, 
 			p.BaseURL = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent"
 		}
 	}
-	prov, sys := BuildCLIHarness(workdir, "auto", autonomous, mcpOn, skills, emit)
+	prov, sys := BuildCLIHarness(workdir, mode, autonomous, mcpOn, skills, emit, approve)
 	msgs := []cloud.Message{}
 	if sys != "" {
 		msgs = append(msgs, cloud.Message{Role: "system", Content: sys})

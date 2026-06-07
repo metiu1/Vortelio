@@ -172,19 +172,21 @@ func ListSkillInfos() []SkillInfo {
 }
 
 // BuildCLIHarness builds the full agentic harness for the CLI with optional MCP
-// and skills, and returns the matching system prompt (skills applied).
-func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []string, emit rt.ToolEventEmitter) (rt.ToolProvider, string) {
+// and skills, and returns the matching system prompt (skills applied). approve is
+// the synchronous approval callback used for "ask" mode in the terminal.
+func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []string, emit rt.ToolEventEmitter, approve func(tool, summary, args string) bool) (rt.ToolProvider, string) {
 	cfg := &AgenticConfig{
-		Auto:       true,
-		Autonomous: autonomous,
-		WebSearch:  true,
-		Builtins:   true,
-		Coding:     true,
-		Media:      true,
-		MCP:        mcpOn,
-		Mode:       mode,
-		WorkingDir: workingDir,
-		Skills:     skills,
+		Auto:        true,
+		Autonomous:  autonomous,
+		WebSearch:   true,
+		Builtins:    true,
+		Coding:      true,
+		Media:       true,
+		MCP:         mcpOn,
+		Mode:        mode,
+		WorkingDir:  workingDir,
+		Skills:      skills,
+		ApproveFunc: approve,
 	}
 	sys := CodingSystemPrompt(autonomous)
 	if len(skills) > 0 {
@@ -287,6 +289,7 @@ type codingProvider struct {
 	mode    string // "plan" | "ask" | "auto"
 	root    string
 	emit    rt.ToolEventEmitter
+	approve func(tool, summary, args string) bool // synchronous approval (CLI); nil = use HTTP flow
 	counter int
 	mu      sync.Mutex
 }
@@ -302,7 +305,7 @@ func newCodingProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) *codingProv
 			root = abs
 		}
 	}
-	return &codingProvider{mode: mode, root: root, emit: emit}
+	return &codingProvider{mode: mode, root: root, emit: emit, approve: cfg.ApproveFunc}
 }
 
 func (c *codingProvider) Tools() []rt.ToolDef {
@@ -390,6 +393,10 @@ func riskSummary(name, argsJSON string) string {
 
 // requestApproval emits an approval_request event and blocks until resolved.
 func (c *codingProvider) requestApproval(tool, summary, argsJSON string) bool {
+	// CLI path: a synchronous approval callback (terminal y/n) instead of HTTP.
+	if c.approve != nil {
+		return c.approve(tool, summary, argsJSON)
+	}
 	c.mu.Lock()
 	c.counter++
 	id := fmt.Sprintf("appr_%d_%d", time.Now().UnixNano(), c.counter)

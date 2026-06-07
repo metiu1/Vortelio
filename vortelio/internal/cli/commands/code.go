@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,10 +28,11 @@ const (
 	cRed   = "\033[31m"
 	cMag   = "\033[35m"
 	cBlue  = "\033[34m"
+	cInv   = "\033[7m"
 )
 
-// CodeCommand is the Vortelio terminal coding agent, on the same harness
-// as the Developer GUI: agentic tool loop, coding tools, web, media, skills, MCP.
+// CodeCommand is the Vortelio terminal coding agent, on the same harness as the
+// Developer GUI: agentic tool loop, coding tools, web, media, skills, MCP.
 type CodeCommand struct{}
 
 func NewCodeCommand() *CodeCommand { return &CodeCommand{} }
@@ -40,16 +43,29 @@ type codeSession struct {
 	runner        *runtime.LLMRunner
 	hw            *runtime.Hardware
 	workdir       string
+	mode          string // plan | ask | auto
 	autonomous    bool
 	mcpOn         bool
 	skills        []string
 	messages      []map[string]interface{}
-	cloudProvider string // when set, stream via cloud instead of the local model
+	cloudProvider string
 	cloudModel    string
 }
 
+var slashCmds = []struct{ Cmd, Desc string }{
+	{"/model", "cambia modello (locali + cloud)"},
+	{"/skills", "attiva/disattiva skill"},
+	{"/mcp", "attiva/disattiva tool MCP"},
+	{"/mode", "plan · ask · auto (conferma azioni)"},
+	{"/auto", "modalità autonoma verso l'obiettivo"},
+	{"/cd", "cambia cartella di lavoro"},
+	{"/clear", "azzera il contesto"},
+	{"/help", "elenco comandi"},
+	{"/exit", "esci"},
+}
+
 func (c *CodeCommand) Run(args []string) error {
-	s := &codeSession{}
+	s := &codeSession{mode: "ask"}
 	s.workdir, _ = os.Getwd()
 	var modelRef string
 	var firstPrompt []string
@@ -61,10 +77,10 @@ func (c *CodeCommand) Run(args []string) error {
 		case "--dir", "-d":
 			if i+1 < len(args) { s.workdir = args[i+1]; i++ }
 		case "--auto", "--autonomous":
-			s.autonomous = true
+			s.autonomous = true; s.mode = "auto"
+		case "--yes", "-y":
+			s.mode = "auto"
 		case "--cpu":
-			// handled after hardware detect
-			args[i] = "--cpu"
 		case "--help", "-h":
 			printCodeHelp(); return nil
 		default:
@@ -77,45 +93,38 @@ func (c *CodeCommand) Run(args []string) error {
 		ref, err := hub.ParseModelRef(modelRef)
 		if err != nil { return fmt.Errorf("modello non valido: %w", err) }
 		s.model, err = store.Resolve(ref)
-		if err != nil { return fmt.Errorf("modello non trovato: %w (scaricalo: vortelio pull %s)", err, modelRef) }
+		if err != nil { return fmt.Errorf("modello non trovato: %w", err) }
 	} else {
 		s.model = pickDefaultLLM(store)
 	}
-	// No local LLM? Fall back to a configured cloud model if there is one.
 	if s.model == nil {
 		if cl := server.CloudModelsForCLI(); len(cl) > 0 {
-			s.cloudProvider = cl[0].Provider
-			s.cloudModel = cl[0].Model
+			s.cloudProvider = cl[0].Provider; s.cloudModel = cl[0].Model
 		} else {
-			return fmt.Errorf("nessun LLM installato e nessun modello cloud configurato.\n  Scarica un modello:  vortelio pull llm/qwen2.5:7b\n  oppure aggiungi una API key dalla GUI (My models → Add cloud model)")
+			return fmt.Errorf("nessun LLM installato e nessun cloud configurato.\n  vortelio pull llm/qwen2.5:7b")
 		}
 	}
 	s.hw = runtime.DetectHardware()
 	for _, a := range args { if a == "--cpu" { s.hw.Backend = runtime.BackendCPU } }
 
-	printBanner(s)
+	s.printBanner()
 	if s.cloudProvider == "" {
 		if err := s.loadModel(); err != nil { return err }
 	}
 
-	reader := bufio.NewReader(os.Stdin)
 	if len(firstPrompt) > 0 { s.runTurn(strings.Join(firstPrompt, " ")) }
 
 	for {
-		fmt.Printf("\n%s%s›%s ", cBold, cCyan, cReset)
-		line, err := reader.ReadString('\n')
-		if err != nil { fmt.Println(); break }
+		line, exit := s.readLine()
+		if exit { return nil }
 		line = strings.TrimSpace(line)
 		if line == "" { continue }
-		if line == "@" { s.listWorkdirFiles(); continue }
-		if line == "/" { printSlashHelp(); continue }
 		if strings.HasPrefix(line, "/") {
-			if s.handleCommand(line, reader) { return nil }
+			if s.handleCommand(line) { return nil }
 			continue
 		}
 		s.runTurn(line)
 	}
-	return nil
 }
 
 func (s *codeSession) loadModel() error {
@@ -123,6 +132,12 @@ func (s *codeSession) loadModel() error {
 	if err != nil { return fmt.Errorf("caricamento modello fallito: %w", err) }
 	s.runner = r
 	return nil
+}
+
+func (s *codeSession) modelLabel() string {
+	if s.cloudProvider != "" { return "☁ " + s.cloudModel }
+	if s.model != nil { return s.model.Name + ":" + s.model.Tag }
+	return "?"
 }
 
 func (s *codeSession) emit(ev string, data interface{}) {
@@ -139,7 +154,26 @@ func (s *codeSession) emit(ev string, data interface{}) {
 			fmt.Printf("  %s✓%s %s%s%s\n", cGreen, cReset, cDim, truncStr(fmt.Sprint(m["result"]), 200), cReset)
 		}
 	case "media_generated":
-		fmt.Printf("  %s🎨 generato: %v%s\n", cMag, m["path"], cReset)
+		fmt.Printf("  %s🎨 %v%s\n", cMag, m["path"], cReset)
+	}
+}
+
+// approve is the synchronous terminal approval for "ask" mode.
+func (s *codeSession) approve(tool, summary, args string) bool {
+	fmt.Printf("\n  %s⚠ Conferma azione%s  %s%s%s\n", cYell, cReset, cBold, summary, cReset)
+	fmt.Printf("  %s%s%s\n", cDim, truncStr(args, 200), cReset)
+	fmt.Printf("  [%sy%s] sì   [%sn%s] no   [%sa%s] sì a tutto (auto)  ", cGreen, cReset, cRed, cReset, cCyan, cReset)
+	r := bufio.NewReader(os.Stdin)
+	in, _ := r.ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(in)) {
+	case "y", "yes", "s", "si", "":
+		return true
+	case "a", "all":
+		s.mode = "auto"
+		fmt.Printf("  %smodalità auto attivata%s\n", cDim, cReset)
+		return true
+	default:
+		return false
 	}
 }
 
@@ -156,9 +190,9 @@ func (s *codeSession) runTurn(line string) {
 		for _, m := range s.messages {
 			hist = append(hist, map[string]string{"role": fmt.Sprint(m["role"]), "content": fmt.Sprint(m["content"])})
 		}
-		_, err = server.RunCLICloudTurn(s.cloudProvider, s.cloudModel, s.workdir, s.autonomous, s.mcpOn, s.skills, hist, onTok, s.emit)
+		_, err = server.RunCLICloudTurn(s.cloudProvider, s.cloudModel, s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, hist, onTok, s.emit, s.approve)
 	} else {
-		prov, sys := server.BuildCLIHarness(s.workdir, "auto", s.autonomous, s.mcpOn, s.skills, s.emit)
+		prov, sys := server.BuildCLIHarness(s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, s.emit, s.approve)
 		sopts := runtime.StreamOpts{System: sys, Messages: s.messages, ToolsEnabled: true, ToolProvider: prov}
 		if s.autonomous { sopts.MaxToolRounds = 40 }
 		err = s.runner.StreamWithOpts(sopts, onTok, s.emit)
@@ -171,14 +205,6 @@ func (s *codeSession) runTurn(line string) {
 	s.messages = append(s.messages, map[string]interface{}{"role": "assistant", "content": resp.String()})
 }
 
-func (s *codeSession) modelLabel() string {
-	if s.cloudProvider != "" { return "☁ " + s.cloudModel }
-	if s.model != nil { return s.model.Name + ":" + s.model.Tag }
-	return "?"
-}
-
-// expandFileRefs replaces @path tokens with the file's content so the model can
-// read referenced files directly.
 var fileRefRE = regexp.MustCompile(`@([^\s"']+)`)
 
 func (s *codeSession) expandFileRefs(line string) string {
@@ -188,7 +214,7 @@ func (s *codeSession) expandFileRefs(line string) string {
 		full := p
 		if !filepath.IsAbs(p) { full = filepath.Join(s.workdir, p) }
 		data, err := os.ReadFile(full)
-		if err != nil { return tok } // leave as-is if unreadable
+		if err != nil { return tok }
 		if len(data) > 40000 { data = data[:40000] }
 		extras = append(extras, fmt.Sprintf("\n\n--- File \"%s\" ---\n%s", p, string(data)))
 		fmt.Printf("  %s📎 incluso %s (%d byte)%s\n", cDim, p, len(data), cReset)
@@ -197,11 +223,10 @@ func (s *codeSession) expandFileRefs(line string) string {
 	return out + strings.Join(extras, "")
 }
 
-// handleCommand returns true when the session should exit.
-func (s *codeSession) handleCommand(line string, reader *bufio.Reader) bool {
+func (s *codeSession) handleCommand(line string) bool {
 	parts := strings.Fields(line)
-	cmd := parts[0]
-	switch cmd {
+	r := bufio.NewReader(os.Stdin)
+	switch parts[0] {
 	case "/exit", "/quit", "/q":
 		return true
 	case "/help", "/?":
@@ -211,18 +236,27 @@ func (s *codeSession) handleCommand(line string, reader *bufio.Reader) bool {
 		fmt.Printf("  %scontesto azzerato%s\n", cDim, cReset)
 	case "/auto":
 		s.autonomous = !s.autonomous
-		fmt.Printf("  %smodalità autonoma: %v%s\n", cYell, s.autonomous, cReset)
+		if s.autonomous { s.mode = "auto" }
+		fmt.Printf("  %sautonomo: %v%s\n", cYell, s.autonomous, cReset)
+	case "/mode":
+		if len(parts) > 1 && (parts[1] == "plan" || parts[1] == "ask" || parts[1] == "auto") {
+			s.mode = parts[1]
+		} else {
+			fmt.Printf("  %smode attuale: %s — usa /mode plan|ask|auto%s\n", cDim, s.mode, cReset)
+			return false
+		}
+		fmt.Printf("  %smode: %s%s\n", cYell, s.mode, cReset)
 	case "/mcp":
 		s.mcpOn = !s.mcpOn
 		fmt.Printf("  %sMCP: %v%s\n", cYell, s.mcpOn, cReset)
 	case "/cd":
 		if len(parts) > 1 { s.workdir = strings.TrimSpace(line[len("/cd "):]); fmt.Printf("  %scartella: %s%s\n", cCyan, s.workdir, cReset) }
 	case "/model", "/m":
-		s.chooseModel(reader)
+		s.chooseModel(r)
 	case "/skills", "/skill":
-		s.chooseSkills(reader)
+		s.chooseSkills(r)
 	default:
-		fmt.Printf("  %scomando sconosciuto: %s — /help per la lista%s\n", cDim, cmd, cReset)
+		fmt.Printf("  %scomando sconosciuto: %s — /help%s\n", cDim, parts[0], cReset)
 	}
 	return false
 }
@@ -232,42 +266,37 @@ func (s *codeSession) chooseModel(reader *bufio.Reader) {
 	var llms []*hub.Model
 	for _, m := range models { if m.Type == "llm" { llms = append(llms, m) } }
 	cloud := server.CloudModelsForCLI()
-	if len(llms) == 0 && len(cloud) == 0 { fmt.Printf("  %snessun modello disponibile%s\n", cDim, cReset); return }
-
-	fmt.Printf("\n  %sModelli disponibili:%s\n", cBold, cReset)
+	if len(llms) == 0 && len(cloud) == 0 { fmt.Printf("  %snessun modello%s\n", cDim, cReset); return }
+	fmt.Printf("\n  %sModelli:%s\n", cBold, cReset)
 	n := 0
 	if len(llms) > 0 { fmt.Printf("  %s💻 Locali%s\n", cDim, cReset) }
 	for _, m := range llms {
 		n++
 		mark := " "
 		if s.cloudProvider == "" && s.model != nil && m.Name == s.model.Name && m.Tag == s.model.Tag { mark = cGreen + "●" + cReset }
-		tools := ""
-		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { tools = cDim + " 🛠" + cReset }
-		fmt.Printf("   %s %d) %s:%s%s\n", mark, n, m.Name, m.Tag, tools)
+		tl := ""
+		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { tl = cDim + " 🛠" + cReset }
+		fmt.Printf("   %s %d) %s:%s%s\n", mark, n, m.Name, m.Tag, tl)
 	}
 	if len(cloud) > 0 { fmt.Printf("  %s☁ Cloud%s\n", cDim, cReset) }
 	for _, c := range cloud {
 		n++
 		mark := " "
 		if s.cloudProvider == c.Provider && s.cloudModel == c.Model { mark = cGreen + "●" + cReset }
-		fmt.Printf("   %s %d) %s%s · %s%s\n", mark, n, c.Label, cDim, c.ProviderName, cReset)
+		fmt.Printf("   %s %d) %s %s· %s%s\n", mark, n, c.Label, cDim, c.ProviderName, cReset)
 	}
-	fmt.Printf("  %snumero del modello (invio per annullare):%s ", cDim, cReset)
+	fmt.Printf("  %snumero (invio per annullare):%s ", cDim, cReset)
 	in, _ := reader.ReadString('\n')
-	in = strings.TrimSpace(in)
 	var idx int
-	if _, err := fmt.Sscanf(in, "%d", &idx); err != nil || idx < 1 || idx > len(llms)+len(cloud) { return }
+	if _, err := fmt.Sscanf(strings.TrimSpace(in), "%d", &idx); err != nil || idx < 1 || idx > len(llms)+len(cloud) { return }
 	if idx <= len(llms) {
-		s.cloudProvider = ""; s.cloudModel = ""
-		s.model = llms[idx-1]
-		fmt.Printf("  %s⏳ carico %s:%s…%s\n", cDim, s.model.Name, s.model.Tag, cReset)
-		if err := s.loadModel(); err != nil { fmt.Printf("  %s%v%s\n", cRed, err, cReset) } else {
-			fmt.Printf("  %s✓ modello: %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset)
-		}
+		s.cloudProvider = ""; s.cloudModel = ""; s.model = llms[idx-1]
+		fmt.Printf("  %s⏳ carico…%s\n", cDim, cReset)
+		if err := s.loadModel(); err != nil { fmt.Printf("  %s%v%s\n", cRed, err, cReset) } else { fmt.Printf("  %s✓ %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset) }
 	} else {
 		c := cloud[idx-1-len(llms)]
 		s.cloudProvider = c.Provider; s.cloudModel = c.Model
-		fmt.Printf("  %s✓ modello cloud: %s (%s)%s\n", cGreen, c.Label, c.ProviderName, cReset)
+		fmt.Printf("  %s✓ ☁ %s%s\n", cGreen, c.Label, cReset)
 	}
 }
 
@@ -276,7 +305,7 @@ func (s *codeSession) chooseSkills(reader *bufio.Reader) {
 	if len(all) == 0 { fmt.Printf("  %snessuna skill%s\n", cDim, cReset); return }
 	on := map[string]bool{}
 	for _, id := range s.skills { on[id] = true }
-	fmt.Printf("\n  %sSkill (numero per attivare/disattivare, invio per chiudere):%s\n", cBold, cReset)
+	fmt.Printf("\n  %sSkill (numero per attivare/disattivare):%s\n", cBold, cReset)
 	for i, sk := range all {
 		box := "[ ]"
 		if on[sk.ID] { box = cGreen + "[x]" + cReset }
@@ -284,53 +313,69 @@ func (s *codeSession) chooseSkills(reader *bufio.Reader) {
 	}
 	fmt.Printf("  %s>%s ", cDim, cReset)
 	in, _ := reader.ReadString('\n')
-	in = strings.TrimSpace(in)
 	var idx int
-	if _, err := fmt.Sscanf(in, "%d", &idx); err != nil || idx < 1 || idx > len(all) { return }
+	if _, err := fmt.Sscanf(strings.TrimSpace(in), "%d", &idx); err != nil || idx < 1 || idx > len(all) { return }
 	id := all[idx-1].ID
 	if on[id] {
 		var ns []string
 		for _, x := range s.skills { if x != id { ns = append(ns, x) } }
 		s.skills = ns
-		fmt.Printf("  %sskill disattivata: %s%s\n", cDim, all[idx-1].Name, cReset)
+		fmt.Printf("  %sdisattivata%s\n", cDim, cReset)
 	} else {
 		s.skills = append(s.skills, id)
-		fmt.Printf("  %s✓ skill attivata: %s%s\n", cGreen, all[idx-1].Name, cReset)
+		fmt.Printf("  %s✓ attivata%s\n", cGreen, cReset)
 	}
 }
 
-func (s *codeSession) listWorkdirFiles() {
-	entries, err := os.ReadDir(s.workdir)
-	if err != nil { fmt.Printf("  %scartella non leggibile%s\n", cDim, cReset); return }
-	fmt.Printf("\n  %sFile in %s (usa @nome per allegarli):%s\n", cBold, s.workdir, cReset)
+// ── Rich banner ─────────────────────────────────────────────────────
+func (s *codeSession) printBanner() {
+	branch, clean := gitInfo(s.workdir)
+	files := countFiles(s.workdir)
+	fmt.Printf("\n %s%s🤖 Vortelio Code%s\n", cBold, cCyan, cReset)
+	if branch != "" {
+		st := cGreen + "clean" + cReset
+		if !clean { st = cYell + "modificato" + cReset }
+		fmt.Printf("   %s📂 Git:%s %s (%s)\n", cDim, cReset, branch, st)
+	} else {
+		fmt.Printf("   %s📂 Cartella:%s %s\n", cDim, cReset, s.workdir)
+	}
+	fmt.Printf("   %s🗂  Progetto:%s %d file indicizzati\n", cDim, cReset, files)
+	fmt.Printf("   %s🧠 Modello:%s %s   %smode:%s %s\n", cDim, cReset, s.modelLabel(), cDim, cReset, s.mode)
+	fmt.Printf("\n   %sScrivi un obiettivo. %s/%s comandi · %s@%s file · %s/help%s%s\n\n", cDim, cReset, cDim, cReset, cDim, cReset, cDim, cReset)
+}
+
+func gitInfo(dir string) (string, bool) {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil { return "", false }
+	branch := strings.TrimSpace(string(out))
+	st, _ := exec.Command("git", "-C", dir, "status", "--porcelain").Output()
+	return branch, strings.TrimSpace(string(st)) == ""
+}
+
+func countFiles(dir string) int {
 	n := 0
-	for _, e := range entries {
-		if n >= 40 { fmt.Printf("   %s… e altri%s\n", cDim, cReset); break }
-		if e.IsDir() { fmt.Printf("   %s📁 %s/%s\n", cDim, e.Name(), cReset) } else { fmt.Printf("   📄 %s\n", e.Name()) }
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil { return nil }
+		if d.IsDir() {
+			name := d.Name()
+			if name == ".git" || name == "node_modules" || name == ".venv" || name == "__pycache__" || name == "dist" || name == "build" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		n++
-	}
-}
-
-func printBanner(s *codeSession) {
-	fmt.Printf("\n%s%s ┌─────────────────────────────────────────────┐%s\n", cBold, cCyan, cReset)
-	fmt.Printf("%s%s │  🧑‍💻 Vortelio Code                            │%s\n", cBold, cCyan, cReset)
-	fmt.Printf("%s%s └─────────────────────────────────────────────┘%s\n", cBold, cCyan, cReset)
-	fmt.Printf("   %smodello%s %s%s%s   %scartella%s %s%s\n", cDim, cReset, cCyan, s.modelLabel(), cReset, cDim, cReset, s.workdir,
-		map[bool]string{true: "   " + cYell + "[AUTONOMO]" + cReset, false: ""}[s.autonomous])
-	fmt.Printf("   %sscrivi un obiettivo · %s/help%s%s per i comandi · %s@file%s%s per allegare un file%s\n", cDim, cReset, cDim, cReset, cReset, cDim, cReset, cReset)
+		if n > 9999 { return filepath.SkipAll }
+		return nil
+	})
+	return n
 }
 
 func printSlashHelp() {
 	fmt.Printf("\n  %sComandi:%s\n", cBold, cReset)
-	fmt.Println("   /model      cambia modello LLM")
-	fmt.Println("   /skills     attiva/disattiva skill")
-	fmt.Println("   /mcp        attiva/disattiva i tool MCP")
-	fmt.Println("   /auto       modalità autonoma (loop verso l'obiettivo)")
-	fmt.Println("   /cd <dir>   cambia cartella di lavoro")
-	fmt.Println("   /clear      azzera il contesto")
-	fmt.Println("   /help       questo messaggio")
-	fmt.Println("   /exit       esci")
-	fmt.Printf("  %s@percorso/file  →  include il contenuto del file nel messaggio%s\n", cDim, cReset)
+	for _, c := range slashCmds {
+		fmt.Printf("   %s%-8s%s %s%s%s\n", cCyan, c.Cmd, cReset, cDim, c.Desc, cReset)
+	}
+	fmt.Printf("  %s@percorso/file → include il contenuto del file%s\n", cDim, cReset)
 }
 
 func pickDefaultLLM(store *hub.ModelStore) *hub.Model {
@@ -357,15 +402,10 @@ func printCodeHelp() {
 	fmt.Println("Uso:  vortelio code [obiettivo] [flag]")
 	fmt.Println("")
 	fmt.Println("Flag:")
-	fmt.Println("  -m, --model <ref>   Modello (default: primo LLM tool-capable installato)")
-	fmt.Println("  -d, --dir <path>    Cartella di lavoro (default: cartella corrente)")
-	fmt.Println("      --auto          Modalità autonoma: lavora da solo verso l'obiettivo")
+	fmt.Println("  -m, --model <ref>   Modello (default: primo LLM tool-capable; poi cloud)")
+	fmt.Println("  -d, --dir <path>    Cartella di lavoro")
+	fmt.Println("      --auto / -y     Esegue le azioni senza chiedere conferma")
 	fmt.Println("      --cpu           Forza CPU")
 	fmt.Println("")
-	fmt.Println("In chat:  /model  /skills  /mcp  /auto  /cd  /clear  /help  /exit  ·  @file")
-	fmt.Println("")
-	fmt.Println("Esempi:")
-	fmt.Println("  vortelio code")
-	fmt.Println("  vortelio code \"crea un'API Flask con /ping\" --auto")
-	fmt.Println("  vortelio code -m llm/qwen2.5:7b -d ./progetto")
+	fmt.Println("In chat:  /model /skills /mcp /mode /auto /cd /clear /help /exit  ·  @file")
 }

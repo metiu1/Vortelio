@@ -120,6 +120,9 @@ type AgenticConfig struct {
 	Mode       string   `json:"mode"`        // coding mode: "plan" | "ask" | "auto"
 	WorkingDir string   `json:"working_dir"` // root dir for coding tools
 	SessionID  string   `json:"session_id"`  // correlates approval prompts
+	// ApproveFunc, when set (CLI), is called synchronously to approve risky tools
+	// instead of the HTTP approval flow. Not serialized.
+	ApproveFunc func(tool, summary, args string) bool `json:"-"`
 }
 
 type ChatMessage struct {
