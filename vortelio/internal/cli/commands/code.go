@@ -177,6 +177,23 @@ func (s *codeSession) approve(tool, summary, args string) bool {
 	}
 }
 
+// askUser is the terminal answer for the ask_user tool.
+func (s *codeSession) askUser(question string, options []string) string {
+	fmt.Printf("\n  %s❓ %s%s\n", cYell, question, cReset)
+	for i, o := range options {
+		fmt.Printf("   %s%d)%s %s\n", cCyan, i+1, cReset, o)
+	}
+	fmt.Printf("   %s(numero di un'opzione, o scrivi una risposta libera):%s ", cDim, cReset)
+	r := bufio.NewReader(os.Stdin)
+	in, _ := r.ReadString('\n')
+	in = strings.TrimSpace(in)
+	var n int
+	if _, err := fmt.Sscanf(in, "%d", &n); err == nil && n >= 1 && n <= len(options) {
+		return options[n-1]
+	}
+	return in
+}
+
 func (s *codeSession) runTurn(line string) {
 	line = s.expandFileRefs(line)
 	s.messages = append(s.messages, map[string]interface{}{"role": "user", "content": line})
@@ -190,9 +207,9 @@ func (s *codeSession) runTurn(line string) {
 		for _, m := range s.messages {
 			hist = append(hist, map[string]string{"role": fmt.Sprint(m["role"]), "content": fmt.Sprint(m["content"])})
 		}
-		_, err = server.RunCLICloudTurn(s.cloudProvider, s.cloudModel, s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, hist, onTok, s.emit, s.approve)
+		_, err = server.RunCLICloudTurn(s.cloudProvider, s.cloudModel, s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, hist, onTok, s.emit, s.approve, s.askUser)
 	} else {
-		prov, sys := server.BuildCLIHarness(s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, s.emit, s.approve)
+		prov, sys := server.BuildCLIHarness(s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, s.emit, s.approve, s.askUser)
 		sopts := runtime.StreamOpts{System: sys, Messages: s.messages, ToolsEnabled: true, ToolProvider: prov}
 		if s.autonomous { sopts.MaxToolRounds = 40 }
 		err = s.runner.StreamWithOpts(sopts, onTok, s.emit)

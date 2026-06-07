@@ -3972,6 +3972,29 @@ function cloudApprovalEl(ap) {
   return card;
 }
 
+// Interactive question popup from the agent (ask_user tool): options + "Other".
+function askUserEl(data) {
+  const card = document.createElement('div');
+  card.className = 'approval-card';
+  card.id = 'ask-' + data.id;
+  const opts = (data.options || []).map((o, i) => `<button class="btn" data-i="${i}">${esc(o)}</button>`).join('');
+  card.innerHTML = '<div class="ap-title">❓ ' + esc(data.question) + '</div>' +
+    '<div class="ap-actions" style="flex-wrap:wrap">' + opts + '</div>' +
+    '<div style="display:flex;gap:6px;margin-top:8px">' +
+    '<input class="tool-input ask-inp" placeholder="Altro… (risposta personalizzata)" style="flex:1">' +
+    '<button class="btn primary ask-send">Invia</button></div>';
+  card.querySelectorAll('.ap-actions button').forEach(b => { b.onclick = () => answerAsk(data.id, (data.options || [])[+b.dataset.i], card); });
+  const send = card.querySelector('.ask-send');
+  const inp = card.querySelector('.ask-inp');
+  send.onclick = () => { const v = (inp.value || '').trim(); if (v) answerAsk(data.id, v, card); };
+  inp.onkeydown = (e) => { if (e.key === 'Enter') { const v = (inp.value || '').trim(); if (v) answerAsk(data.id, v, card); } };
+  return card;
+}
+function answerAsk(id, answer, card) {
+  fetch('/api/agentic/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, answer }) }).catch(() => {});
+  if (card) card.innerHTML = '<div class="ap-title">✓ Hai risposto: ' + esc(answer) + '</div>';
+}
+
 // Reflect capability state into the "+" menu dots and the composer chips.
 function syncCaps() {
   const setOn = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('on', !!on); };
@@ -5045,6 +5068,7 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
         if (ev.event === 'media_generated') { try { replaceOrInsertMedia(content, data, tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
         if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'ask_user') { try { content.insertBefore(askUserEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'tool_call')   { const blk = makeToolBlock(data); content.insertBefore(blk, tn); _cloudTB[data.id || data.call_id || ('t'+Object.keys(_cloudTB).length)] = blk; maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
         if (ev.event === 'tool_result') { fillToolResult(_cloudTB[data.id || data.call_id] || Object.values(_cloudTB).pop(), data); canvas.scrollTop = 9999; continue; }
         continue;
@@ -5317,6 +5341,7 @@ async function doChat(text, files, signal) {
           if (obj.event === 'tool_call') { try { _handleToolCall(obj.data); } catch {} continue; }
           if (obj.event === 'tool_result') { try { _handleToolResult(obj.data); } catch {} continue; }
           if (obj.event === 'approval_request') { try { _handleApproval(obj.data); } catch {} continue; }
+          if (obj.event === 'ask_user') { try { content.insertBefore(askUserEl(obj.data), textNode); canvas.scrollTop = 9999; } catch {} continue; }
           if (obj.event === 'media_generated') { try { replaceOrInsertMedia(content, obj.data, textNode); canvas.scrollTop = 9999; } catch {} continue; }
           if (obj.event === 'notice') { try { _handleNotice(obj.data); } catch {} continue; }
           if (obj.done) break;
@@ -7748,6 +7773,7 @@ async function sendCloudMsg() {
           if (ev.event === 'media_generated') { try { replaceOrInsertMedia(content, data, tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
           if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'ask_user') { try { content.insertBefore(askUserEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
           if (ev.event === 'tool_call')   { const blk = makeToolBlock(data); content.insertBefore(blk, tn); _cloudTB[data.id || data.call_id || ('t'+Object.keys(_cloudTB).length)] = blk; maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
           if (ev.event === 'tool_result') { fillToolResult(_cloudTB[data.id || data.call_id] || Object.values(_cloudTB).pop(), data); canvas.scrollTop = 9999; continue; }
           continue;

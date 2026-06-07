@@ -169,6 +169,30 @@ func BuiltinTools() []ToolDef {
 				Parameters:  json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","description":"The full URL to fetch, e.g. https://example.com/page"}},"required":["url"]}`),
 			},
 		},
+		{
+			Type: "function",
+			Function: ToolFuncDef{
+				Name:        "deep_research",
+				Description: "Do thorough web research on a topic: runs a web search and reads the top result pages, returning combined excerpts to synthesize a well-sourced answer.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"The research topic or question"}},"required":["query"]}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFuncDef{
+				Name:        "create_document",
+				Description: "Create a document file on disk in a given format. Supports: pdf, docx, txt, md, html, csv, json. Use to deliver reports, letters, notes, etc.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"format":{"type":"string","description":"pdf | docx | txt | md | html | csv | json"},"path":{"type":"string","description":"Output file path (with the right extension)"},"title":{"type":"string","description":"Optional document title/heading"},"content":{"type":"string","description":"The document body (plain text or markdown). Use \\n for new lines."}},"required":["format","path","content"]}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: ToolFuncDef{
+				Name:        "run_code",
+				Description: "Execute a code snippet and return its output. Supports python, javascript, bash, powershell, go, ruby, php, c, cpp, java. Use to compute, test, or run code to accomplish a task.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"language":{"type":"string","description":"python | javascript | bash | powershell | go | ruby | php | c | cpp | java"},"code":{"type":"string","description":"The source code to run"}},"required":["language","code"]}`),
+			},
+		},
 	}
 }
 
@@ -191,9 +215,103 @@ func ExecuteTool(name string, argsJSON string) (string, error) {
 		return toolListDirectory(argsJSON)
 	case "fetch_url":
 		return toolFetchURL(argsJSON)
+	case "deep_research":
+		return toolDeepResearch(argsJSON)
+	case "create_document":
+		return toolCreateDocument(argsJSON)
+	case "run_code":
+		return toolRunCode(argsJSON)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+// ── deep_research ────────────────────────────────────────────────────────────
+
+func toolDeepResearch(argsJSON string) (string, error) {
+	var a struct {
+		Query string `json:"query"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+		return "", fmt.Errorf("invalid arguments: %w", err)
+	}
+	if strings.TrimSpace(a.Query) == "" {
+		return "", fmt.Errorf("query is required")
+	}
+	results, err := WebSearch(a.Query, 5)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	b.WriteString("RICERCA: " + a.Query + "\n\n")
+	fetched := 0
+	for _, r := range results {
+		b.WriteString("• " + r.Title + " — " + r.URL + "\n  " + r.Snippet + "\n")
+		if fetched < 3 && r.URL != "" {
+			if txt := fetchURLText(r.URL); txt != "" {
+				if len(txt) > 1800 {
+					txt = txt[:1800] + "…"
+				}
+				b.WriteString("  [contenuto] " + strings.ReplaceAll(txt, "\n", " ") + "\n")
+				fetched++
+			}
+		}
+		b.WriteString("\n")
+	}
+	return b.String(), nil
+}
+
+// ── create_document ──────────────────────────────────────────────────────────
+
+func toolCreateDocument(argsJSON string) (string, error) {
+	var a struct {
+		Format  string `json:"format"`
+		Path    string `json:"path"`
+		Title   string `json:"title"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+		return "", fmt.Errorf("invalid arguments: %w", err)
+	}
+	if strings.TrimSpace(a.Path) == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	if dir := filepath.Dir(a.Path); dir != "" {
+		os.MkdirAll(dir, 0755)
+	}
+	p, err := CreateDocument(a.Format, a.Path, a.Title, a.Content)
+	if err != nil {
+		return "", err
+	}
+	fi, _ := os.Stat(p)
+	size := int64(0)
+	if fi != nil {
+		size = fi.Size()
+	}
+	return fmt.Sprintf("Documento creato: %s (%d byte)", p, size), nil
+}
+
+// ── run_code ─────────────────────────────────────────────────────────────────
+
+func toolRunCode(argsJSON string) (string, error) {
+	var a struct {
+		Language string `json:"language"`
+		Code     string `json:"code"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+		return "", fmt.Errorf("invalid arguments: %w", err)
+	}
+	if strings.TrimSpace(a.Code) == "" {
+		return "", fmt.Errorf("code is required")
+	}
+	out, err := RunCodeSnippet(a.Language, a.Code)
+	if err != nil {
+		return fmt.Sprintf("Errore: %v\n%s", err, out), nil
+	}
+	if strings.TrimSpace(out) == "" {
+		out = "(nessun output)"
+	}
+	return out, nil
 }
 
 // ── fetch_url ────────────────────────────────────────────────────────────────
@@ -212,22 +330,33 @@ func toolFetchURL(argsJSON string) (string, error) {
 	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
 		u = "https://" + u
 	}
-	client := &http.Client{Timeout: 25 * time.Second}
-	req, _ := http.NewRequest("GET", u, nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Vortelio)")
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("could not fetch: %w", err)
+	text := fetchURLText(u)
+	if text == "" {
+		return "", fmt.Errorf("could not fetch or page was empty")
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20)) // cap 2MB
-	text := htmlToText(string(body))
 	if len(text) > 8000 {
 		text = text[:8000] + "\n…[contenuto troncato]"
 	}
-	out := map[string]interface{}{"url": u, "status": resp.StatusCode, "content": text}
+	out := map[string]interface{}{"url": u, "content": text}
 	b, _ := json.Marshal(out)
 	return string(b), nil
+}
+
+// fetchURLText downloads a URL and returns readable text (HTML stripped).
+func fetchURLText(u string) string {
+	client := &http.Client{Timeout: 25 * time.Second}
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Vortelio)")
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	return htmlToText(string(body))
 }
 
 var (

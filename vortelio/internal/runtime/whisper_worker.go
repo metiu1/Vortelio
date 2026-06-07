@@ -111,7 +111,7 @@ func TranscribeViaWorker(modelTag, audioPath string) (string, error) {
 		return "", fmt.Errorf("output worker non valido: %s", strings.TrimSpace(line))
 	}
 	if res.Error != "" {
-		return "", fmt.Errorf(res.Error)
+		return "", fmt.Errorf("%s", res.Error)
 	}
 	return res.Text, nil
 }
@@ -190,7 +190,7 @@ func startWhisperWorker(tag string) (*whisperWorker, error) {
 		json.Unmarshal([]byte(strings.TrimSpace(r.line)), &got)
 		if got.Error != "" {
 			w.close()
-			return nil, fmt.Errorf(got.Error)
+			return nil, fmt.Errorf("%s", got.Error)
 		}
 		fmt.Printf("🎤  Whisper worker pronto (%s · %s · %s)\n", tag, got.Device, got.Compute)
 		return w, nil
