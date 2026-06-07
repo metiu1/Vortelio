@@ -779,6 +779,8 @@ textarea.inp::placeholder { color: var(--text3); }
 .code-partial .code-header { border-bottom: 1px dashed rgba(255,255,255,.15); }
 .code-output { background: #0d0d12; color: #cdd6f4; font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 10px 14px; white-space: pre-wrap; word-break: break-word; border-top: 1px solid rgba(255,255,255,.1); max-height: 320px; overflow: auto; }
 .code-output.err { color: #f7768e; }
+.code-preview { border-top: 1px solid rgba(255,255,255,.12); background: #fff; }
+.preview-frame { width: 100%; height: 380px; border: none; background: #fff; display: block; }
 .inline-code {
   font-family: var(--mono); font-size: 12.5px; padding: 1px 6px;
   border-radius: 4px; background: var(--bg3); border: 1px solid var(--border);
@@ -5289,20 +5291,39 @@ function renderMessage(text) {
       const code = text.slice(codeStart, close);
       const raw64 = btoa(unescape(encodeURIComponent(code)));
       const lc = (lang || '').toLowerCase();
-      const runnable = /^(python|py|python3|javascript|js|node|nodejs|bash|sh|shell|powershell|ps|ps1|go|golang)$/.test(lc);
+      const runnable = /^(python|py|python3|javascript|js|node|nodejs|bash|sh|shell|powershell|ps|ps1|go|golang|ruby|rb|php|perl|java|c|cpp|c\+\+|cc)$/.test(lc);
+      const previewable = /^(html|htm|svg|xml)$/.test(lc);
       result += '<div class="code-block">' +
         '<div class="code-header">' +
         '<span class="code-lang">' + _he(lang || 'code') + '</span>' +
+        (previewable ? '<button class="code-copy-btn" onclick="previewHtmlB64(\'' + raw64 + '\',this)">👁 Anteprima</button>' : '') +
         (runnable ? '<button class="code-copy-btn" onclick="runCodeB64(\'' + raw64 + '\',\'' + lc + '\',this)">▶ Esegui</button>' : '') +
         '<button class="code-copy-btn" onclick="copyCodeB64(\'' + raw64 + '\',this)">📋 Copia</button>' +
         '</div>' +
         '<pre id="' + id + '" data-raw="' + raw64 + '"><code>' + _he(code) + '</code></pre>' +
         '<div class="code-output" style="display:none"></div>' +
+        (previewable ? '<div class="code-preview" style="display:none"></div>' : '') +
         '</div>';
       pos = close + 3;
     }
   }
   return result;
+}
+// Render an HTML/SVG block as a live preview (Claude-style artifact) in a
+// sandboxed iframe, so models can answer by building interactive UI.
+function previewHtmlB64(b64, btn) {
+  let code; try { code = decodeURIComponent(escape(atob(b64))); } catch { code = atob(b64); }
+  const block = btn.closest('.code-block');
+  const area = block.querySelector('.code-preview');
+  if (area.style.display === 'block') { area.style.display = 'none'; area.innerHTML = ''; btn.textContent = '👁 Anteprima'; return; }
+  const iframe = document.createElement('iframe');
+  iframe.className = 'preview-frame';
+  iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups');
+  iframe.srcdoc = code;
+  area.innerHTML = '';
+  area.appendChild(iframe);
+  area.style.display = 'block';
+  btn.textContent = '👁 Nascondi';
 }
 async function runCodeB64(b64, lang, btn) {
   let code; try { code = decodeURIComponent(escape(atob(b64))); } catch { code = atob(b64); }

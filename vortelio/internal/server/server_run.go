@@ -86,8 +86,59 @@ func handleRunCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cmd = exec.CommandContext(ctx, "go", "run", write("snippet.go"))
+	case "ruby", "rb":
+		if findExec("ruby", "ruby.exe") == "" {
+			jsonError(w, 400, "Ruby non trovato sul sistema")
+			return
+		}
+		cmd = exec.CommandContext(ctx, "ruby", write("snippet.rb"))
+	case "php":
+		if findExec("php", "php.exe") == "" {
+			jsonError(w, 400, "PHP non trovato sul sistema")
+			return
+		}
+		cmd = exec.CommandContext(ctx, "php", write("snippet.php"))
+	case "perl":
+		if findExec("perl", "perl.exe") == "" {
+			jsonError(w, 400, "Perl non trovato sul sistema")
+			return
+		}
+		cmd = exec.CommandContext(ctx, "perl", write("snippet.pl"))
+	case "java":
+		if findExec("java", "java.exe") == "" {
+			jsonError(w, 400, "Java (JDK 11+) non trovato sul sistema")
+			return
+		}
+		// Single-file source-code mode (java SomeFile.java), JDK 11+.
+		cmd = exec.CommandContext(ctx, "java", write("snippet.java"))
+	case "c":
+		gcc := findExec("gcc", "gcc.exe", "cc")
+		if gcc == "" {
+			jsonError(w, 400, "gcc non trovato sul sistema")
+			return
+		}
+		src := write("snippet.c")
+		out := filepath.Join(dir, "a_c.exe")
+		if b, err := rt.HideWindow(exec.CommandContext(ctx, gcc, src, "-o", out)).CombinedOutput(); err != nil {
+			respond(w, 200, map[string]interface{}{"ok": false, "output": "Compilazione fallita:\n" + string(b)})
+			return
+		}
+		cmd = exec.CommandContext(ctx, out)
+	case "cpp", "c++", "cc":
+		gpp := findExec("g++", "g++.exe", "clang++")
+		if gpp == "" {
+			jsonError(w, 400, "g++ non trovato sul sistema")
+			return
+		}
+		src := write("snippet.cpp")
+		out := filepath.Join(dir, "a_cpp.exe")
+		if b, err := rt.HideWindow(exec.CommandContext(ctx, gpp, src, "-o", out)).CombinedOutput(); err != nil {
+			respond(w, 200, map[string]interface{}{"ok": false, "output": "Compilazione fallita:\n" + string(b)})
+			return
+		}
+		cmd = exec.CommandContext(ctx, out)
 	default:
-		jsonError(w, 400, "Linguaggio non eseguibile: "+lang+" (supportati: python, javascript, bash, powershell, go)")
+		jsonError(w, 400, "Linguaggio non eseguibile: "+lang+" (supportati: python, javascript, typescript via node, bash, powershell, go, c, c++, java, ruby, php, perl)")
 		return
 	}
 

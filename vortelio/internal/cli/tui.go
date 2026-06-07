@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/vortelio/vortelio/internal/cli/commands"
 	"github.com/vortelio/vortelio/internal/config"
 	"github.com/vortelio/vortelio/internal/hub"
 	"golang.org/x/term"
@@ -40,6 +41,7 @@ func runInteractiveMenu() error {
 	for {
 		sel := selectMenu("Vortelio", []string{
 			"Chat with a model",
+			"🧑‍💻 Code agent (terminal, like Claude Code)",
 			"Download a model",
 			"Cloud Models",
 			"AI Agents",
@@ -57,32 +59,34 @@ func runInteractiveMenu() error {
 				return err
 			}
 		case 1:
+			_ = commands.NewCodeCommand().Run(nil)
+		case 2:
 			if err := handleScarica(); err != nil {
 				return err
 			}
-		case 2:
+		case 3:
 			if err := handleModelloCloud(); err != nil {
 				return err
 			}
-		case 3:
+		case 4:
 			if err := handleAgentiAI(); err != nil {
 				return err
 			}
-		case 4:
+		case 5:
 			if err := handleCrewAI(); err != nil {
 				return err
 			}
-		case 5:
+		case 6:
 			if err := handleImportOllama(); err != nil {
 				return err
 			}
-		case 6:
+		case 7:
 			if err := handleAdvancedTools(); err != nil {
 				return err
 			}
-		case 7:
-			return reExec("gui")
 		case 8:
+			return reExec("gui")
+		case 9:
 			return reExec("help")
 		}
 	}
