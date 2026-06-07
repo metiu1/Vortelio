@@ -123,6 +123,8 @@ type AgenticConfig struct {
 	// ApproveFunc, when set (CLI), is called synchronously to approve risky tools
 	// instead of the HTTP approval flow. Not serialized.
 	ApproveFunc func(tool, summary, args string) bool `json:"-"`
+	// AskFunc, when set (CLI), answers ask_user synchronously in the terminal.
+	AskFunc func(question string, options []string) string `json:"-"`
 }
 
 type ChatMessage struct {
@@ -256,6 +258,7 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/skills", ca(handleSkills))
 	mux.HandleFunc("/api/skills/delete", ca(handleSkillDelete))
 	mux.HandleFunc("/api/agentic/approve", ca(handleAgenticApprove))
+	mux.HandleFunc("/api/agentic/answer", ca(handleAgenticAnswer))
 	mux.HandleFunc("/api/run-code", ca(handleRunCode))
 	mux.HandleFunc("/api/media/providers", ca(handleMediaProviders))
 	mux.HandleFunc("/api/media/key", ca(handleMediaKey))

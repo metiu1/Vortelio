@@ -16,6 +16,17 @@ import (
 	"github.com/vortelio/vortelio/internal/config"
 )
 
+// truncToolResult caps a tool result fed back to a cloud model so big outputs
+// (e.g. list_directory of a large repo) don't bloat the request and trigger
+// provider 500s. The UI still receives the full result via the tool event.
+func truncToolResult(s string) string {
+	const max = 4000
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "\n…[risultato troncato]"
+}
+
 // ── Provider catalog ──────────────────────────────────────────────────────────
 
 type APIFormat string
@@ -576,11 +587,16 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 				},
 			})
 		}
-		msgs = append(msgs, map[string]interface{}{
+		asstMsg := map[string]interface{}{
 			"role":       "assistant",
-			"content":    contentBuf.String(),
 			"tool_calls": tcList,
-		})
+		}
+		if contentBuf.Len() > 0 {
+			asstMsg["content"] = contentBuf.String()
+		} else {
+			asstMsg["content"] = nil
+		}
+		msgs = append(msgs, asstMsg)
 
 		// Execute each tool and add results.
 		for _, tc := range tcList {
@@ -616,7 +632,7 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 
 			msgs = append(msgs, map[string]string{
 				"role":         "tool",
-				"content":      result,
+				"content":      truncToolResult(result),
 				"tool_call_id": id,
 			})
 		}
@@ -843,7 +859,7 @@ func chatAnthropicWithTools(p Provider, apiKey string, messages []Message, opts 
 			}
 
 			resultBlocks = append(resultBlocks, toolResultBlock{
-				Type: "tool_result", ToolUseID: acc.id, Content: result,
+				Type: "tool_result", ToolUseID: acc.id, Content: truncToolResult(result),
 			})
 		}
 		msgs = append(msgs, map[string]interface{}{"role": "user", "content": resultBlocks})
@@ -1038,6 +1054,7 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 				})
 			}
 
+			result = truncToolResult(result)
 			var responseObj interface{}
 			if json.Unmarshal([]byte(result), &responseObj) != nil {
 				responseObj = map[string]string{"output": result}

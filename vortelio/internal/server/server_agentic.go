@@ -55,6 +55,55 @@ func resolveApproval(id string, ok bool) bool {
 	return true
 }
 
+// ── ask_user (interactive question with options) ────────────────────
+var (
+	asksMu sync.Mutex
+	asks   = map[string]chan string{}
+)
+
+func registerAsk(id string) chan string {
+	ch := make(chan string, 1)
+	asksMu.Lock()
+	asks[id] = ch
+	asksMu.Unlock()
+	return ch
+}
+
+func resolveAsk(id, answer string) bool {
+	asksMu.Lock()
+	ch, ok := asks[id]
+	if ok {
+		delete(asks, id)
+	}
+	asksMu.Unlock()
+	if !ok {
+		return false
+	}
+	ch <- answer
+	return true
+}
+
+// POST /api/agentic/answer  — {id, answer}
+func handleAgenticAnswer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonError(w, 405, "use POST")
+		return
+	}
+	var req struct {
+		ID     string `json:"id"`
+		Answer string `json:"answer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid JSON")
+		return
+	}
+	if !resolveAsk(req.ID, req.Answer) {
+		jsonError(w, 404, "no pending question with that id")
+		return
+	}
+	respond(w, 200, map[string]string{"status": "ok"})
+}
+
 // POST /api/agentic/approve  — {id, approved}
 func handleAgenticApprove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -174,7 +223,7 @@ func ListSkillInfos() []SkillInfo {
 // BuildCLIHarness builds the full agentic harness for the CLI with optional MCP
 // and skills, and returns the matching system prompt (skills applied). approve is
 // the synchronous approval callback used for "ask" mode in the terminal.
-func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []string, emit rt.ToolEventEmitter, approve func(tool, summary, args string) bool) (rt.ToolProvider, string) {
+func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []string, emit rt.ToolEventEmitter, approve func(tool, summary, args string) bool, ask func(question string, options []string) string) (rt.ToolProvider, string) {
 	cfg := &AgenticConfig{
 		Auto:        true,
 		Autonomous:  autonomous,
@@ -187,6 +236,7 @@ func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []s
 		WorkingDir:  workingDir,
 		Skills:      skills,
 		ApproveFunc: approve,
+		AskFunc:     ask,
 	}
 	sys := CodingSystemPrompt(autonomous)
 	if len(skills) > 0 {
@@ -213,47 +263,84 @@ func buildAgenticProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) rt.ToolP
 	if cfg.Media {
 		providers = append(providers, newMediaProvider(emit))
 	}
-	// The agent can author its own reusable skills whenever it has any tools.
+	// The agent can author its own skills and ask the user interactive questions.
 	if len(providers) > 0 {
-		providers = append(providers, &selfProvider{})
+		providers = append(providers, &selfProvider{emit: emit, ask: cfg.AskFunc})
 	}
 	return rt.NewCompositeProvider(providers...)
 }
 
-// selfProvider lets the agent create reusable skills for itself (self-improvement).
-type selfProvider struct{}
+// selfProvider lets the agent create reusable skills and ask the user questions
+// with a graphical option picker.
+type selfProvider struct {
+	emit    rt.ToolEventEmitter
+	ask     func(question string, options []string) string // CLI synchronous prompt; nil = GUI popup
+	counter int
+}
 
 func (s *selfProvider) Tools() []rt.ToolDef {
-	return []rt.ToolDef{{
-		Type: "function",
-		Function: rt.ToolFuncDef{
+	return []rt.ToolDef{
+		{Type: "function", Function: rt.ToolFuncDef{
 			Name:        "create_skill",
 			Description: "Save a reusable skill to the user's skill library so it can be enabled in future sessions. Use when you find a repeatable procedure, style, or instruction set worth keeping.",
 			Parameters:  json.RawMessage(`{"type":"object","properties":{"name":{"type":"string","description":"Short skill name, e.g. 'React component author'"},"description":{"type":"string","description":"One-line summary of what the skill does"},"body":{"type":"string","description":"The full instructions the model should follow when this skill is active"}},"required":["name","body"]}`),
-		},
-	}}
+		}},
+		{Type: "function", Function: rt.ToolFuncDef{
+			Name:        "ask_user",
+			Description: "Ask the user a question and let them choose from options in a graphical popup (with a free-text 'Other' field). Use when you need a decision or clarification before continuing. Returns the user's answer.",
+			Parameters:  json.RawMessage(`{"type":"object","properties":{"question":{"type":"string","description":"The question to ask the user"},"options":{"type":"array","items":{"type":"string"},"description":"2-5 suggested answers shown as buttons"}},"required":["question"]}`),
+		}},
+	}
 }
 
 func (s *selfProvider) Execute(name, args string) (string, error) {
-	if name != "create_skill" {
-		return "", fmt.Errorf("unknown tool: %s", name)
+	switch name {
+	case "create_skill":
+		var a struct {
+			Name, Description, Body string
+		}
+		if err := json.Unmarshal([]byte(args), &a); err != nil {
+			return "", fmt.Errorf("invalid arguments: %w", err)
+		}
+		if strings.TrimSpace(a.Name) == "" || strings.TrimSpace(a.Body) == "" {
+			return "", fmt.Errorf("name and body are required")
+		}
+		id, err := saveSkillContent("", a.Name, a.Description, a.Body)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Skill \"%s\" created (id: %s).", a.Name, id), nil
+	case "ask_user":
+		var a struct {
+			Question string   `json:"question"`
+			Options  []string `json:"options"`
+		}
+		if err := json.Unmarshal([]byte(args), &a); err != nil {
+			return "", fmt.Errorf("invalid arguments: %w", err)
+		}
+		if strings.TrimSpace(a.Question) == "" {
+			return "", fmt.Errorf("question is required")
+		}
+		// CLI: synchronous terminal prompt.
+		if s.ask != nil {
+			return s.ask(a.Question, a.Options), nil
+		}
+		// GUI: emit a popup event and block until the user answers.
+		s.counter++
+		id := fmt.Sprintf("ask_%d_%d", time.Now().UnixNano(), s.counter)
+		ch := registerAsk(id)
+		if s.emit != nil {
+			s.emit("ask_user", map[string]interface{}{"id": id, "question": a.Question, "options": a.Options})
+		}
+		select {
+		case ans := <-ch:
+			return "L'utente ha risposto: " + ans, nil
+		case <-time.After(10 * time.Minute):
+			resolveAsk(id, "")
+			return "", fmt.Errorf("nessuna risposta dall'utente (timeout)")
+		}
 	}
-	var a struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Body        string `json:"body"`
-	}
-	if err := json.Unmarshal([]byte(args), &a); err != nil {
-		return "", fmt.Errorf("invalid arguments: %w", err)
-	}
-	if strings.TrimSpace(a.Name) == "" || strings.TrimSpace(a.Body) == "" {
-		return "", fmt.Errorf("name and body are required")
-	}
-	id, err := saveSkillContent("", a.Name, a.Description, a.Body)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("Skill \"%s\" created (id: %s). The user can enable it from the skills menu.", a.Name, id), nil
+	return "", fmt.Errorf("unknown tool: %s", name)
 }
 
 // filteredBuiltins exposes the builtin tools, optionally limited to web_search.
