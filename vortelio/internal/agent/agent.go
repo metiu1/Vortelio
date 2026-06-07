@@ -747,6 +747,43 @@ func Start(id string) error {
 	return nil
 }
 
+// RunForeground runs an interactive (TUI) agent attached to the current terminal
+// and blocks until it exits. Used for agents like Open Code that have no HTTP
+// port and need a real terminal to draw their UI.
+func RunForeground(id string) error {
+	if !validAgentID.MatchString(id) {
+		return fmt.Errorf("invalid agent id: %q", id)
+	}
+	entry, ok := findEntry(id)
+	if !ok {
+		return fmt.Errorf("unknown agent: %s", id)
+	}
+	if !isBinInstalled(entry) {
+		return fmt.Errorf("agent %q non installato", entry.Name)
+	}
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", append([]string{"/c", entry.BinCommand + ".cmd"}, entry.StartArgs...)...)
+	} else {
+		cmd = exec.Command(entry.BinCommand, entry.StartArgs...)
+	}
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	env := os.Environ()
+	for _, kv := range entry.EnvVars {
+		env = append(env, strings.ReplaceAll(kv, "{{VORTELIO_URL}}", vortURL()))
+	}
+	cmd.Env = env
+	return cmd.Run()
+}
+
+// IsInteractive reports whether an agent is a terminal TUI (no HTTP server).
+func IsInteractive(id string) bool {
+	entry, ok := findEntry(id)
+	return ok && entry.DefaultPort == 0 && entry.DefaultURL == ""
+}
+
 // Stop terminates the agent process.
 func Stop(id string) error {
 	mu.Lock()
