@@ -973,7 +973,14 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
   background: linear-gradient(110deg, var(--bg3) 8%, var(--border) 18%, var(--bg3) 33%); background-size: 220% 100%;
   animation: mediaShimmer 1.3s linear infinite; }
 .media-placeholder.is-video { aspect-ratio: 16 / 9; }
+.media-placeholder { display: flex; align-items: center; justify-content: center; }
 @keyframes mediaShimmer { from { background-position: 220% 0; } to { background-position: -220% 0; } }
+.media-prog-label { text-align: center; color: var(--text); text-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.media-prog-label .mpl-pct { font-size: 30px; font-weight: 700; }
+.media-prog-label .mpl-time { font-size: 14px; font-family: var(--mono); opacity: .85; margin-top: 2px; }
+.media-prog-label .mpl-msg { font-size: 11px; opacity: .7; margin-top: 6px; }
+.progress-bar-inner.indeterminate { width: 35% !important; animation: progIndeterminate 1.1s ease-in-out infinite; }
+@keyframes progIndeterminate { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
 .media-artifact .media-cap { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
 .media-artifact img, .media-artifact video { display: block; }
 .dark .media-artifact { background: var(--bg3) !important; border-color: var(--border) !important; }
@@ -5445,29 +5452,51 @@ async function doGenerate(text, files, signal) {
   const outExt  = {image:'output.png', audio:'output.wav', video:'output.mp4', threed:'output.obj'}[domain] || 'output.bin';
 
   addUserMsg(text, files);
+  chatHistory.push({ role: 'user', content: text });
+  autoSaveCurrentChat(); renderTabs();
 
+  const isSquare = (domain === 'image' || domain === 'video' || domain === 'threed');
   const grp = document.createElement('div');
   grp.className = 'msg-group msg-ai';
-  grp.innerHTML = `<div class="msg-inner"><div class="ai-avatar">PA</div><div class="content">
-    <div class="progress-wrap" id="prog-wrap">
-      <div class="progress-label">
-        <span class="progress-msg" id="prog-msg">Starting generation...</span>
-        <span id="prog-pct">0%</span>
-      </div>
-      <div class="progress-bar-outer"><div class="progress-bar-inner" id="prog-bar" style="width:0%"></div></div>
-    </div>
-  </div></div>`;
+  grp.innerHTML = `<div class="msg-inner"><div class="ai-avatar">PA</div><div class="content"><div id="gen-holder"></div></div></div>`;
   msgs.appendChild(grp); canvas.scrollTop = 9999;
-
   const contentEl = grp.querySelector('.content');
+  const holder = grp.querySelector('#gen-holder');
+
+  // Build an animated placeholder: a shimmer square (with % + elapsed time in the
+  // middle) for visual media, an advancing bar for audio.
+  let ph;
+  if (isSquare) {
+    ph = document.createElement('div');
+    ph.className = 'media-placeholder' + (domain === 'video' ? ' is-video' : '');
+    ph.innerHTML = '<div class="media-prog-label"><div class="mpl-pct">…</div><div class="mpl-time">0.0s</div><div class="mpl-msg">Avvio…</div></div>';
+  } else {
+    ph = document.createElement('div');
+    ph.className = 'progress-wrap';
+    ph.innerHTML = '<div class="progress-label"><span class="progress-msg" id="prog-msg">Avvio…</span><span id="prog-pct">0% · 0.0s</span></div>' +
+      '<div class="progress-bar-outer"><div class="progress-bar-inner indeterminate" id="prog-bar" style="width:0%"></div></div>';
+  }
+  holder.appendChild(ph);
+
+  const _gt0 = Date.now();
+  let _lastPct = 0;
+  const _genTimer = setInterval(() => {
+    const s = ((Date.now() - _gt0) / 1000).toFixed(1);
+    if (isSquare) { const t = ph.querySelector('.mpl-time'); if (t) t.textContent = s + 's'; }
+    else { const pe = ph.querySelector('#prog-pct'); if (pe) pe.textContent = (_lastPct > 0 ? _lastPct + '% · ' : '') + s + 's'; }
+  }, 100);
+  window._stopGenTimer = () => { try { clearInterval(_genTimer); } catch {} };
 
   function updateProgress(pct, msg) {
-    const bar = document.getElementById('prog-bar');
-    const pctEl = document.getElementById('prog-pct');
-    const msgEl = document.getElementById('prog-msg');
-    if (bar) bar.style.width = pct + '%';
-    if (pctEl) pctEl.textContent = pct + '%';
-    if (msgEl && msg) msgEl.textContent = msg;
+    _lastPct = pct;
+    if (isSquare) {
+      const p = ph.querySelector('.mpl-pct'); if (p) p.textContent = pct > 0 ? pct + '%' : '…';
+      const m = ph.querySelector('.mpl-msg'); if (m && msg) m.textContent = msg;
+    } else {
+      const bar = ph.querySelector('#prog-bar');
+      if (bar && pct > 0) { bar.classList.remove('indeterminate'); bar.style.width = pct + '%'; }
+      const m = ph.querySelector('#prog-msg'); if (m && msg) m.textContent = msg;
+    }
     canvas.scrollTop = 9999;
   }
 
@@ -5525,6 +5554,7 @@ async function doGenerate(text, files, signal) {
       }
     }
 
+    if (window._stopGenTimer) window._stopGenTimer();
     if (errorData) {
       contentEl.innerHTML = `<span style="color:var(--red)">❌ ${esc(errorData.error||'Error')}</span>`;
       return;
@@ -5592,6 +5622,10 @@ async function doGenerate(text, files, signal) {
         mw.innerHTML = `<a class="btn" href="${src}" download="${outExt}">↓ Download ${outExt}</a>`;
       }
       contentEl.appendChild(mw);
+      // Save the generated media into the chat history (kept as a marker; the
+      // rendered media is preserved in the saved chat's HTML snapshot).
+      chatHistory.push({ role: 'assistant', content: '[' + domain + ' generato' + (d.saved_to ? ': ' + d.saved_to : '') + ']' });
+      autoSaveCurrentChat(); renderTabs();
     } else {
       contentEl.innerHTML = `<span style="color:#16a34a">✅ ${d.saved_to ? 'Saved to: ' + esc(d.saved_to) : 'Done'}</span>`;
     }
@@ -6199,6 +6233,7 @@ function setGenerating(on) {
     document.querySelectorAll('.content').forEach(c => { if (c._liveTimer) { clearInterval(c._liveTimer); c._liveTimer = null; const m = c.querySelector('.msg-meta.live'); if (m) m.classList.remove('live'); } });
     // Drop any media placeholder that never got an artifact (generation failed/stopped).
     document.querySelectorAll('.media-placeholder[data-pending="1"]').forEach(p => p.remove());
+    if (window._stopGenTimer) window._stopGenTimer();
   }
   const btn = document.getElementById('send-btn');
   const sendIcon = document.getElementById('send-icon');
