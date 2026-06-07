@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vortelio/vortelio/internal/cloud"
 	"github.com/vortelio/vortelio/internal/hub"
 	rt "github.com/vortelio/vortelio/internal/runtime"
 )
@@ -275,8 +276,20 @@ func (m *mediaProvider) generateImage(argsJSON string) (string, error) {
 	if a.Steps <= 0 {
 		a.Steps = 20
 	}
+	// Prefer a configured cloud image provider (BYOK: OpenAI/Stability/fal.ai).
+	var cloudErr error
+	if p, key, ok := cloud.ConfiguredMediaProvider("image"); ok {
+		data, ext, err := cloud.GenerateMedia(p.ID, key, a.Model, a.Prompt)
+		if err == nil {
+			return m.saveArtifact("image", ext, "image/"+ext, data)
+		}
+		cloudErr = err
+	}
 	mdl, err := findMediaModel("image", a.Model)
 	if err != nil {
+		if cloudErr != nil {
+			return "", fmt.Errorf("cloud: %v", cloudErr)
+		}
 		return "", err
 	}
 	runner := rt.NewImageRunner(mdl, getHardware())
@@ -296,8 +309,20 @@ func (m *mediaProvider) textToSpeech(argsJSON string) (string, error) {
 	if strings.TrimSpace(a.Text) == "" {
 		return "", fmt.Errorf("text is required")
 	}
+	// Prefer a configured cloud TTS provider (BYOK: OpenAI TTS / ElevenLabs).
+	var cloudErr error
+	if p, key, ok := cloud.ConfiguredMediaProvider("audio"); ok {
+		data, ext, err := cloud.GenerateMedia(p.ID, key, a.Model, a.Text)
+		if err == nil {
+			return m.saveArtifact("audio", ext, "audio/"+ext, data)
+		}
+		cloudErr = err
+	}
 	mdl, err := findMediaModel("audio", a.Model)
 	if err != nil {
+		if cloudErr != nil {
+			return "", fmt.Errorf("cloud: %v", cloudErr)
+		}
 		return "", err
 	}
 	runner := rt.NewAudioRunner(mdl, getHardware())
@@ -346,8 +371,20 @@ func (m *mediaProvider) generateVideo(argsJSON string) (string, error) {
 	if a.Steps <= 0 {
 		a.Steps = 20
 	}
+	// Prefer a configured cloud video provider (BYOK: fal.ai).
+	var cloudErr error
+	if p, key, ok := cloud.ConfiguredMediaProvider("video"); ok {
+		data, ext, err := cloud.GenerateMedia(p.ID, key, a.Model, a.Prompt)
+		if err == nil {
+			return m.saveArtifact("video", ext, "video/"+ext, data)
+		}
+		cloudErr = err
+	}
 	mdl, err := findMediaModel("video", a.Model)
 	if err != nil {
+		if cloudErr != nil {
+			return "", fmt.Errorf("cloud: %v", cloudErr)
+		}
 		return "", err
 	}
 	runner := rt.NewVideoRunner(mdl, getHardware())
@@ -368,8 +405,20 @@ func (m *mediaProvider) generate3D(argsJSON string) (string, error) {
 	if strings.TrimSpace(a.Prompt) == "" && strings.TrimSpace(a.InputFile) == "" {
 		return "", fmt.Errorf("provide a prompt or an input_file")
 	}
+	// Prefer a configured cloud 3D provider (BYOK: fal.ai).
+	var cloudErr error
+	if p, key, ok := cloud.ConfiguredMediaProvider("3d"); ok && strings.TrimSpace(a.Prompt) != "" {
+		data, ext, err := cloud.GenerateMedia(p.ID, key, a.Model, a.Prompt)
+		if err == nil {
+			return m.saveArtifact("3d", ext, "model/"+ext, data)
+		}
+		cloudErr = err
+	}
 	mdl, err := findMediaModel("3d", a.Model)
 	if err != nil {
+		if cloudErr != nil {
+			return "", fmt.Errorf("cloud: %v", cloudErr)
+		}
 		return "", err
 	}
 	runner := rt.NewThreeDRunner(mdl, getHardware())
