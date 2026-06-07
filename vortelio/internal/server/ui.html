@@ -781,6 +781,16 @@ textarea.inp::placeholder { color: var(--text3); }
 .code-output.err { color: #f7768e; }
 .code-preview { border-top: 1px solid rgba(255,255,255,.12); background: #fff; }
 .preview-frame { width: 100%; height: 380px; border: none; background: #fff; display: block; }
+#side-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(46%, 660px); background: var(--bg);
+  border-left: 1px solid var(--border2); box-shadow: -4px 0 24px rgba(0,0,0,.14); transform: translateX(100%);
+  transition: transform .22s ease; z-index: 60; display: flex; flex-direction: column; }
+#side-panel.open { transform: translateX(0); }
+body.side-open #main { padding-right: min(46%, 660px); transition: padding-right .22s ease; }
+.side-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; font-weight: 500; font-size: 13px; }
+#side-body { flex: 1; overflow: auto; }
+#side-body .code-output { max-height: none; display: block; }
+#side-body iframe { width: 100%; height: 100%; border: none; background: #fff; display: block; }
 .inline-code {
   font-family: var(--mono); font-size: 12.5px; padding: 1px 6px;
   border-radius: 4px; background: var(--bg3); border: 1px solid var(--border);
@@ -2422,6 +2432,12 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
       <button class="btn primary" id="skill-save-btn" onclick="saveSkill()">Save skill</button>
     </div>
   </div>
+</div>
+
+<!-- Right-side panel for code output / HTML preview (Claude-style artifacts) -->
+<div id="side-panel">
+  <div class="side-head"><span id="side-title">Output</span><button class="topbar-btn" style="padding:3px 8px" onclick="closeSidePanel()">✕</button></div>
+  <div id="side-body"></div>
 </div>
 
 <!-- Add cloud model dialog -->
@@ -5394,35 +5410,42 @@ function renderMessage(text) {
   }
   return result;
 }
-// Render an HTML/SVG block as a live preview (Claude-style artifact) in a
-// sandboxed iframe, so models can answer by building interactive UI.
+// Right-side artifact panel: code output and HTML preview open here (not below).
+function openSidePanel(title) {
+  document.getElementById('side-title').textContent = title || 'Output';
+  document.getElementById('side-panel').classList.add('open');
+  document.body.classList.add('side-open');
+  const body = document.getElementById('side-body');
+  body.innerHTML = '';
+  return body;
+}
+function closeSidePanel() {
+  document.getElementById('side-panel').classList.remove('open');
+  document.body.classList.remove('side-open');
+  document.getElementById('side-body').innerHTML = '';
+}
+// Render an HTML/SVG block as a live preview (Claude-style artifact) in the side panel.
 function previewHtmlB64(b64, btn) {
   let code; try { code = decodeURIComponent(escape(atob(b64))); } catch { code = atob(b64); }
-  const block = btn.closest('.code-block');
-  const area = block.querySelector('.code-preview');
-  if (area.style.display === 'block') { area.style.display = 'none'; area.innerHTML = ''; btn.textContent = '👁 Anteprima'; return; }
+  const body = openSidePanel('👁 Anteprima HTML');
   const iframe = document.createElement('iframe');
-  iframe.className = 'preview-frame';
   iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups');
   iframe.srcdoc = code;
-  area.innerHTML = '';
-  area.appendChild(iframe);
-  area.style.display = 'block';
-  btn.textContent = '👁 Nascondi';
+  body.appendChild(iframe);
 }
 async function runCodeB64(b64, lang, btn) {
   let code; try { code = decodeURIComponent(escape(atob(b64))); } catch { code = atob(b64); }
-  const block = btn.closest('.code-block');
-  const out = block.querySelector('.code-output');
-  out.style.display = 'block'; out.classList.remove('err'); out.textContent = '⏳ Esecuzione…';
-  btn.disabled = true;
+  const body = openSidePanel('▶ Output · ' + lang);
+  body.innerHTML = '<pre class="code-output" style="margin:0;padding:14px;white-space:pre-wrap;word-break:break-word">⏳ Esecuzione…</pre>';
+  const out = body.querySelector('.code-output');
+  if (btn) btn.disabled = true;
   try {
     const r = await fetch('/api/run-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: lang, code }) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { out.textContent = '❌ ' + (d.error || ('HTTP ' + r.status)); out.classList.add('err'); }
     else { out.textContent = (d.output && d.output.length) ? d.output : '(nessun output)'; if (!d.ok) out.classList.add('err'); }
   } catch (e) { out.textContent = '❌ ' + e.message; out.classList.add('err'); }
-  btn.disabled = false;
+  if (btn) btn.disabled = false;
 }
 function _he(s) {
   return String(s)

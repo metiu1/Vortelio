@@ -111,6 +111,19 @@ func (s *codeSession) readLine() (string, bool) {
 		case 4: // Ctrl+D
 			if len(buf) == 0 { fmt.Print("\r\n"); return "", true }
 		case '\r', '\n':
+			kind, _, sugg := s.suggestions(string(buf))
+			if kind == '/' && len(sugg) > 0 {
+				// Enter on a highlighted command → run it directly.
+				if suggIdx >= len(sugg) { suggIdx = 0 }
+				cmd := strings.Fields(sugg[suggIdx])[0]
+				fmt.Print("\r\033[J")
+				fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, cmd)
+				return cmd, false
+			}
+			if kind == '@' && len(sugg) > 0 {
+				// Enter on a file suggestion → insert it and keep editing.
+				complete(); render(); continue
+			}
 			fmt.Print("\r\033[J")
 			line := string(buf)
 			fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, line)
@@ -191,6 +204,76 @@ func (s *codeSession) suggestions(line string) (byte, string, []string) {
 }
 
 func cDimInline(s string) string { return cDim + s + cReset }
+
+// selectList shows an arrow-navigable list and returns the chosen index (or -1).
+// start is the initially highlighted index.
+func selectList(title string, items []string, start int) int {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) || len(items) == 0 {
+		return -1
+	}
+	old, err := term.MakeRaw(fd)
+	if err != nil {
+		return -1
+	}
+	defer term.Restore(fd, old)
+	r := bufio.NewReader(os.Stdin)
+	idx := start
+	if idx < 0 || idx >= len(items) {
+		idx = 0
+	}
+	prev := 0
+	draw := func() {
+		var lines []string
+		lines = append(lines, cBold+title+cReset)
+		for i, it := range items {
+			if i == idx {
+				lines = append(lines, cInv+" › "+it+" "+cReset)
+			} else {
+				lines = append(lines, "   "+it)
+			}
+		}
+		lines = append(lines, cDim+"↑↓ scegli · Invio conferma · q annulla"+cReset)
+		if prev > 0 {
+			fmt.Printf("\033[%dA", prev-1)
+		}
+		fmt.Print("\r\033[J")
+		fmt.Print(strings.Join(lines, "\r\n"))
+		prev = len(lines)
+	}
+	draw()
+	for {
+		ch, _, err := r.ReadRune()
+		if err != nil {
+			return -1
+		}
+		switch ch {
+		case 3, 'q': // Ctrl+C / q
+			fmt.Print("\r\n")
+			return -1
+		case '\r', '\n':
+			fmt.Print("\r\n")
+			return idx
+		case 'k':
+			if idx > 0 { idx-- }
+			draw()
+		case 'j':
+			if idx < len(items)-1 { idx++ }
+			draw()
+		case 27:
+			b1, _, _ := r.ReadRune()
+			if b1 == '[' {
+				b2, _, _ := r.ReadRune()
+				if b2 == 'A' && idx > 0 {
+					idx--
+				} else if b2 == 'B' && idx < len(items)-1 {
+					idx++
+				}
+				draw()
+			}
+		}
+	}
+}
 
 func termWidth() int {
 	w, _, err := term.GetSize(int(os.Stdout.Fd()))

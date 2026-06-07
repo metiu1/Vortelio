@@ -225,7 +225,6 @@ func (s *codeSession) expandFileRefs(line string) string {
 
 func (s *codeSession) handleCommand(line string) bool {
 	parts := strings.Fields(line)
-	r := bufio.NewReader(os.Stdin)
 	switch parts[0] {
 	case "/exit", "/quit", "/q":
 		return true
@@ -252,78 +251,71 @@ func (s *codeSession) handleCommand(line string) bool {
 	case "/cd":
 		if len(parts) > 1 { s.workdir = strings.TrimSpace(line[len("/cd "):]); fmt.Printf("  %scartella: %s%s\n", cCyan, s.workdir, cReset) }
 	case "/model", "/m":
-		s.chooseModel(r)
+		s.chooseModel()
 	case "/skills", "/skill":
-		s.chooseSkills(r)
+		s.chooseSkills()
 	default:
 		fmt.Printf("  %scomando sconosciuto: %s — /help%s\n", cDim, parts[0], cReset)
 	}
 	return false
 }
 
-func (s *codeSession) chooseModel(reader *bufio.Reader) {
+func (s *codeSession) chooseModel() {
 	models, _ := hub.NewModelStore().List()
 	var llms []*hub.Model
 	for _, m := range models { if m.Type == "llm" { llms = append(llms, m) } }
 	cloud := server.CloudModelsForCLI()
 	if len(llms) == 0 && len(cloud) == 0 { fmt.Printf("  %snessun modello%s\n", cDim, cReset); return }
-	fmt.Printf("\n  %sModelli:%s\n", cBold, cReset)
-	n := 0
-	if len(llms) > 0 { fmt.Printf("  %s💻 Locali%s\n", cDim, cReset) }
+
+	var items []string
+	start := 0
 	for _, m := range llms {
-		n++
-		mark := " "
-		if s.cloudProvider == "" && s.model != nil && m.Name == s.model.Name && m.Tag == s.model.Tag { mark = cGreen + "●" + cReset }
+		mark := "  "
+		if s.cloudProvider == "" && s.model != nil && m.Name == s.model.Name && m.Tag == s.model.Tag { mark = "● "; start = len(items) }
 		tl := ""
-		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { tl = cDim + " 🛠" + cReset }
-		fmt.Printf("   %s %d) %s:%s%s\n", mark, n, m.Name, m.Tag, tl)
+		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { tl = " 🛠" }
+		items = append(items, "💻 "+mark+m.Name+":"+m.Tag+tl)
 	}
-	if len(cloud) > 0 { fmt.Printf("  %s☁ Cloud%s\n", cDim, cReset) }
 	for _, c := range cloud {
-		n++
-		mark := " "
-		if s.cloudProvider == c.Provider && s.cloudModel == c.Model { mark = cGreen + "●" + cReset }
-		fmt.Printf("   %s %d) %s %s· %s%s\n", mark, n, c.Label, cDim, c.ProviderName, cReset)
+		mark := "  "
+		if s.cloudProvider == c.Provider && s.cloudModel == c.Model { mark = "● "; start = len(items) }
+		items = append(items, "☁ "+mark+c.Label+" · "+c.ProviderName)
 	}
-	fmt.Printf("  %snumero (invio per annullare):%s ", cDim, cReset)
-	in, _ := reader.ReadString('\n')
-	var idx int
-	if _, err := fmt.Sscanf(strings.TrimSpace(in), "%d", &idx); err != nil || idx < 1 || idx > len(llms)+len(cloud) { return }
-	if idx <= len(llms) {
-		s.cloudProvider = ""; s.cloudModel = ""; s.model = llms[idx-1]
+	sel := selectList("Scegli un modello:", items, start)
+	if sel < 0 { return }
+	if sel < len(llms) {
+		s.cloudProvider = ""; s.cloudModel = ""; s.model = llms[sel]
 		fmt.Printf("  %s⏳ carico…%s\n", cDim, cReset)
 		if err := s.loadModel(); err != nil { fmt.Printf("  %s%v%s\n", cRed, err, cReset) } else { fmt.Printf("  %s✓ %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset) }
 	} else {
-		c := cloud[idx-1-len(llms)]
+		c := cloud[sel-len(llms)]
 		s.cloudProvider = c.Provider; s.cloudModel = c.Model
 		fmt.Printf("  %s✓ ☁ %s%s\n", cGreen, c.Label, cReset)
 	}
 }
 
-func (s *codeSession) chooseSkills(reader *bufio.Reader) {
+func (s *codeSession) chooseSkills() {
 	all := server.ListSkillInfos()
 	if len(all) == 0 { fmt.Printf("  %snessuna skill%s\n", cDim, cReset); return }
-	on := map[string]bool{}
-	for _, id := range s.skills { on[id] = true }
-	fmt.Printf("\n  %sSkill (numero per attivare/disattivare):%s\n", cBold, cReset)
-	for i, sk := range all {
-		box := "[ ]"
-		if on[sk.ID] { box = cGreen + "[x]" + cReset }
-		fmt.Printf("   %s %d) %s\n", box, i+1, sk.Name)
-	}
-	fmt.Printf("  %s>%s ", cDim, cReset)
-	in, _ := reader.ReadString('\n')
-	var idx int
-	if _, err := fmt.Sscanf(strings.TrimSpace(in), "%d", &idx); err != nil || idx < 1 || idx > len(all) { return }
-	id := all[idx-1].ID
-	if on[id] {
-		var ns []string
-		for _, x := range s.skills { if x != id { ns = append(ns, x) } }
-		s.skills = ns
-		fmt.Printf("  %sdisattivata%s\n", cDim, cReset)
-	} else {
-		s.skills = append(s.skills, id)
-		fmt.Printf("  %s✓ attivata%s\n", cGreen, cReset)
+	for {
+		on := map[string]bool{}
+		for _, id := range s.skills { on[id] = true }
+		var items []string
+		for _, sk := range all {
+			box := "[ ] "
+			if on[sk.ID] { box = "[x] " }
+			items = append(items, box+sk.Name)
+		}
+		sel := selectList("Skill (Invio per attivare/disattivare · q per chiudere):", items, 0)
+		if sel < 0 { return }
+		id := all[sel].ID
+		if on[id] {
+			var ns []string
+			for _, x := range s.skills { if x != id { ns = append(ns, x) } }
+			s.skills = ns
+		} else {
+			s.skills = append(s.skills, id)
+		}
 	}
 }
 
