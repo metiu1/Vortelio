@@ -85,7 +85,10 @@ func autoSystemPrompt(existing string) string {
 		"use when the user clearly needs up-to-date information or asks you to create media. For greetings, " +
 		"casual conversation, or anything you already know, just reply normally without using a tool. " +
 		"After a tool returns, write a clear, complete answer to the user IN THEIR LANGUAGE using the results — " +
-		"never just describe or repeat the raw JSON/output."
+		"never just describe or repeat the raw JSON/output. " +
+		"When a visual or interactive answer would help (a chart, diagram, calculator, table, mock UI, game, " +
+		"animation…), you MAY reply with a single self-contained ```html code block (inline CSS/JS allowed) — it " +
+		"will be rendered live for the user. Use this whenever building it answers the question better than text."
 	if strings.TrimSpace(existing) == "" {
 		return nudge
 	}
@@ -137,6 +140,44 @@ func CodingSystemPrompt(autonomous bool) string {
 		return autonomousSystemPrompt("")
 	}
 	return autoSystemPrompt("")
+}
+
+// SkillInfo is a lightweight skill descriptor for the CLI.
+type SkillInfo struct {
+	ID      string
+	Name    string
+	Builtin bool
+}
+
+// ListSkillInfos returns all available skills (builtin + custom) for the CLI.
+func ListSkillInfos() []SkillInfo {
+	out := []SkillInfo{}
+	for _, s := range listSkills() {
+		out = append(out, SkillInfo{ID: s.ID, Name: s.Name, Builtin: s.Builtin})
+	}
+	return out
+}
+
+// BuildCLIHarness builds the full agentic harness for the CLI with optional MCP
+// and skills, and returns the matching system prompt (skills applied).
+func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []string, emit rt.ToolEventEmitter) (rt.ToolProvider, string) {
+	cfg := &AgenticConfig{
+		Auto:       true,
+		Autonomous: autonomous,
+		WebSearch:  true,
+		Builtins:   true,
+		Coding:     true,
+		Media:      true,
+		MCP:        mcpOn,
+		Mode:       mode,
+		WorkingDir: workingDir,
+		Skills:     skills,
+	}
+	sys := CodingSystemPrompt(autonomous)
+	if len(skills) > 0 {
+		sys = applySkills(sys, skills)
+	}
+	return buildAgenticProvider(cfg, emit), sys
 }
 
 func buildAgenticProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) rt.ToolProvider {
