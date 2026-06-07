@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -126,6 +127,25 @@ var skillIDRE = regexp.MustCompile(`[^a-z0-9_-]+`)
 
 // GET  /api/skills        — list skills
 // POST /api/skills        — create/update a custom skill {id?, name, description, body}
+// saveSkillContent writes a skill to disk and returns its id. Reused by the API
+// handler and the agent's create_skill tool (self-authored skills).
+func saveSkillContent(id, name, description, body string) (string, error) {
+	if id == "" {
+		id = skillIDRE.ReplaceAllString(strings.ToLower(strings.ReplaceAll(name, " ", "-")), "")
+	}
+	if id == "" {
+		return "", fmt.Errorf("could not derive a valid skill id")
+	}
+	content := "---\nname: " + name + "\ndescription: " + description + "\n---\n" + body
+	if err := os.MkdirAll(skillsDir(), 0755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(skillsDir(), id+".md"), []byte(content), 0644); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
 func handleSkills(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:

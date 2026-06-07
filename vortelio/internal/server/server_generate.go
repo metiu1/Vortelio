@@ -263,6 +263,10 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 	if req.Agentic != nil && req.Agentic.Auto {
 		systemPrompt = autoSystemPrompt(systemPrompt)
 	}
+	// Autonomous goal mode: drive a long self-directed loop toward the objective.
+	if req.Agentic != nil && req.Agentic.Autonomous {
+		systemPrompt = autonomousSystemPrompt(systemPrompt)
+	}
 
 	// Compact the conversation for small context windows: drop the oldest turns
 	// (leaving a note) so small models don't overflow near saturation.
@@ -282,6 +286,11 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 		ToolsEnabled: toolsOn,
 		Options:      llmOpts,
 		Format:       formatStr,
+	}
+	// Autonomous goal sessions get a much larger tool-round budget so the agent
+	// can build a whole project across many steps in one go.
+	if req.Agentic != nil && req.Agentic.Autonomous {
+		sopts.MaxToolRounds = 40
 	}
 
 	var thinkBuf strings.Builder
