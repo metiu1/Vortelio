@@ -4794,12 +4794,11 @@ function toggleSidebar() {
 }
 
 function newChat() {
-  // If the current chat already has messages, open it in a NEW tab (keeping the
-  // old one open); otherwise just reset the current empty tab.
-  if (chatHistory.length) { openNewTab(); return; }
+  // Single-chat behaviour: just reset the current conversation (no new tab).
   chatHistory = [];
   attachments = [];
   currentChatId = null;
+  if (openTabs[activeTab]) { openTabs[activeTab].history = []; openTabs[activeTab].chatId = null; }
   renderAttachRow();
   document.getElementById('inp').value = '';
   document.getElementById('msgs').innerHTML = '';
@@ -6526,15 +6525,7 @@ function loadChat(idx) {
   const c = savedChats[idx]; if (!c) return;
   // Already the active chat → nothing to do.
   if (currentChatId === c.id) { showPanel('chat'); return; }
-  // If this chat is already open in another tab, switch to it (don't duplicate).
-  const existingTab = openTabs.findIndex((t, i) => i !== activeTab && t.chatId === c.id);
-  if (existingTab >= 0) { activateTab(existingTab); return; }
-  // Open the saved chat in a NEW tab so several can be open at once.
-  if (chatHistory.length || (openTabs[activeTab] && openTabs[activeTab].history.length)) {
-    snapshotActiveTab();
-    openTabs.push({ id: 't' + Date.now(), name: c.name || 'Chat', history: [], msgsHtml: '', chatId: null, model: '', modelLbl: '' });
-    activeTab = openTabs.length - 1;
-  }
+  // Single-chat behaviour: load into the current view (no new tab).
   // Restore full chatHistory so LLM gets full context on next message
   chatHistory = (c.messages || []).map(m => ({...m}));
   currentChatId = c.id;
