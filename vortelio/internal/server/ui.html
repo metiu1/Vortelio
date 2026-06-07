@@ -949,6 +949,11 @@ textarea.inp::placeholder { color: var(--text3); }
 
 /* ── Generated media artifact (model-as-tool output) ── */
 .media-artifact { border: 1px solid var(--border); background: var(--bg2); border-radius: var(--radius-sm); padding: 10px; margin: 8px 0; }
+.media-placeholder { width: 100%; max-width: 440px; aspect-ratio: 1 / 1; border-radius: 12px; margin: 8px 0;
+  background: linear-gradient(110deg, var(--bg3) 8%, var(--border) 18%, var(--bg3) 33%); background-size: 220% 100%;
+  animation: mediaShimmer 1.3s linear infinite; }
+.media-placeholder.is-video { aspect-ratio: 16 / 9; }
+@keyframes mediaShimmer { from { background-position: 220% 0; } to { background-position: -220% 0; } }
 .media-artifact .media-cap { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
 .media-artifact img, .media-artifact video { display: block; }
 .dark .media-artifact { background: var(--bg3) !important; border-color: var(--border) !important; }
@@ -3651,6 +3656,37 @@ function mediaArtifactEl(m) {
   return wrap;
 }
 
+// Animated square shown while an image/video/3D is being generated; replaced by
+// the real artifact when it's ready.
+function mediaPlaceholderEl(kind) {
+  const el = document.createElement('div');
+  el.className = 'media-placeholder' + (kind === 'video' ? ' is-video' : '');
+  el.dataset.pending = '1';
+  el.dataset.kind = kind || 'image';
+  return el;
+}
+// Detect whether a tool call will produce a visual artifact, and which kind.
+function mediaKindFor(name) {
+  const n = String(name || '').toLowerCase();
+  if (n.includes('video')) return 'video';
+  if (n.includes('3d') || n.includes('mesh')) return '3d';
+  if (n.includes('image') || (n.includes('generate') && n.includes('img'))) return 'image';
+  return '';
+}
+// Insert a pending placeholder before beforeNode for a media-generating tool.
+function maybeAddMediaPlaceholder(content, beforeNode, toolName) {
+  const kind = mediaKindFor(toolName);
+  if (!kind) return;
+  content.insertBefore(mediaPlaceholderEl(kind), beforeNode);
+}
+// Replace the first pending placeholder with the artifact, else insert it.
+function replaceOrInsertMedia(content, m, beforeNode) {
+  const art = mediaArtifactEl(m);
+  const ph = content.querySelector('.media-placeholder[data-pending="1"]');
+  if (ph) ph.replaceWith(art);
+  else content.insertBefore(art, beforeNode || null);
+}
+
 // Compact tool-activity line for the cloud chat stream.
 function cloudToolEl(label) {
   const el = document.createElement('div');
@@ -4733,10 +4769,10 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
       if (ev.error) throw new Error(ev.error);
       if (ev.event) {
         const data = ev.data || {};
-        if (ev.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'media_generated') { try { replaceOrInsertMedia(content, data, tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
         if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
-        if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
         if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ ' + esc((data.result||data.error||'').slice(0,160))), tn); canvas.scrollTop = 9999; continue; }
         continue;
       }
@@ -4755,6 +4791,7 @@ async function doChat(text, files, signal) {
 
   addUserMsg(text, files);
   chatHistory.push({role:'user', content:text});
+  autoSaveCurrentChat(); // save the chat as soon as the user sends (not after the AI replies)
   const _t0 = Date.now(); // response chronometer start
 
   // AI msg
@@ -4894,6 +4931,7 @@ async function doChat(text, files, signal) {
           <div class="tool-json tool-result-area"><span class="dot-pulse" style="display:inline-flex"><span></span><span></span><span></span></span></div>
         </div>`;
       content.insertBefore(block, textNode);
+      maybeAddMediaPlaceholder(content, textNode, tc.name); // animated square while it renders
       _toolBlocks[tc.id] = block;
       canvas.scrollTop = 9999;
     };
@@ -5005,7 +5043,7 @@ async function doChat(text, files, signal) {
           if (obj.event === 'tool_call') { try { _handleToolCall(obj.data); } catch {} continue; }
           if (obj.event === 'tool_result') { try { _handleToolResult(obj.data); } catch {} continue; }
           if (obj.event === 'approval_request') { try { _handleApproval(obj.data); } catch {} continue; }
-          if (obj.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(obj.data), textNode); canvas.scrollTop = 9999; } catch {} continue; }
+          if (obj.event === 'media_generated') { try { replaceOrInsertMedia(content, obj.data, textNode); canvas.scrollTop = 9999; } catch {} continue; }
           if (obj.event === 'notice') { try { _handleNotice(obj.data); } catch {} continue; }
           if (obj.done) break;
           if (typeof obj.response === 'string') _appendToken(obj.response);
@@ -5882,6 +5920,8 @@ function setGenerating(on) {
   isGenerating = on;
   if (!on) { // make sure no live chronometer keeps ticking after we stop
     document.querySelectorAll('.content').forEach(c => { if (c._liveTimer) { clearInterval(c._liveTimer); c._liveTimer = null; const m = c.querySelector('.msg-meta.live'); if (m) m.classList.remove('live'); } });
+    // Drop any media placeholder that never got an artifact (generation failed/stopped).
+    document.querySelectorAll('.media-placeholder[data-pending="1"]').forEach(p => p.remove());
   }
   const btn = document.getElementById('send-btn');
   const sendIcon = document.getElementById('send-icon');
@@ -7325,10 +7365,10 @@ async function sendCloudMsg() {
         // Agentic tool / media events (same shape as /api/generate).
         if (ev.event) {
           const data = ev.data || {};
-          if (ev.event === 'media_generated') { try { content.insertBefore(mediaArtifactEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'media_generated') { try { replaceOrInsertMedia(content, data, tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
           if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
-          if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
           if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ tool: ' + esc((data.result||data.error||'').slice(0,200))), tn); canvas.scrollTop = 9999; continue; }
           continue;
         }
