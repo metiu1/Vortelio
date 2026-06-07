@@ -948,6 +948,16 @@ textarea.inp::placeholder { color: var(--text3); }
 .dark .approval-card .ap-summary { background: #11111b !important; border-color: var(--border) !important; }
 
 /* ── Generated media artifact (model-as-tool output) ── */
+.chat-tabs { display: none; gap: 4px; padding: 6px 12px 0; overflow-x: auto; align-items: center; flex-shrink: 0; }
+.chat-tabs.show { display: flex; }
+.chat-tab { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px 8px 0 0; font-size: 12.5px;
+  color: var(--text2); background: var(--bg2); border: 1px solid var(--border); border-bottom: none; cursor: pointer; max-width: 180px; white-space: nowrap; }
+.chat-tab .tab-name { overflow: hidden; text-overflow: ellipsis; }
+.chat-tab.active { background: var(--bg); color: var(--text); font-weight: 500; }
+.chat-tab .tab-x { opacity: .5; font-size: 13px; flex-shrink: 0; }
+.chat-tab .tab-x:hover { opacity: 1; color: #dc2626; }
+.chat-tab-add { padding: 6px 9px; border-radius: 8px; font-size: 15px; color: var(--text2); cursor: pointer; flex-shrink: 0; }
+.chat-tab-add:hover { background: var(--bg3); color: var(--text); }
 .media-artifact { border: 1px solid var(--border); background: var(--bg2); border-radius: var(--radius-sm); padding: 10px; margin: 8px 0; }
 .media-placeholder { width: 100%; max-width: 440px; aspect-ratio: 1 / 1; border-radius: 12px; margin: 8px 0;
   background: linear-gradient(110deg, var(--bg3) 8%, var(--border) 18%, var(--bg3) 33%); background-size: 220% 100%;
@@ -1171,6 +1181,7 @@ textarea.inp::placeholder { color: var(--text3); }
     </aside>
     <div class="dev-col">
     <div class="incognito-banner" id="incognito-banner"><span>🕶</span> Private chat — this conversation won't be saved to your history.</div>
+    <div class="chat-tabs" id="chat-tabs"></div>
     <div class="canvas" id="canvas" ondragover="inputDragOver(event)" ondragleave="inputDragLeave(event)" ondrop="handleDrop(event)">
       <div class="welcome" id="welcome">
         <div class="welcome-logo">VT</div>
@@ -1971,6 +1982,13 @@ textarea.inp::placeholder { color: var(--text3); }
         <div class="settings-row-ctrl">
           <label class="switch"><input type="checkbox" id="set-autosave" checked onchange="setAutoSave(this.checked)"><span class="sl"></span></label>
         </div>
+      </div>
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div class="settings-row-info">
+          <div class="settings-row-label">🧠 Informazioni personali (memoria)</div>
+          <div class="settings-row-sub">Cose che i modelli devono sapere SEMPRE, in ogni chat (nome, preferenze, contesto, stile di risposta…). Vengono aggiunte al prompt di sistema di ogni conversazione.</div>
+        </div>
+        <textarea id="set-personal" class="tool-input" rows="5" placeholder="Es. Mi chiamo Paolo, sviluppo Vortelio. Rispondi in italiano, conciso. Uso una GTX 1650…" style="width:100%;resize:vertical" oninput="savePersonalInfo(this.value)"></textarea>
       </div>
     </div>
 
@@ -2857,6 +2875,7 @@ function openSettings() {
   document.getElementById('settings-panel').classList.add('open');
   document.getElementById('settings-overlay').classList.add('open');
   const as = document.getElementById('set-autosave'); if (as) as.checked = autoSaveOn;
+  const pi = document.getElementById('set-personal'); if (pi) pi.value = personalInfo;
   const sl = document.getElementById('ctx-slider');
   if (sl) { sl.value = contextSize; updateCtxLabel(contextSize); }
   const verEl = document.getElementById('ver');
@@ -3038,6 +3057,87 @@ let selectedCloudModel = '';        // model id when cloud (e.g. "gpt-4o")
 let selectedCustomBaseURL = '';     // base URL when using a custom/self-hosted endpoint
 let selectedCustomKey = '';         // optional key for the custom endpoint
 let chatHistory = [];
+// Personal info the user wants every model to always know (injected as a system
+// message into every chat, local and cloud).
+let personalInfo = localStorage.getItem('vortelio_personal_info') || '';
+function savePersonalInfo(v) { personalInfo = v || ''; localStorage.setItem('vortelio_personal_info', personalInfo); }
+function personalSysMsgs() {
+  return personalInfo.trim()
+    ? [{ role: 'system', content: 'Informazioni sull\'utente, valide in OGNI conversazione:\n' + personalInfo.trim() }]
+    : [];
+}
+
+// ── Multiple chat tabs open at once in the same window ──────────────
+let openTabs = [{ id: 't0', name: 'Nuova chat', history: [], msgsHtml: '', chatId: null, model: '', modelLbl: '' }];
+let activeTab = 0;
+function deriveTabName(hist) {
+  const u = (hist || []).find(m => m.role === 'user');
+  return (u && u.content) ? String(u.content).replace(/\s+/g, ' ').slice(0, 26) : 'Nuova chat';
+}
+function snapshotActiveTab() {
+  const t = openTabs[activeTab];
+  if (!t) return;
+  t.history = chatHistory;
+  t.msgsHtml = document.getElementById('msgs').innerHTML;
+  t.chatId = currentChatId;
+  t.model = selectedModel;
+  t.modelLbl = document.getElementById('model-lbl').textContent;
+  t.name = deriveTabName(chatHistory);
+}
+function applyTab(t) {
+  chatHistory = t.history || [];
+  currentChatId = t.chatId || null;
+  if (t.model) { selectedModel = t.model; if (t.modelLbl) document.getElementById('model-lbl').textContent = t.modelLbl; }
+  const msgs = document.getElementById('msgs');
+  msgs.innerHTML = t.msgsHtml || '';
+  if (chatHistory.length) { msgs.style.display = 'block'; document.getElementById('welcome').style.display = 'none'; }
+  else { msgs.style.display = 'none'; document.getElementById('welcome').style.display = 'flex'; }
+  document.getElementById('canvas').scrollTop = 9999;
+}
+function activateTab(i) {
+  if (i < 0 || i >= openTabs.length || i === activeTab) { if (i === activeTab) { showPanel('chat'); } return; }
+  snapshotActiveTab();
+  activeTab = i;
+  applyTab(openTabs[i]);
+  showPanel('chat');
+  renderTabs();
+}
+function openNewTab() {
+  snapshotActiveTab();
+  openTabs.push({ id: 't' + Date.now(), name: 'Nuova chat', history: [], msgsHtml: '', chatId: null, model: selectedModel, modelLbl: document.getElementById('model-lbl').textContent });
+  activeTab = openTabs.length - 1;
+  chatHistory = []; currentChatId = null; attachments = []; renderAttachRow();
+  document.getElementById('inp').value = '';
+  document.getElementById('msgs').innerHTML = '';
+  document.getElementById('msgs').style.display = 'none';
+  document.getElementById('welcome').style.display = 'flex';
+  showPanel('chat');
+  renderTabs();
+}
+function closeTab(i, ev) {
+  if (ev) ev.stopPropagation();
+  if (i < 0 || i >= openTabs.length) return;
+  const wasActive = i === activeTab;
+  openTabs.splice(i, 1);
+  if (!openTabs.length) { activeTab = 0; openTabs.push({ id: 't' + Date.now(), name: 'Nuova chat', history: [], msgsHtml: '', chatId: null, model: selectedModel, modelLbl: '' }); applyTab(openTabs[0]); renderTabs(); return; }
+  if (i < activeTab) activeTab--;
+  if (activeTab >= openTabs.length) activeTab = openTabs.length - 1;
+  if (wasActive) applyTab(openTabs[activeTab]);
+  renderTabs();
+}
+function renderTabs() {
+  const bar = document.getElementById('chat-tabs');
+  if (!bar) return;
+  if (openTabs[activeTab]) openTabs[activeTab].name = deriveTabName(chatHistory);
+  if (openTabs.length < 2) { bar.classList.remove('show'); bar.innerHTML = ''; return; }
+  bar.classList.add('show');
+  bar.innerHTML = openTabs.map((t, i) =>
+    `<div class="chat-tab${i === activeTab ? ' active' : ''}" onclick="activateTab(${i})" title="${esc(t.name)}">
+       <span class="tab-name">${esc(t.name || 'Chat')}</span>
+       <span class="tab-x" onclick="closeTab(${i},event)">✕</span>
+     </div>`).join('') +
+    `<span class="chat-tab-add" onclick="openNewTab()" title="Nuova scheda">＋</span>`;
+}
 let sessions = [];
 let currentSession = null;
 let currentAbortController = null;
@@ -4532,6 +4632,9 @@ function toggleSidebar() {
 }
 
 function newChat() {
+  // If the current chat already has messages, open it in a NEW tab (keeping the
+  // old one open); otherwise just reset the current empty tab.
+  if (chatHistory.length) { openNewTab(); return; }
   chatHistory = [];
   attachments = [];
   currentChatId = null;
@@ -4541,6 +4644,7 @@ function newChat() {
   document.getElementById('msgs').style.display = 'none';
   document.getElementById('welcome').style.display = 'flex';
   showPanel('chat');
+  renderTabs();
 }
 
 function updateWelcomeSuggestions() {
@@ -4792,6 +4896,7 @@ async function doChat(text, files, signal) {
   addUserMsg(text, files);
   chatHistory.push({role:'user', content:text});
   autoSaveCurrentChat(); // save the chat as soon as the user sends (not after the AI replies)
+  renderTabs(); // reflect the chat's name in its tab
   const _t0 = Date.now(); // response chronometer start
 
   // AI msg
@@ -4827,7 +4932,7 @@ async function doChat(text, files, signal) {
   if (selectedModelIsCloud) {
     try {
       // Keep the typing dots until the first token (streamCloudInto removes them).
-      const cloudHist = chatHistory.slice();
+      const cloudHist = [...personalSysMsgs(), ...chatHistory.slice()];
       if (cloudHist.length) cloudHist[cloudHist.length - 1] = { role: 'user', content: promptText };
       const full = await streamCloudInto(selectedCloudProvider, selectedCloudModel, cloudHist, content, canvas, signal);
       chatHistory.push({role:'assistant', content: full || '(empty response)'});
@@ -4851,7 +4956,7 @@ async function doChat(text, files, signal) {
       think: thinkOn, // enable chain-of-thought for reasoning models
       tools_enabled: toolsOn, // enable function calling / tool use
       incognito: incognitoOn,
-      messages: chatHistory.slice(0, -1)
+      messages: [...personalSysMsgs(), ...chatHistory.slice(0, -1)]
     };
     const ag = buildAgenticPayload();
     if (ag) payload.agentic = ag;
@@ -6148,6 +6253,12 @@ function renderChatHistory() {
 
 function loadChat(idx) {
   const c = savedChats[idx]; if (!c) return;
+  // Open the saved chat in a NEW tab so several can be open at once.
+  if (chatHistory.length || (openTabs[activeTab] && openTabs[activeTab].history.length)) {
+    snapshotActiveTab();
+    openTabs.push({ id: 't' + Date.now(), name: c.name || 'Chat', history: [], msgsHtml: '', chatId: null, model: '', modelLbl: '' });
+    activeTab = openTabs.length - 1;
+  }
   // Restore full chatHistory so LLM gets full context on next message
   chatHistory = (c.messages || []).map(m => ({...m}));
   currentChatId = c.id;
@@ -6166,6 +6277,7 @@ function loadChat(idx) {
   if (sb) sb.style.display = 'flex';
   showPanel('chat');
   document.getElementById('canvas').scrollTop = 9999;
+  renderTabs();
   toast('💬 Chat loaded: ' + c.name + ' (' + chatHistory.filter(m=>m.role==="user").length + ' messages)');
 }
 
