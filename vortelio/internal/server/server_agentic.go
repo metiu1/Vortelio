@@ -115,6 +115,30 @@ func autonomousSystemPrompt(existing string) string {
 
 // buildAgenticProvider assembles a composite tool provider from the request's
 // AgenticConfig. emit is the per-request tool event emitter (used for approvals).
+// BuildCodingHarness exposes the exact same agentic tool harness the Developer
+// GUI uses (builtins + coding tools + web + self skills), for the Vortelio CLI.
+func BuildCodingHarness(workingDir, mode string, autonomous bool, emit rt.ToolEventEmitter) rt.ToolProvider {
+	cfg := &AgenticConfig{
+		Auto:       true,
+		Autonomous: autonomous,
+		WebSearch:  true,
+		Builtins:   true,
+		Coding:     true,
+		Mode:       mode,
+		WorkingDir: workingDir,
+	}
+	return buildAgenticProvider(cfg, emit)
+}
+
+// CodingSystemPrompt returns the system prompt for the CLI coding agent, matching
+// the GUI behaviour (autonomous goal-seeking when requested).
+func CodingSystemPrompt(autonomous bool) string {
+	if autonomous {
+		return autonomousSystemPrompt("")
+	}
+	return autoSystemPrompt("")
+}
+
 func buildAgenticProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) rt.ToolProvider {
 	var providers []rt.ToolProvider
 

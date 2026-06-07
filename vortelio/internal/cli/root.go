@@ -16,6 +16,7 @@ func Execute() error {
 	root.addCommands(
 		commands.NewPullCommand(),
 		commands.NewRunCommand(),
+		commands.NewCodeCommand(),
 		commands.NewListCommand(),
 		commands.NewRemoveCommand(),
 		commands.NewQuantizeCommand(),
@@ -87,6 +88,7 @@ func (r *rootCommand) printHelp() {
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("  vortelio pull          <model>          Download a model from HuggingFace")
 	fmt.Println("  vortelio run           <model> [prompt] Run a model")
+	fmt.Println("  vortelio code          [goal] [--auto]  Coding agent in the terminal (like Claude Code)")
 	fmt.Println("  vortelio list                           List downloaded models")
 	fmt.Println("  vortelio rm            <model>          Remove a model")
 	fmt.Println("  vortelio rm            --all            Remove all models")
