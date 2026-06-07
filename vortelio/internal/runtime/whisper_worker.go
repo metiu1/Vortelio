@@ -44,12 +44,22 @@ _m = {"large":"large-v3","large-v3":"large-v3","large-v2":"large-v2","medium":"m
       "small":"small","base":"base","tiny":"tiny","turbo":"large-v3-turbo"}
 import re as _re
 _name = _m.get(_re.split(r"[/\\\\]", _tag)[-1].lower().strip(), "base")
-try:
-    model = WhisperModel(_name, device="cpu", compute_type="int8")
-except Exception as e:
-    print(json.dumps({"error": "load: " + str(e)}), flush=True)
+# Try GPU first (much faster); GTX 16xx/Turing don't do efficient fp16, so use
+# int8_float16/int8 on CUDA, then fall back to CPU int8.
+model = None
+_dev = _ct = None
+_last = ""
+for _d, _c in (("cuda", "int8_float16"), ("cuda", "int8"), ("cpu", "int8")):
+    try:
+        model = WhisperModel(_name, device=_d, compute_type=_c)
+        _dev, _ct = _d, _c
+        break
+    except Exception as _e:
+        _last = str(_e)
+if model is None:
+    print(json.dumps({"error": "load: " + _last}), flush=True)
     sys.exit(1)
-print(json.dumps({"ready": True}), flush=True)
+print(json.dumps({"ready": True, "device": _dev, "compute": _ct}), flush=True)
 for line in sys.stdin:
     path = line.strip().strip('"')
     if not path:
@@ -172,14 +182,17 @@ func startWhisperWorker(tag string) (*whisperWorker, error) {
 			return nil, fmt.Errorf("avvio worker fallito: %w", r.err)
 		}
 		var got struct {
-			Ready bool   `json:"ready"`
-			Error string `json:"error"`
+			Ready   bool   `json:"ready"`
+			Error   string `json:"error"`
+			Device  string `json:"device"`
+			Compute string `json:"compute"`
 		}
 		json.Unmarshal([]byte(strings.TrimSpace(r.line)), &got)
 		if got.Error != "" {
 			w.close()
 			return nil, fmt.Errorf(got.Error)
 		}
+		fmt.Printf("🎤  Whisper worker pronto (%s · %s · %s)\n", tag, got.Device, got.Compute)
 		return w, nil
 	case <-time.After(180 * time.Second):
 		w.close()
