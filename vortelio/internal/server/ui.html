@@ -181,6 +181,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .att-above { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-bottom: 6px; max-width: 100%; }
 .att-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 11px; border-radius: var(--radius-sm); background: var(--bg3); border: 1px solid var(--border); color: var(--text2); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-meta { font-size: 11px; color: var(--text3); margin-top: 8px; font-family: var(--mono); }
+.msg-meta.live { color: var(--accent); }
 .msg-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; opacity: 0; transition: opacity .15s; }
 .msg-group:hover .msg-actions { opacity: 1; }
 .msg-act {
@@ -4706,6 +4707,7 @@ async function doChat(text, files, signal) {
   inner.appendChild(avatar); inner.appendChild(content);
   grp.appendChild(inner); msgs.appendChild(grp);
   canvas.scrollTop = 9999;
+  startLiveTimer(grp, _t0); // chronometer ticks while the reply is generated
 
   // Build the effective prompt: text + attached-file context (content for text
   // files, path for others) so EVERY model — local or cloud — can use them.
@@ -5790,6 +5792,9 @@ async function pullModel(ref, btn) {
 let isGenerating = false;
 function setGenerating(on) {
   isGenerating = on;
+  if (!on) { // make sure no live chronometer keeps ticking after we stop
+    document.querySelectorAll('.content').forEach(c => { if (c._liveTimer) { clearInterval(c._liveTimer); c._liveTimer = null; const m = c.querySelector('.msg-meta.live'); if (m) m.classList.remove('live'); } });
+  }
   const btn = document.getElementById('send-btn');
   const sendIcon = document.getElementById('send-icon');
   const stopIcon = document.getElementById('stop-icon');
@@ -5940,17 +5945,31 @@ function addMsgActions(grp, userText, responseText) {
 }
 
 // Small meta line under a reply: response time (chronometer) + approx tokens.
+// Live chronometer that ticks while the model is generating the reply.
+function startLiveTimer(grp, t0) {
+  if (!grp) return;
+  const content = grp.querySelector('.content');
+  if (!content) return;
+  let meta = content.querySelector('.msg-meta');
+  if (!meta) { meta = document.createElement('div'); meta.className = 'msg-meta live'; content.appendChild(meta); }
+  else meta.classList.add('live');
+  const tick = () => { meta.textContent = '⏱ ' + ((Date.now() - t0) / 1000).toFixed(1) + 's'; };
+  tick();
+  if (content._liveTimer) clearInterval(content._liveTimer);
+  content._liveTimer = setInterval(tick, 100);
+}
 function addReplyMeta(grp, t0, text) {
   if (!grp) return;
   const content = grp.querySelector('.content');
-  if (!content || content.querySelector('.msg-meta')) return;
+  if (!content) return;
+  if (content._liveTimer) { clearInterval(content._liveTimer); content._liveTimer = null; }
   const secs = (Date.now() - t0) / 1000;
   const tok = Math.max(1, Math.round((text || '').length / 4)); // ~4 chars/token
-  const meta = document.createElement('div');
-  meta.className = 'msg-meta';
+  let meta = content.querySelector('.msg-meta');
+  if (!meta) { meta = document.createElement('div'); meta.className = 'msg-meta'; content.appendChild(meta); }
+  meta.classList.remove('live');
   meta.textContent = `⏱ ${secs.toFixed(1)}s · ~${tok} token`;
   meta.title = 'Tempo di risposta · token stimati';
-  content.appendChild(meta);
 }
 
 // Remove the last user+assistant turn (history + DOM), put the question back in

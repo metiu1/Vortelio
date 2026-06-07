@@ -66,9 +66,18 @@ func handleOpenAIAudioTranscriptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hw := getHardware()
-	ar := runtime.NewAudioRunner(model, hw)
 
-	text, err := ar.TranscribeText(tmpPath)
+	// Whisper: use the persistent worker (model stays loaded → fast). Fall back to
+	// the one-shot runner if the worker can't start.
+	var text string
+	if strings.Contains(strings.ToLower(model.Name), "whisper") {
+		text, err = runtime.TranscribeViaWorker(model.Tag, tmpPath)
+		if err != nil {
+			text, err = runtime.NewAudioRunner(model, hw).TranscribeText(tmpPath)
+		}
+	} else {
+		text, err = runtime.NewAudioRunner(model, hw).TranscribeText(tmpPath)
+	}
 	if err != nil {
 		jsonError(w, 500, "transcription failed: "+err.Error())
 		return
