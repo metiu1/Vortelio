@@ -168,7 +168,14 @@ func handleAgentDetail(entry agent.CatalogEntry) error {
 			return nil
 
 		case strings.HasPrefix(chosen, "▶"):
-			if err := agent.Start(entry.ID); err != nil {
+			if agent.IsInteractive(entry.ID) {
+				// Terminal TUI (e.g. Open Code): run attached to this terminal so it
+				// actually shows. Returns to the menu when the user exits it.
+				fmt.Printf("\n  ▶  Avvio %s nel terminale… (esci dall'app per tornare al menu)\n\n", entry.Name)
+				if err := agent.RunForeground(entry.ID); err != nil {
+					waitKey(fmt.Sprintf("  ❌  Avvio fallito:\n  %s", err.Error()))
+				}
+			} else if err := agent.Start(entry.ID); err != nil {
 				waitKey(fmt.Sprintf("  ❌  Start failed:\n  %s", err.Error()))
 			} else {
 				waitKey(fmt.Sprintf("  ✅  %s started at %s", entry.Name, entry.DefaultURL))
