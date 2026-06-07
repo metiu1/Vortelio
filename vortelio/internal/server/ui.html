@@ -1231,6 +1231,12 @@ textarea.inp::placeholder { color: var(--text3); }
               <div class="dd-item cap-item dev-only" id="cap-developer" onclick="toggleCoding();event.stopPropagation()"><span>💻</span> Developer — read, edit &amp; run code <i class="cap-dot"></i></div>
               <div class="dd-item cap-item dev-only" id="cap-autonomous" onclick="toggleAutonomous();event.stopPropagation()"><span>🎯</span> Autonomo — lavora da solo verso un obiettivo <i class="cap-dot"></i></div>
 
+              <div class="dd-sep"></div>
+              <div class="dd-header">Modelli</div>
+              <div class="dd-item" onclick="openAddCloudModel();closeAllDD()"><span>☁️</span> Aggiungi modello cloud / server… <span class="dd-arrow">›</span></div>
+              <div class="dd-item dev-only" onclick="showPanel('models');closeAllDD()"><span>💾</span> Modelli installati… <span class="dd-arrow">›</span></div>
+              <div class="dd-note dev-only"><span>▶</span> Nei blocchi di codice premi <b>Esegui</b> per lanciarli (Python/JS/Bash/PowerShell/Go).</div>
+
               <div class="dd-sep dev-only"></div>
               <div class="dd-header dev-only">Hardware</div>
               <div class="dd-item hw-item sel dev-only" id="hw-gpu-item" onclick="setHW(false);event.stopPropagation()"><span>⚡</span> GPU <i class="cap-dot"></i></div>
