@@ -948,6 +948,14 @@ textarea.inp::placeholder { color: var(--text3); }
 .dark .approval-card .ap-summary { background: #11111b !important; border-color: var(--border) !important; }
 
 /* ── Generated media artifact (model-as-tool output) ── */
+#split-view { flex: 1; flex-direction: column; overflow: hidden; }
+#split-view.show { display: flex; }
+.split-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; }
+.split-row { flex: 1; display: flex; gap: 1px; background: var(--border); overflow: hidden; }
+.split-pane { flex: 1; min-width: 0; background: var(--bg); height: 100%; }
+.split-btn.on, #split-btn.on { background: var(--accent); color: #fff; }
+body.embed-mode .sidebar { display: none; }
+body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remote-topbar-badge { display: none; }
 .chat-tabs { display: none; gap: 4px; padding: 6px 12px 0; overflow-x: auto; align-items: center; flex-shrink: 0; }
 .chat-tabs.show { display: flex; }
 .chat-tab { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px 8px 0 0; font-size: 12.5px;
@@ -1140,6 +1148,10 @@ textarea.inp::placeholder { color: var(--text3); }
           </svg>
           Settings
         </button>
+        <button class="topbar-btn" id="split-btn" onclick="toggleSplit()" title="Affianca due chat nella stessa finestra">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="5.2" height="10" rx="1"/><rect x="7.8" y="2" width="5.2" height="10" rx="1"/></svg>
+          Split
+        </button>
       </div>
       <div style="flex:1"></div>
       <div class="topbar-modes" id="topbar-modes">
@@ -1164,6 +1176,8 @@ textarea.inp::placeholder { color: var(--text3); }
         </button>
       </div>
     </div>
+    <!-- Split view: several independent chats side by side in one window -->
+    <div id="split-view" style="display:none"></div>
     <!-- Developer workspace bar (visible only in Developer mode) -->
     <div class="dev-bar" id="dev-bar">
       <span class="dev-pill">📁 Workspace</span>
@@ -3067,6 +3081,10 @@ function personalSysMsgs() {
     : [];
 }
 
+// Embed mode: loaded inside a split-view iframe → hide the sidebar/chrome so the
+// pane shows just the chat.
+try { if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('embed-mode'); } catch {}
+
 // ── Multiple chat tabs open at once in the same window ──────────────
 let openTabs = [{ id: 't0', name: 'Nuova chat', history: [], msgsHtml: '', chatId: null, model: '', modelLbl: '' }];
 let activeTab = 0;
@@ -3137,6 +3155,55 @@ function renderTabs() {
        <span class="tab-x" onclick="closeTab(${i},event)">✕</span>
      </div>`).join('') +
     `<span class="chat-tab-add" onclick="openNewTab()" title="Nuova scheda">＋</span>`;
+}
+
+// ── Split view: two (or more) independent chats side by side ─────────
+// Each pane is an embedded Vortelio chat (its own model, history, generation),
+// so you can type in both at the same time.
+let splitOn = false;
+function toggleSplit() {
+  splitOn = !splitOn;
+  const sv = document.getElementById('split-view');
+  const devsplit = document.getElementById('dev-split');
+  const devbar = document.getElementById('dev-bar');
+  const tabs = document.getElementById('chat-tabs');
+  const btn = document.getElementById('split-btn');
+  if (splitOn) {
+    if (!sv.dataset.built) renderSplitPanes(2);
+    sv.classList.add('show'); sv.style.display = 'flex';
+    devsplit.style.display = 'none';
+    if (devbar) devbar.style.display = 'none';
+    if (tabs) tabs.style.display = 'none';
+    if (btn) btn.classList.add('on');
+  } else {
+    sv.classList.remove('show'); sv.style.display = 'none';
+    devsplit.style.display = '';
+    if (btn) btn.classList.remove('on');
+    setAppMode(appMode); // restore the dev-bar/tabs visibility for the current mode
+  }
+}
+function renderSplitPanes(n) {
+  const sv = document.getElementById('split-view');
+  let panes = '';
+  for (let i = 0; i < n; i++) panes += '<iframe class="split-pane" src="/?embed=1"></iframe>';
+  sv.innerHTML =
+    '<div class="split-toolbar">' +
+    '<button class="btn" style="padding:4px 10px;font-size:12px" onclick="addSplitPane()">＋ Pannello</button>' +
+    '<button class="btn" style="padding:4px 10px;font-size:12px" onclick="removeSplitPane()">－ Pannello</button>' +
+    '<span style="font-size:11px;color:var(--text3)">Chat affiancate e indipendenti — scrivi in tutte contemporaneamente</span>' +
+    '</div><div class="split-row" id="split-row">' + panes + '</div>';
+  sv.dataset.built = '1';
+}
+function addSplitPane() {
+  const row = document.getElementById('split-row'); if (!row) return;
+  if (row.children.length >= 4) { toast('Massimo 4 pannelli'); return; }
+  const f = document.createElement('iframe'); f.className = 'split-pane'; f.src = '/?embed=1';
+  row.appendChild(f);
+}
+function removeSplitPane() {
+  const row = document.getElementById('split-row'); if (!row) return;
+  if (row.children.length > 1) row.lastChild.remove();
+  else toggleSplit();
 }
 let sessions = [];
 let currentSession = null;
