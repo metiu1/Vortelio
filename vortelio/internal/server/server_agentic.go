@@ -142,6 +142,19 @@ func CodingSystemPrompt(autonomous bool) string {
 	return autoSystemPrompt("")
 }
 
+// workspaceContext tells the agent which folder it is working in, so it creates
+// files in the right place and reports the exact path (instead of guessing).
+func workspaceContext(cfg *AgenticConfig) string {
+	if cfg == nil || !cfg.Coding || strings.TrimSpace(cfg.WorkingDir) == "" {
+		return ""
+	}
+	return "CARTELLA DI LAVORO (radice del progetto): " + cfg.WorkingDir + "\n" +
+		"Tutte le operazioni sui file avvengono QUI. Per creare o modificare file DEVI chiamare gli strumenti " +
+		"write_file / edit_file con un percorso relativo a questa cartella (oppure assoluto dentro di essa). " +
+		"Dopo aver creato o modificato un file, indica SEMPRE il percorso completo esatto. " +
+		"Non dire mai che un file è stato creato se non hai effettivamente chiamato write_file."
+}
+
 // SkillInfo is a lightweight skill descriptor for the CLI.
 type SkillInfo struct {
 	ID      string
@@ -176,6 +189,9 @@ func BuildCLIHarness(workingDir, mode string, autonomous, mcpOn bool, skills []s
 	sys := CodingSystemPrompt(autonomous)
 	if len(skills) > 0 {
 		sys = applySkills(sys, skills)
+	}
+	if ws := workspaceContext(cfg); ws != "" {
+		sys = ws + "\n\n" + sys
 	}
 	return buildAgenticProvider(cfg, emit), sys
 }

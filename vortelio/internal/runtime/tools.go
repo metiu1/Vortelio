@@ -6,9 +6,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -158,6 +161,14 @@ func BuiltinTools() []ToolDef {
 				Parameters:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Directory path to list. Defaults to current directory.","default":"."}},"required":[]}`),
 			},
 		},
+		{
+			Type: "function",
+			Function: ToolFuncDef{
+				Name:        "fetch_url",
+				Description: "Fetch a web page or document by URL and return its text content (HTML is stripped to readable text). Use to open and read links the user provides.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","description":"The full URL to fetch, e.g. https://example.com/page"}},"required":["url"]}`),
+			},
+		},
 	}
 }
 
@@ -178,9 +189,66 @@ func ExecuteTool(name string, argsJSON string) (string, error) {
 		return toolWriteFile(argsJSON)
 	case "list_directory":
 		return toolListDirectory(argsJSON)
+	case "fetch_url":
+		return toolFetchURL(argsJSON)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+// ── fetch_url ────────────────────────────────────────────────────────────────
+
+func toolFetchURL(argsJSON string) (string, error) {
+	var args struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return "", fmt.Errorf("invalid arguments: %w", err)
+	}
+	u := strings.TrimSpace(args.URL)
+	if u == "" {
+		return "", fmt.Errorf("url is required")
+	}
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		u = "https://" + u
+	}
+	client := &http.Client{Timeout: 25 * time.Second}
+	req, _ := http.NewRequest("GET", u, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Vortelio)")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("could not fetch: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20)) // cap 2MB
+	text := htmlToText(string(body))
+	if len(text) > 8000 {
+		text = text[:8000] + "\n…[contenuto troncato]"
+	}
+	out := map[string]interface{}{"url": u, "status": resp.StatusCode, "content": text}
+	b, _ := json.Marshal(out)
+	return string(b), nil
+}
+
+var (
+	reScriptStyle = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
+	reTags        = regexp.MustCompile(`(?s)<[^>]+>`)
+	reWS          = regexp.MustCompile(`[ \t]+`)
+	reBlankLines  = regexp.MustCompile(`\n\s*\n\s*\n+`)
+)
+
+func htmlToText(h string) string {
+	h = reScriptStyle.ReplaceAllString(h, " ")
+	h = reTags.ReplaceAllString(h, " ")
+	h = htmlUnescape(h)
+	h = reWS.ReplaceAllString(h, " ")
+	h = reBlankLines.ReplaceAllString(h, "\n\n")
+	return strings.TrimSpace(h)
+}
+
+func htmlUnescape(s string) string {
+	r := strings.NewReplacer("&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", "\"", "&#39;", "'", "&nbsp;", " ")
+	return r.Replace(s)
 }
 
 // ── get_current_time ─────────────────────────────────────────────────────────

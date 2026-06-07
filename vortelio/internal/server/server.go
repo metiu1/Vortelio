@@ -256,6 +256,7 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("/api/run-code", ca(handleRunCode))
 	mux.HandleFunc("/api/media/providers", ca(handleMediaProviders))
 	mux.HandleFunc("/api/media/key", ca(handleMediaKey))
+	mux.HandleFunc("/api/hf/search", ca(handleHFSearch))
 
 	// ── Developer file explorer (read-only) ───────────────────────────────────
 	mux.HandleFunc("/api/fs/list", ca(handleFsList))

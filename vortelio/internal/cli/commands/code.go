@@ -28,7 +28,7 @@ const (
 	cBlue  = "\033[34m"
 )
 
-// CodeCommand is a terminal coding agent (like Claude Code) on the same harness
+// CodeCommand is the Vortelio terminal coding agent, on the same harness
 // as the Developer GUI: agentic tool loop, coding tools, web, media, skills, MCP.
 type CodeCommand struct{}
 
@@ -97,6 +97,8 @@ func (c *CodeCommand) Run(args []string) error {
 		if err != nil { fmt.Println(); break }
 		line = strings.TrimSpace(line)
 		if line == "" { continue }
+		if line == "@" { s.listWorkdirFiles(); continue }
+		if line == "/" { printSlashHelp(); continue }
 		if strings.HasPrefix(line, "/") {
 			if s.handleCommand(line, reader) { return nil }
 			continue
@@ -250,6 +252,18 @@ func (s *codeSession) chooseSkills(reader *bufio.Reader) {
 	} else {
 		s.skills = append(s.skills, id)
 		fmt.Printf("  %s✓ skill attivata: %s%s\n", cGreen, all[idx-1].Name, cReset)
+	}
+}
+
+func (s *codeSession) listWorkdirFiles() {
+	entries, err := os.ReadDir(s.workdir)
+	if err != nil { fmt.Printf("  %scartella non leggibile%s\n", cDim, cReset); return }
+	fmt.Printf("\n  %sFile in %s (usa @nome per allegarli):%s\n", cBold, s.workdir, cReset)
+	n := 0
+	for _, e := range entries {
+		if n >= 40 { fmt.Printf("   %s… e altri%s\n", cDim, cReset); break }
+		if e.IsDir() { fmt.Printf("   %s📁 %s/%s\n", cDim, e.Name(), cReset) } else { fmt.Printf("   📄 %s\n", e.Name()) }
+		n++
 	}
 }
 

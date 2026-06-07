@@ -306,6 +306,9 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 	if req.Agentic != nil && req.Agentic.Autonomous {
 		systemPrompt = autonomousSystemPrompt(systemPrompt)
 	}
+	if ws := workspaceContext(req.Agentic); ws != "" {
+		systemPrompt = ws + "\n\n" + systemPrompt
+	}
 	if systemPrompt != "" {
 		req.Messages = append([]cloud.Message{{Role: "system", Content: systemPrompt}}, req.Messages...)
 	}
