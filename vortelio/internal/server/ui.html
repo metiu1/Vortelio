@@ -1228,6 +1228,7 @@ textarea.inp::placeholder { color: var(--text3); }
               <div class="dd-item dev-only" id="cap-skills" onclick="openAgentConfig()"><span>🎓</span> Skills &amp; agent… <span class="dd-arrow">›</span></div>
               <div class="dd-item dev-only" id="cap-mcp" onclick="openMcpManager()"><span>🔌</span> External tools (MCP)… <span class="dd-arrow">›</span></div>
               <div class="dd-item cap-item dev-only" id="cap-developer" onclick="toggleCoding();event.stopPropagation()"><span>💻</span> Developer — read, edit &amp; run code <i class="cap-dot"></i></div>
+              <div class="dd-item cap-item dev-only" id="cap-autonomous" onclick="toggleAutonomous();event.stopPropagation()"><span>🎯</span> Autonomo — lavora da solo verso un obiettivo <i class="cap-dot"></i></div>
 
               <div class="dd-sep dev-only"></div>
               <div class="dd-header dev-only">Hardware</div>
@@ -3608,6 +3609,7 @@ function syncCaps() {
   setOn('cap-think', thinkOn);
   setOn('cap-incognito', incognitoOn);
   setOn('cap-developer', codingOn);
+  setOn('cap-autonomous', agentCfg.autonomous);
   setOn('cap-mcp', agentCfg.mcp);
   const pb = document.getElementById('private-btn'); if (pb) pb.classList.toggle('on', incognitoOn);
   const ib = document.getElementById('incognito-banner'); if (ib) ib.classList.toggle('on', incognitoOn);
@@ -3625,6 +3627,7 @@ function renderCapChips() {
   if (thinkOn)     chips.push(['think', '💡 Ragiona', 'toggleThink()']);
   if (incognitoOn) chips.push(['inc', '🕶 Incognito', 'toggleIncognito()']);
   if (agentCfg.mcp) chips.push(['mcp', '🔌 MCP', "agentCfg.mcp=false;renderCapChips()"]);
+  if (agentCfg.autonomous) chips.push(['auto', '🎯 Autonomo', 'toggleAutonomous()']);
   (agentCfg.skills||[]).forEach(id => {
     const s = (allSkills||[]).find(x => x.id === id);
     chips.push(['sk-'+id, '🎓 ' + (s ? s.name : id), `toggleSkill('${id}')`]);
@@ -3691,6 +3694,14 @@ function toggleCoding() {
   setAppMode('agent');
   if (codingOn) toast('💻 Developer mode on — I can read, edit and run code in your folder');
   closeAllDD();
+}
+
+// Autonomous goal mode: the agent loops with tools until your objective is done.
+function toggleAutonomous() {
+  agentCfg.autonomous = !agentCfg.autonomous;
+  if (appMode !== 'agent') setAppMode('agent');
+  if (agentCfg.autonomous) toast('🎯 Modalità autonoma ON — scrivi un OBIETTIVO e lavorerò da solo (file, codice, esecuzione) fino a completarlo');
+  syncCaps(); closeAllDD();
 }
 
 function updateComposerForMode() {
@@ -4606,14 +4617,16 @@ function buildAgenticPayload() {
       mcp: false, coding: false, skills: [], session_id: 'sess-' + Date.now()
     };
   }
+  const autonomous = !!agentCfg.autonomous;
   const ag = {
     auto: true,
-    web_search: !!agentCfg.web, builtins: !!agentCfg.builtins, mcp: !!agentCfg.mcp,
-    coding: !!agentCfg.coding, media: !!agentCfg.media, skills: agentCfg.skills || [],
-    mode: codeMode, working_dir: (document.getElementById('dev-workspace').value || '').trim(),
+    autonomous: autonomous,
+    web_search: !!agentCfg.web, builtins: !!agentCfg.builtins || autonomous, mcp: !!agentCfg.mcp,
+    coding: !!agentCfg.coding || autonomous, media: !!agentCfg.media, skills: agentCfg.skills || [],
+    mode: autonomous ? 'auto' : codeMode, working_dir: (document.getElementById('dev-workspace').value || '').trim(),
     session_id: 'sess-' + Date.now()
   };
-  if (ag.web_search || ag.builtins || ag.mcp || ag.coding || ag.media || (ag.skills && ag.skills.length)) return ag;
+  if (autonomous || ag.web_search || ag.builtins || ag.mcp || ag.coding || ag.media || (ag.skills && ag.skills.length)) return ag;
   return null;
 }
 

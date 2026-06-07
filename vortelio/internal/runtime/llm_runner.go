@@ -947,6 +947,7 @@ type StreamOpts struct {
 	ToolProvider ToolProvider     // when set (with ToolsEnabled): supplies tool defs + execution; defaults to builtins
 	Options      LLMOptions
 	Format       string // "json" or raw JSON schema string
+	MaxToolRounds int   // override the tool-loop round cap (0 = default); raised for autonomous goal sessions
 }
 
 // applyModelfileTemplate renders an Ollama-style TEMPLATE with the given StreamOpts.
@@ -1235,6 +1236,9 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 	}
 
 	maxToolRounds := 8
+	if sopts.MaxToolRounds > 0 {
+		maxToolRounds = sopts.MaxToolRounds
+	}
 	for round := 0; round < maxToolRounds; round++ {
 		// On the final round, force a text answer (no tools) so the model can't
 		// keep calling tools forever and return an empty response.

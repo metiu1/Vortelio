@@ -258,6 +258,8 @@ type ToolCallOptions struct {
 	ExecTool func(name, args string) (string, error)
 	// OnEvent is called for tool_call / tool_result events (for UI streaming).
 	OnEvent func(typ string, data interface{})
+	// MaxRounds overrides the tool-loop cap (0 = default 5); raised for autonomous sessions.
+	MaxRounds int
 }
 
 // Chat sends messages and streams tokens to onToken. Returns full response text.
@@ -448,6 +450,9 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 
 	var finalContent strings.Builder
 	maxRounds := 5
+	if opts != nil && opts.MaxRounds > 0 {
+		maxRounds = opts.MaxRounds
+	}
 
 	for round := 0; round < maxRounds; round++ {
 		body := map[string]interface{}{
@@ -678,6 +683,9 @@ func chatAnthropicWithTools(p Provider, apiKey string, messages []Message, opts 
 
 	var finalContent strings.Builder
 	maxRounds := 5
+	if opts != nil && opts.MaxRounds > 0 {
+		maxRounds = opts.MaxRounds
+	}
 
 	for round := 0; round < maxRounds; round++ {
 		_ = round
@@ -905,6 +913,9 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 	geminiTools := openaiToolsToGemini(opts.Tools)
 	var finalContent strings.Builder
 	maxRounds := 5
+	if opts != nil && opts.MaxRounds > 0 {
+		maxRounds = opts.MaxRounds
+	}
 	url := p.BaseURL + "?key=" + apiKey
 	client := &http.Client{Timeout: 120 * time.Second}
 

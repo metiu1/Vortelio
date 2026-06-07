@@ -253,6 +253,9 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 	if req.Agentic != nil && req.Agentic.Auto {
 		systemPrompt = autoSystemPrompt(systemPrompt)
 	}
+	if req.Agentic != nil && req.Agentic.Autonomous {
+		systemPrompt = autonomousSystemPrompt(systemPrompt)
+	}
 	if systemPrompt != "" {
 		req.Messages = append([]cloud.Message{{Role: "system", Content: systemPrompt}}, req.Messages...)
 	}
@@ -271,6 +274,9 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 				Tools:   tools,
 				ExecTool: provider.Execute,
 				OnEvent:  toolEmit,
+			}
+			if req.Agentic.Autonomous {
+				toolOpts.MaxRounds = 40
 			}
 		}
 	}

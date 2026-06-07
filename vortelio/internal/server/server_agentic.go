@@ -92,6 +92,25 @@ func autoSystemPrompt(existing string) string {
 	return nudge + "\n\n" + existing
 }
 
+// autonomousSystemPrompt drives a goal-seeking agent that keeps working across
+// many tool rounds until the objective is fully achieved (e.g. building a whole
+// project in Developer mode), without asking for confirmation at each step.
+func autonomousSystemPrompt(existing string) string {
+	nudge := "You are an AUTONOMOUS agent. The user gives you a GOAL; your job is to reach it on your own. " +
+		"Work in a loop: (1) think briefly and break the goal into concrete steps; (2) use your tools " +
+		"(read/list/glob/grep files, write_file/edit, run_shell, run code, web_search, media, create_skill) to " +
+		"execute each step; (3) verify your work by reading files back and running it; (4) fix problems and " +
+		"continue. Build complete, working projects: create every needed file with real content, wire them " +
+		"together, and run them to confirm they work. Do NOT stop to ask for permission or confirmation — act, " +
+		"and only pause if you truly cannot proceed. When you hit a reusable procedure worth keeping, call " +
+		"create_skill to save it. Keep going until the goal is fully met, then end with a short summary of what " +
+		"you built and how to use it."
+	if strings.TrimSpace(existing) == "" {
+		return nudge
+	}
+	return nudge + "\n\n" + existing
+}
+
 // ── Agentic provider builder ───────────────────────────────────────────────────
 
 // buildAgenticProvider assembles a composite tool provider from the request's
@@ -111,7 +130,47 @@ func buildAgenticProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) rt.ToolP
 	if cfg.Media {
 		providers = append(providers, newMediaProvider(emit))
 	}
+	// The agent can author its own reusable skills whenever it has any tools.
+	if len(providers) > 0 {
+		providers = append(providers, &selfProvider{})
+	}
 	return rt.NewCompositeProvider(providers...)
+}
+
+// selfProvider lets the agent create reusable skills for itself (self-improvement).
+type selfProvider struct{}
+
+func (s *selfProvider) Tools() []rt.ToolDef {
+	return []rt.ToolDef{{
+		Type: "function",
+		Function: rt.ToolFuncDef{
+			Name:        "create_skill",
+			Description: "Save a reusable skill to the user's skill library so it can be enabled in future sessions. Use when you find a repeatable procedure, style, or instruction set worth keeping.",
+			Parameters:  json.RawMessage(`{"type":"object","properties":{"name":{"type":"string","description":"Short skill name, e.g. 'React component author'"},"description":{"type":"string","description":"One-line summary of what the skill does"},"body":{"type":"string","description":"The full instructions the model should follow when this skill is active"}},"required":["name","body"]}`),
+		},
+	}}
+}
+
+func (s *selfProvider) Execute(name, args string) (string, error) {
+	if name != "create_skill" {
+		return "", fmt.Errorf("unknown tool: %s", name)
+	}
+	var a struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Body        string `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(args), &a); err != nil {
+		return "", fmt.Errorf("invalid arguments: %w", err)
+	}
+	if strings.TrimSpace(a.Name) == "" || strings.TrimSpace(a.Body) == "" {
+		return "", fmt.Errorf("name and body are required")
+	}
+	id, err := saveSkillContent("", a.Name, a.Description, a.Body)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Skill \"%s\" created (id: %s). The user can enable it from the skills menu.", a.Name, id), nil
 }
 
 // filteredBuiltins exposes the builtin tools, optionally limited to web_search.

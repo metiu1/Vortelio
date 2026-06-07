@@ -115,6 +115,7 @@ type AgenticConfig struct {
 	Coding     bool     `json:"coding"`      // expose coding tools (file + shell)
 	Media      bool     `json:"media"`       // expose model-as-tool media generation (image/video/audio/3d)
 	Auto       bool     `json:"auto"`        // smart mode: never hard-error on unsupported tools; nudge the model to use tools when helpful
+	Autonomous bool     `json:"autonomous"`  // goal-driven autonomous loop: many tool rounds until the objective is complete
 	Skills     []string `json:"skills"`      // enabled skill IDs
 	Mode       string   `json:"mode"`        // coding mode: "plan" | "ask" | "auto"
 	WorkingDir string   `json:"working_dir"` // root dir for coding tools
