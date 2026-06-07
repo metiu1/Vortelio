@@ -3115,7 +3115,12 @@ function snapshotActiveTab() {
   const t = openTabs[activeTab];
   if (!t) return;
   t.history = chatHistory;
-  t.msgsHtml = document.getElementById('msgs').innerHTML;
+  // Move the real DOM nodes out (preserves live elements + ongoing generation,
+  // so switching tabs during a generation doesn't lose it).
+  const msgs = document.getElementById('msgs');
+  t.nodes = [];
+  while (msgs.firstChild) { t.nodes.push(msgs.firstChild); msgs.removeChild(msgs.firstChild); }
+  t.msgsHtml = '';
   t.chatId = currentChatId;
   t.model = selectedModel;
   t.modelLbl = document.getElementById('model-lbl').textContent;
@@ -3126,10 +3131,26 @@ function applyTab(t) {
   currentChatId = t.chatId || null;
   if (t.model) { selectedModel = t.model; if (t.modelLbl) document.getElementById('model-lbl').textContent = t.modelLbl; }
   const msgs = document.getElementById('msgs');
-  msgs.innerHTML = t.msgsHtml || '';
-  if (chatHistory.length) { msgs.style.display = 'block'; document.getElementById('welcome').style.display = 'none'; }
+  msgs.innerHTML = '';
+  if (t.nodes && t.nodes.length) { t.nodes.forEach(n => msgs.appendChild(n)); t.nodes = []; }
+  else if (t.msgsHtml) { msgs.innerHTML = t.msgsHtml; t.msgsHtml = ''; }
+  if (msgs.childNodes.length) { msgs.style.display = 'block'; document.getElementById('welcome').style.display = 'none'; }
   else { msgs.style.display = 'none'; document.getElementById('welcome').style.display = 'flex'; }
   document.getElementById('canvas').scrollTop = 9999;
+  reflectGenState(); // composer reflects THIS tab's generation state
+}
+// Composer send/stop button reflects whether the active tab is generating.
+function setSendButton(generating) {
+  const btn = document.getElementById('send-btn');
+  const sendIcon = document.getElementById('send-icon');
+  const stopIcon = document.getElementById('stop-icon');
+  if (!btn) return;
+  if (generating) { btn.onclick = stopGeneration; btn.style.background = '#dc2626'; if (sendIcon) sendIcon.style.display = 'none'; if (stopIcon) stopIcon.style.display = 'block'; }
+  else { btn.onclick = doSend; btn.style.background = ''; if (sendIcon) sendIcon.style.display = 'block'; if (stopIcon) stopIcon.style.display = 'none'; }
+}
+function reflectGenState() {
+  const t = openTabs[activeTab];
+  setSendButton(!!(t && t.gen));
 }
 function activateTab(i) {
   if (i < 0 || i >= openTabs.length || i === activeTab) { if (i === activeTab) { showPanel('chat'); } return; }
@@ -4818,11 +4839,14 @@ async function doSend() {
   // Block overlapping sends: a second request (e.g. pressing Enter while a reply
   // is still generating) would race on the same model and attach its answer to
   // the wrong message. Ignore until the current one finishes (or is stopped).
-  if (isGenerating) return;
+  // Per-tab guard: a tab can't start a 2nd generation, but OTHER tabs stay usable.
+  const myTab = openTabs[activeTab];
+  if (myTab && myTab.gen) return;
   const field = document.getElementById('inp');
   const text = field.value.trim();
   if (!text && !attachments.length) return;
   if (!selectedModel && !autoSelectModel()) { openOnboarding(); return; }
+  ensureNotifyPermission();
 
   field.value = ''; autoSize(field);
   document.getElementById('welcome').style.display = 'none';
@@ -4830,10 +4854,9 @@ async function doSend() {
   const _scb = document.getElementById('save-chat-btn');
   if (_scb) _scb.style.display = 'flex';
 
-  setGenerating(true);
-
   currentAbortController = new AbortController();
   const signal = currentAbortController.signal;
+  setGenerating(true);
 
   const localAttach = [...attachments];
   attachments = []; renderAttachRow();
@@ -4883,9 +4906,14 @@ async function doSend() {
     if (domain === 'chat') await doChat(text, uploaded, signal);
     else await doGenerate(text, uploaded, signal);
   } finally {
-    // Always release the lock so a failed/odd reply never blocks future sends.
-    setGenerating(false);
+    // Release THIS tab specifically (the user may have switched tabs meanwhile),
+    // so other tabs stay usable and the active tab's button stays correct.
+    if (myTab) { myTab.gen = false; myTab.abort = null; }
+    genCleanup();
+    reflectGenState();
+    isGenerating = !!(openTabs[activeTab] && openTabs[activeTab].gen);
     currentAbortController = null;
+    notifyTaskDone(domain === 'chat' ? 'Risposta pronta' : 'Generazione completata', text);
   }
 }
 
@@ -5480,17 +5508,28 @@ async function doGenerate(text, files, signal) {
 
   const _gt0 = Date.now();
   let _lastPct = 0;
+  const _estTotal = (domain === 'video') ? 60 : (domain === 'threed') ? 40 : 25; // rough seconds
   const _genTimer = setInterval(() => {
-    const s = ((Date.now() - _gt0) / 1000).toFixed(1);
-    if (isSquare) { const t = ph.querySelector('.mpl-time'); if (t) t.textContent = s + 's'; }
-    else { const pe = ph.querySelector('#prog-pct'); if (pe) pe.textContent = (_lastPct > 0 ? _lastPct + '% · ' : '') + s + 's'; }
+    const elapsed = (Date.now() - _gt0) / 1000;
+    const s = elapsed.toFixed(1);
+    // Show the real % if the backend sends it, else a time-based estimate so the
+    // user always sees a moving percentage.
+    let pct = _lastPct;
+    if (pct <= 0) pct = Math.min(95, Math.round(elapsed / _estTotal * 100));
+    if (isSquare) {
+      const t = ph.querySelector('.mpl-time'); if (t) t.textContent = s + 's';
+      const p = ph.querySelector('.mpl-pct'); if (p) p.textContent = pct + '%';
+    } else {
+      const pe = ph.querySelector('#prog-pct'); if (pe) pe.textContent = pct + '% · ' + s + 's';
+      const bar = ph.querySelector('#prog-bar'); if (bar && _lastPct <= 0) { bar.classList.remove('indeterminate'); bar.style.width = pct + '%'; }
+    }
   }, 100);
   window._stopGenTimer = () => { try { clearInterval(_genTimer); } catch {} };
 
   function updateProgress(pct, msg) {
     _lastPct = pct;
     if (isSquare) {
-      const p = ph.querySelector('.mpl-pct'); if (p) p.textContent = pct > 0 ? pct + '%' : '…';
+      const p = ph.querySelector('.mpl-pct'); if (p && pct > 0) p.textContent = pct + '%';
       const m = ph.querySelector('.mpl-msg'); if (m && msg) m.textContent = msg;
     } else {
       const bar = ph.querySelector('#prog-bar');
@@ -6227,37 +6266,39 @@ async function pullModel(ref, btn) {
 
 // ── Stop generation ───────────────────────────────────
 let isGenerating = false;
+function genCleanup() {
+  document.querySelectorAll('.content').forEach(c => { if (c._liveTimer) { clearInterval(c._liveTimer); c._liveTimer = null; const m = c.querySelector('.msg-meta.live'); if (m) m.classList.remove('live'); } });
+  document.querySelectorAll('.media-placeholder[data-pending="1"]').forEach(p => p.remove());
+  if (window._stopGenTimer) window._stopGenTimer();
+}
+// Desktop notifications when a task finishes (shown when the tab is in background).
+function ensureNotifyPermission() {
+  try { if (('Notification' in window) && Notification.permission === 'default') Notification.requestPermission(); } catch {}
+}
+function notifyTaskDone(title, detail) {
+  try {
+    if (('Notification' in window) && Notification.permission === 'granted' && document.hidden) {
+      const n = new Notification('Vortelio — ' + title, { body: String(detail || '').slice(0, 90), tag: 'vortelio-task' });
+      setTimeout(() => { try { n.close(); } catch {} }, 7000);
+    }
+  } catch {}
+}
 function setGenerating(on) {
   isGenerating = on;
-  if (!on) { // make sure no live chronometer keeps ticking after we stop
-    document.querySelectorAll('.content').forEach(c => { if (c._liveTimer) { clearInterval(c._liveTimer); c._liveTimer = null; const m = c.querySelector('.msg-meta.live'); if (m) m.classList.remove('live'); } });
-    // Drop any media placeholder that never got an artifact (generation failed/stopped).
-    document.querySelectorAll('.media-placeholder[data-pending="1"]').forEach(p => p.remove());
-    if (window._stopGenTimer) window._stopGenTimer();
-  }
-  const btn = document.getElementById('send-btn');
-  const sendIcon = document.getElementById('send-icon');
-  const stopIcon = document.getElementById('stop-icon');
-  if (on) {
-    btn.onclick = stopGeneration;
-    btn.style.background = '#dc2626';
-    sendIcon.style.display = 'none';
-    stopIcon.style.display = 'block';
-  } else {
-    btn.onclick = doSend;
-    btn.style.background = '';
-    sendIcon.style.display = 'block';
-    stopIcon.style.display = 'none';
-    btn.disabled = false;
-  }
+  const t = openTabs[activeTab];
+  if (t) { t.gen = on; t.abort = on ? currentAbortController : null; }
+  if (!on) genCleanup();
+  setSendButton(on);
 }
 
 function stopGeneration() {
-  if (currentAbortController) {
-    currentAbortController.abort();
-    currentAbortController = null;
-  }
-  setGenerating(false);
+  const t = openTabs[activeTab];
+  if (t && t.abort) { t.abort.abort(); t.abort = null; t.gen = false; }
+  else if (currentAbortController) { currentAbortController.abort(); }
+  currentAbortController = null;
+  genCleanup();
+  reflectGenState();
+  isGenerating = !!(openTabs[activeTab] && openTabs[activeTab].gen);
   toast('⏹ Generation cancelled');
 }
 
@@ -6460,6 +6501,11 @@ function renderChatHistory() {
 
 function loadChat(idx) {
   const c = savedChats[idx]; if (!c) return;
+  // Already the active chat → nothing to do.
+  if (currentChatId === c.id) { showPanel('chat'); return; }
+  // If this chat is already open in another tab, switch to it (don't duplicate).
+  const existingTab = openTabs.findIndex((t, i) => i !== activeTab && t.chatId === c.id);
+  if (existingTab >= 0) { activateTab(existingTab); return; }
   // Open the saved chat in a NEW tab so several can be open at once.
   if (chatHistory.length || (openTabs[activeTab] && openTabs[activeTab].history.length)) {
     snapshotActiveTab();
