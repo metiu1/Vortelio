@@ -1361,7 +1361,17 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <input class="search-box" style="margin:0;flex:1" placeholder="Search catalog..." oninput="filterReg(this.value)">
+        <button class="btn" style="flex-shrink:0;white-space:nowrap" onclick="document.getElementById('hf-search').style.display='block';document.getElementById('hf-q').focus()">🔍 Cerca su HuggingFace</button>
         <button class="btn primary" style="flex-shrink:0;white-space:nowrap" onclick="showCustomInstall()">+ URL HuggingFace</button>
+      </div>
+      <div id="hf-search" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px">🤗 Cerca modelli su HuggingFace</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="hf-q" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px;outline:none"
+            placeholder="es. qwen2.5 gguf, llama 3, flux, whisper…" onkeydown="if(event.key==='Enter')hfSearch()">
+          <button class="btn primary" onclick="hfSearch()">Cerca</button>
+        </div>
+        <div id="hf-results" style="max-height:340px;overflow-y:auto"></div>
       </div>
       <div id="custom-install" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
         <div style="font-size:13px;font-weight:500;margin-bottom:8px" data-i18n="urlInstallTitle">Installa da URL HuggingFace</div>
@@ -3856,6 +3866,45 @@ function replaceOrInsertMedia(content, m, beforeNode) {
   else content.insertBefore(art, beforeNode || null);
 }
 
+// Icon for a tool by name (shared by local and cloud renderers).
+function _toolIcon(raw) {
+  const n = String(raw || '').toLowerCase();
+  return n.includes('search') || n.includes('web') ? '🔍'
+    : n.includes('fetch') || n.includes('url') || n.includes('link') ? '🔗'
+    : n.includes('image') || n.includes('media') ? '🎨'
+    : (n.includes('install') || n.includes('model')) ? '📦'
+    : (n.includes('file') || n.includes('read') || n.includes('write') || n.includes('dir') || n.includes('grep') || n.includes('glob')) ? '📁'
+    : n.includes('shell') || n.includes('run') ? '⌨️'
+    : n.includes('skill') ? '🎓'
+    : n.includes('time') ? '🕐' : '🔧';
+}
+// Collapsible tool block: shows only the name; expand to see arguments/result.
+function makeToolBlock(tc) {
+  const block = document.createElement('div');
+  block.className = 'tool-block';
+  let args = tc.arguments || '{}';
+  try { args = JSON.stringify(JSON.parse(args), null, 2); } catch {}
+  block.innerHTML =
+    '<div class="tool-header" onclick="this.parentElement.classList.toggle(\'open\')">' +
+    '<span class="tool-icon">' + _toolIcon(tc.name) + '</span>' +
+    '<span class="tool-name shimmer">' + esc(tc.name || 'tool') + '</span>' +
+    '<span class="tool-status"></span>' +
+    '<svg class="tool-chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 1l4 4-4 4"/></svg>' +
+    '</div>' +
+    '<div class="tool-body">' +
+    '<div class="tool-label">Arguments</div><div class="tool-json"><code>' + esc(args) + '</code></div>' +
+    '<div class="tool-label">Result</div><div class="tool-json tool-result-area"><span class="dot-pulse" style="display:inline-flex"><span></span><span></span><span></span></span></div>' +
+    '</div>';
+  return block;
+}
+function fillToolResult(block, tr) {
+  if (!block) return;
+  const nameEl = block.querySelector('.tool-name'); if (nameEl) nameEl.classList.remove('shimmer');
+  const area = block.querySelector('.tool-result-area'); if (!area) return;
+  if (tr && tr.error) area.innerHTML = '<code style="color:#dc2626">' + esc(tr.error) + '</code>';
+  else area.innerHTML = '<code>' + esc(String((tr && tr.result) || '').slice(0, 4000)) + '</code>';
+}
+
 // Compact tool-activity line for the cloud chat stream.
 function cloudToolEl(label) {
   const el = document.createElement('div');
@@ -4926,6 +4975,7 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
   });
   if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || 'HTTP ' + r.status); }
   const tn = document.createElement('div'); tn.style.width = '100%'; content.appendChild(tn);
+  const _cloudTB = {}; // collapsible tool blocks by call id
   // Drop the "typing" dots as soon as the first byte arrives (same UX as local).
   const _killPulse = () => { const p = content.querySelector('.dot-pulse'); if (p) p.remove(); };
   const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = ''; let fullText = '';
@@ -4945,8 +4995,8 @@ async function streamCloudInto(provider, model, history, content, canvas, signal
         if (ev.event === 'media_generated') { try { replaceOrInsertMedia(content, data, tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
         if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
-        if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
-        if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ ' + esc((data.result||data.error||'').slice(0,160))), tn); canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'tool_call')   { const blk = makeToolBlock(data); content.insertBefore(blk, tn); _cloudTB[data.id || data.call_id || ('t'+Object.keys(_cloudTB).length)] = blk; maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
+        if (ev.event === 'tool_result') { fillToolResult(_cloudTB[data.id || data.call_id] || Object.values(_cloudTB).pop(), data); canvas.scrollTop = 9999; continue; }
         continue;
       }
       const d = ev.delta || '';
@@ -5938,6 +5988,40 @@ function showCustomInstall() {
   if (el.style.display !== 'none') {
     setTimeout(() => document.getElementById('custom-url').focus(), 50);
   }
+}
+
+// Search HuggingFace and offer one-click download of a found model.
+async function hfSearch() {
+  const q = document.getElementById('hf-q').value.trim();
+  const box = document.getElementById('hf-results');
+  if (!q) return;
+  box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Cerco su HuggingFace…</div>';
+  try {
+    const r = await fetch('/api/hf/search?q=' + encodeURIComponent(q));
+    const d = await r.json();
+    const models = d.models || [];
+    if (!models.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Nessun risultato</div>'; return; }
+    const ico = { llm: '💬', image: '🎨', audio: '🔊', video: '🎬', '3d': '🧊' };
+    box.innerHTML = models.map(m => {
+      const dl = m.downloads >= 1000 ? Math.round(m.downloads / 1000) + 'k' : m.downloads;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border)">
+        <span>${ico[m.type] || '📦'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.id)}${m.gguf ? ' <span style="font-size:10px;color:var(--accent);font-weight:600">GGUF</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--text3)">⬇ ${dl} · ♥ ${m.likes} · ${esc(m.task || m.type)}</div>
+        </div>
+        <a href="https://huggingface.co/${esc(m.id)}" target="_blank" class="btn" style="padding:4px 8px;font-size:11px;flex-shrink:0">↗</a>
+        <button class="btn primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="hfDownload('${esc(m.id)}','${m.type}')">⬇ Scarica</button>
+      </div>`;
+    }).join('');
+  } catch (e) { box.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px">Errore: ' + esc(e.message) + '</div>'; }
+}
+function hfDownload(id, type) {
+  showCustomInstall();
+  const el = document.getElementById('custom-install'); if (el) el.style.display = 'block';
+  document.getElementById('custom-type').value = type || 'llm';
+  document.getElementById('custom-url').value = id;
+  installCustom();
 }
 
 async function installCustom() {
@@ -7550,6 +7634,7 @@ async function sendCloudMsg() {
     }
     pulse.remove();
     const tn = document.createElement('div'); tn.style.width='100%'; content.appendChild(tn);
+    const _cloudTB = {};
     const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = '';
     outer: while (true) {
       const {done, value} = await reader.read(); if (done) break;
@@ -7568,8 +7653,8 @@ async function sendCloudMsg() {
           if (ev.event === 'media_generated') { try { replaceOrInsertMedia(content, data, tn); } catch {} canvas.scrollTop = 9999; continue; }
         if (ev.event === 'notice') { if (data && data.text) { const bar=document.createElement('div'); bar.className='inline-notice'; bar.innerHTML='<span>ℹ️</span><span>'+esc(data.text)+'</span>'; content.insertBefore(bar, tn); } canvas.scrollTop = 9999; continue; }
           if (ev.event === 'approval_request') { try { content.insertBefore(cloudApprovalEl(data), tn); } catch {} canvas.scrollTop = 9999; continue; }
-          if (ev.event === 'tool_call')   { content.insertBefore(cloudToolEl('🔧 ' + (data.name||'tool') + '…'), tn); maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
-          if (ev.event === 'tool_result') { content.insertBefore(cloudToolEl('✓ tool: ' + esc((data.result||data.error||'').slice(0,200))), tn); canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'tool_call')   { const blk = makeToolBlock(data); content.insertBefore(blk, tn); _cloudTB[data.id || data.call_id || ('t'+Object.keys(_cloudTB).length)] = blk; maybeAddMediaPlaceholder(content, tn, data.name); canvas.scrollTop = 9999; continue; }
+          if (ev.event === 'tool_result') { fillToolResult(_cloudTB[data.id || data.call_id] || Object.values(_cloudTB).pop(), data); canvas.scrollTop = 9999; continue; }
           continue;
         }
         const d = ev.delta || '';

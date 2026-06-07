@@ -41,7 +41,7 @@ func runInteractiveMenu() error {
 	for {
 		sel := selectMenu("Vortelio", []string{
 			"Chat with a model",
-			"🧑‍💻 Code agent (terminal, like Claude Code)",
+			"🧑‍💻 Code agent (terminal)",
 			"Download a model",
 			"Cloud Models",
 			"AI Agents",

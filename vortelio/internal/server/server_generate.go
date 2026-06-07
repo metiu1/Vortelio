@@ -267,6 +267,10 @@ func handleGenerateLLM(w http.ResponseWriter, r *http.Request, model *hub.Model,
 	if req.Agentic != nil && req.Agentic.Autonomous {
 		systemPrompt = autonomousSystemPrompt(systemPrompt)
 	}
+	// Tell the agent its working directory so it writes files in the right place.
+	if ws := workspaceContext(req.Agentic); ws != "" {
+		systemPrompt = ws + "\n\n" + systemPrompt
+	}
 
 	// Compact the conversation for small context windows: drop the oldest turns
 	// (leaving a note) so small models don't overflow near saturation.
