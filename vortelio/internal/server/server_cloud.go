@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/vortelio/vortelio/internal/cloud"
+	rt "github.com/vortelio/vortelio/internal/runtime"
 )
 
 // ── BYOK (bring your own key) cloud models ────────────────────────────────────
@@ -78,6 +79,65 @@ var cloudModelChoices = map[string][][2]string{
 
 // GET /api/cloud/providers
 // Lists providers, whether a key is stored, and the model choices.
+// CLICloudModel describes a ready-to-use cloud model for the CLI picker.
+type CLICloudModel struct {
+	Provider     string
+	ProviderName string
+	Model        string
+	Label        string
+}
+
+// CloudModelsForCLI returns the cloud models the user can use (providers with a
+// saved API key), for the `vortelio code` /model picker.
+func CloudModelsForCLI() []CLICloudModel {
+	var out []CLICloudModel
+	for _, p := range cloud.Providers {
+		if cloud.LoadKey(p.ID) == "" {
+			continue
+		}
+		choices := cloudModelChoices[p.ID]
+		if len(choices) == 0 {
+			choices = [][2]string{{p.DefaultModel, p.DefaultModel}}
+		}
+		for _, c := range choices {
+			out = append(out, CLICloudModel{Provider: p.ID, ProviderName: p.Name, Model: c[0], Label: c[1]})
+		}
+	}
+	return out
+}
+
+// RunCLICloudTurn streams one cloud chat turn for the CLI, using the same agentic
+// harness (tools) as the GUI. Returns the full assistant text.
+func RunCLICloudTurn(providerID, model, workdir string, autonomous, mcpOn bool, skills []string, history []map[string]string, onToken func(string), emit rt.ToolEventEmitter) (string, error) {
+	p, ok := cloud.FindProvider(providerID)
+	if !ok {
+		return "", fmt.Errorf("provider cloud sconosciuto: %s", providerID)
+	}
+	key := cloud.LoadKey(providerID)
+	if key == "" {
+		return "", fmt.Errorf("nessuna API key per %s", p.Name)
+	}
+	if model != "" {
+		p.DefaultModel = model
+		if p.Format == cloud.FormatGemini {
+			p.BaseURL = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent"
+		}
+	}
+	prov, sys := BuildCLIHarness(workdir, "auto", autonomous, mcpOn, skills, emit)
+	msgs := []cloud.Message{}
+	if sys != "" {
+		msgs = append(msgs, cloud.Message{Role: "system", Content: sys})
+	}
+	for _, m := range history {
+		msgs = append(msgs, cloud.Message{Role: m["role"], Content: m["content"]})
+	}
+	toolOpts := &cloud.ToolCallOptions{Tools: prov.Tools(), ExecTool: prov.Execute, OnEvent: emit}
+	if autonomous {
+		toolOpts.MaxRounds = 40
+	}
+	return cloud.ChatWithTools(p, key, msgs, toolOpts, onToken)
+}
+
 // GET /api/media/providers — media (image/audio/video/3d) cloud services + key state.
 func handleMediaProviders(w http.ResponseWriter, r *http.Request) {
 	type out struct {

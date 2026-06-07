@@ -36,14 +36,16 @@ func NewCodeCommand() *CodeCommand { return &CodeCommand{} }
 func (c *CodeCommand) Name() string { return "code" }
 
 type codeSession struct {
-	model      *hub.Model
-	runner     *runtime.LLMRunner
-	hw         *runtime.Hardware
-	workdir    string
-	autonomous bool
-	mcpOn      bool
-	skills     []string
-	messages   []map[string]interface{}
+	model         *hub.Model
+	runner        *runtime.LLMRunner
+	hw            *runtime.Hardware
+	workdir       string
+	autonomous    bool
+	mcpOn         bool
+	skills        []string
+	messages      []map[string]interface{}
+	cloudProvider string // when set, stream via cloud instead of the local model
+	cloudModel    string
 }
 
 func (c *CodeCommand) Run(args []string) error {
@@ -78,15 +80,23 @@ func (c *CodeCommand) Run(args []string) error {
 		if err != nil { return fmt.Errorf("modello non trovato: %w (scaricalo: vortelio pull %s)", err, modelRef) }
 	} else {
 		s.model = pickDefaultLLM(store)
-		if s.model == nil {
-			return fmt.Errorf("nessun LLM installato. Scarica un modello tool-capable:\n  vortelio pull llm/qwen2.5:7b")
+	}
+	// No local LLM? Fall back to a configured cloud model if there is one.
+	if s.model == nil {
+		if cl := server.CloudModelsForCLI(); len(cl) > 0 {
+			s.cloudProvider = cl[0].Provider
+			s.cloudModel = cl[0].Model
+		} else {
+			return fmt.Errorf("nessun LLM installato e nessun modello cloud configurato.\n  Scarica un modello:  vortelio pull llm/qwen2.5:7b\n  oppure aggiungi una API key dalla GUI (My models → Add cloud model)")
 		}
 	}
 	s.hw = runtime.DetectHardware()
 	for _, a := range args { if a == "--cpu" { s.hw.Backend = runtime.BackendCPU } }
 
 	printBanner(s)
-	if err := s.loadModel(); err != nil { return err }
+	if s.cloudProvider == "" {
+		if err := s.loadModel(); err != nil { return err }
+	}
 
 	reader := bufio.NewReader(os.Stdin)
 	if len(firstPrompt) > 0 { s.runTurn(strings.Join(firstPrompt, " ")) }
@@ -136,20 +146,35 @@ func (s *codeSession) emit(ev string, data interface{}) {
 func (s *codeSession) runTurn(line string) {
 	line = s.expandFileRefs(line)
 	s.messages = append(s.messages, map[string]interface{}{"role": "user", "content": line})
-	prov, sys := server.BuildCLIHarness(s.workdir, "auto", s.autonomous, s.mcpOn, s.skills, s.emit)
-	sopts := runtime.StreamOpts{System: sys, Messages: s.messages, ToolsEnabled: true, ToolProvider: prov}
-	if s.autonomous { sopts.MaxToolRounds = 40 }
-
 	t0 := time.Now()
 	fmt.Print("\n")
 	var resp strings.Builder
-	err := s.runner.StreamWithOpts(sopts, func(tok string) { fmt.Print(tok); resp.WriteString(tok) }, s.emit)
+	onTok := func(tok string) { fmt.Print(tok); resp.WriteString(tok) }
+	var err error
+	if s.cloudProvider != "" {
+		var hist []map[string]string
+		for _, m := range s.messages {
+			hist = append(hist, map[string]string{"role": fmt.Sprint(m["role"]), "content": fmt.Sprint(m["content"])})
+		}
+		_, err = server.RunCLICloudTurn(s.cloudProvider, s.cloudModel, s.workdir, s.autonomous, s.mcpOn, s.skills, hist, onTok, s.emit)
+	} else {
+		prov, sys := server.BuildCLIHarness(s.workdir, "auto", s.autonomous, s.mcpOn, s.skills, s.emit)
+		sopts := runtime.StreamOpts{System: sys, Messages: s.messages, ToolsEnabled: true, ToolProvider: prov}
+		if s.autonomous { sopts.MaxToolRounds = 40 }
+		err = s.runner.StreamWithOpts(sopts, onTok, s.emit)
+	}
 	fmt.Print("\n")
 	if err != nil { fmt.Printf("%s✕ errore: %v%s\n", cRed, err, cReset); return }
 	secs := time.Since(t0).Seconds()
 	tokens := len(resp.String())/4 + 1
-	fmt.Printf("%s⏱ %.1fs · ~%d token · %s%s\n", cDim, secs, tokens, s.model.Name+":"+s.model.Tag, cReset)
+	fmt.Printf("%s⏱ %.1fs · ~%d token · %s%s\n", cDim, secs, tokens, s.modelLabel(), cReset)
 	s.messages = append(s.messages, map[string]interface{}{"role": "assistant", "content": resp.String()})
+}
+
+func (s *codeSession) modelLabel() string {
+	if s.cloudProvider != "" { return "☁ " + s.cloudModel }
+	if s.model != nil { return s.model.Name + ":" + s.model.Tag }
+	return "?"
 }
 
 // expandFileRefs replaces @path tokens with the file's content so the model can
@@ -206,24 +231,43 @@ func (s *codeSession) chooseModel(reader *bufio.Reader) {
 	models, _ := hub.NewModelStore().List()
 	var llms []*hub.Model
 	for _, m := range models { if m.Type == "llm" { llms = append(llms, m) } }
-	if len(llms) == 0 { fmt.Printf("  %snessun LLM installato%s\n", cDim, cReset); return }
+	cloud := server.CloudModelsForCLI()
+	if len(llms) == 0 && len(cloud) == 0 { fmt.Printf("  %snessun modello disponibile%s\n", cDim, cReset); return }
+
 	fmt.Printf("\n  %sModelli disponibili:%s\n", cBold, cReset)
-	for i, m := range llms {
+	n := 0
+	if len(llms) > 0 { fmt.Printf("  %s💻 Locali%s\n", cDim, cReset) }
+	for _, m := range llms {
+		n++
 		mark := " "
-		if m.Name == s.model.Name && m.Tag == s.model.Tag { mark = cGreen + "●" + cReset }
+		if s.cloudProvider == "" && s.model != nil && m.Name == s.model.Name && m.Tag == s.model.Tag { mark = cGreen + "●" + cReset }
 		tools := ""
 		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { tools = cDim + " 🛠" + cReset }
-		fmt.Printf("   %s %d) %s:%s%s\n", mark, i+1, m.Name, m.Tag, tools)
+		fmt.Printf("   %s %d) %s:%s%s\n", mark, n, m.Name, m.Tag, tools)
+	}
+	if len(cloud) > 0 { fmt.Printf("  %s☁ Cloud%s\n", cDim, cReset) }
+	for _, c := range cloud {
+		n++
+		mark := " "
+		if s.cloudProvider == c.Provider && s.cloudModel == c.Model { mark = cGreen + "●" + cReset }
+		fmt.Printf("   %s %d) %s%s · %s%s\n", mark, n, c.Label, cDim, c.ProviderName, cReset)
 	}
 	fmt.Printf("  %snumero del modello (invio per annullare):%s ", cDim, cReset)
 	in, _ := reader.ReadString('\n')
 	in = strings.TrimSpace(in)
 	var idx int
-	if _, err := fmt.Sscanf(in, "%d", &idx); err != nil || idx < 1 || idx > len(llms) { return }
-	s.model = llms[idx-1]
-	fmt.Printf("  %s⏳ carico %s:%s…%s\n", cDim, s.model.Name, s.model.Tag, cReset)
-	if err := s.loadModel(); err != nil { fmt.Printf("  %s%v%s\n", cRed, err, cReset) } else {
-		fmt.Printf("  %s✓ modello: %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset)
+	if _, err := fmt.Sscanf(in, "%d", &idx); err != nil || idx < 1 || idx > len(llms)+len(cloud) { return }
+	if idx <= len(llms) {
+		s.cloudProvider = ""; s.cloudModel = ""
+		s.model = llms[idx-1]
+		fmt.Printf("  %s⏳ carico %s:%s…%s\n", cDim, s.model.Name, s.model.Tag, cReset)
+		if err := s.loadModel(); err != nil { fmt.Printf("  %s%v%s\n", cRed, err, cReset) } else {
+			fmt.Printf("  %s✓ modello: %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset)
+		}
+	} else {
+		c := cloud[idx-1-len(llms)]
+		s.cloudProvider = c.Provider; s.cloudModel = c.Model
+		fmt.Printf("  %s✓ modello cloud: %s (%s)%s\n", cGreen, c.Label, c.ProviderName, cReset)
 	}
 }
 
@@ -271,7 +315,7 @@ func printBanner(s *codeSession) {
 	fmt.Printf("\n%s%s ┌─────────────────────────────────────────────┐%s\n", cBold, cCyan, cReset)
 	fmt.Printf("%s%s │  🧑‍💻 Vortelio Code                            │%s\n", cBold, cCyan, cReset)
 	fmt.Printf("%s%s └─────────────────────────────────────────────┘%s\n", cBold, cCyan, cReset)
-	fmt.Printf("   %smodello%s %s%s:%s%s   %scartella%s %s%s\n", cDim, cReset, cCyan, s.model.Name, s.model.Tag, cReset, cDim, cReset, s.workdir,
+	fmt.Printf("   %smodello%s %s%s%s   %scartella%s %s%s\n", cDim, cReset, cCyan, s.modelLabel(), cReset, cDim, cReset, s.workdir,
 		map[bool]string{true: "   " + cYell + "[AUTONOMO]" + cReset, false: ""}[s.autonomous])
 	fmt.Printf("   %sscrivi un obiettivo · %s/help%s%s per i comandi · %s@file%s%s per allegare un file%s\n", cDim, cReset, cDim, cReset, cReset, cDim, cReset, cReset)
 }
