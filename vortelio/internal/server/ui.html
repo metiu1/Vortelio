@@ -2389,8 +2389,12 @@ textarea.inp::placeholder { color: var(--text3); }
     </div>
 
     <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Tipo</label>
-    <select id="ac-type" class="tool-input" style="width:100%;margin-bottom:12px">
-      <option value="llm">LLM (chat / testo)</option>
+    <select id="ac-type" class="tool-input" style="width:100%;margin-bottom:12px" onchange="acTypeChanged()">
+      <option value="llm">💬 LLM (chat / testo)</option>
+      <option value="image">🎨 Immagini</option>
+      <option value="audio">🔊 Audio (voce)</option>
+      <option value="video">🎬 Video</option>
+      <option value="3d">🧊 3D</option>
     </select>
 
     <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Modello</label>
@@ -3094,6 +3098,7 @@ function init() {
   // Load cloud provider config so dropdown populates on start
   updateModelDDForDomain();
   loadCloudProviders().then(() => { autoSelectModel(); });
+  loadMediaProviders();
   loadSkills();         // populate agentic skills list
   setAppMode('assistant');
 }
@@ -3140,6 +3145,15 @@ async function loadCloudProviders() {
     _cloudProviders = d.providers || [];
   } catch { _cloudProviders = []; }
   if (domain === 'chat') updateModelDDForDomain();
+}
+let _mediaProviders = [];
+async function loadMediaProviders() {
+  try {
+    const r = await fetch('/api/media/providers');
+    const d = await r.json();
+    _mediaProviders = d.providers || [];
+  } catch { _mediaProviders = []; }
+  return _mediaProviders;
 }
 
 // Pick a sensible assistant on startup so a beginner can type right away:
@@ -3431,17 +3445,49 @@ function saveCustomCloudModel(provider, id, label) {
   }
 }
 function openAddCloudModel() {
-  const sel = document.getElementById('ac-provider');
   if (!_cloudProviders || !_cloudProviders.length) { loadCloudProviders().then(openAddCloudModel); return; }
-  sel.innerHTML = _cloudProviders.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.has_key ? ' ✓' : ''}</option>`).join('')
-    + `<option value="__custom__">🖥 Server personalizzato (vast.ai / casa / Ollama)</option>`;
-  acProviderChanged();
-  document.getElementById('ac-key').value = '';
-  document.getElementById('addcloud-overlay').classList.add('show');
+  loadMediaProviders().then(() => {
+    document.getElementById('ac-type').value = 'llm';
+    acTypeChanged();
+    document.getElementById('ac-key').value = '';
+    document.getElementById('addcloud-overlay').classList.add('show');
+  });
 }
 function closeAddCloudModel() { document.getElementById('addcloud-overlay').classList.remove('show'); }
+// Type drives which providers are shown: LLM providers (+ custom server) or the
+// media services (image/audio/video/3d) for the chosen output type.
+function acTypeChanged() {
+  const type = document.getElementById('ac-type').value;
+  const sel = document.getElementById('ac-provider');
+  if (type === 'llm') {
+    sel.innerHTML = _cloudProviders.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.has_key ? ' ✓' : ''}</option>`).join('')
+      + `<option value="__custom__">🖥 Server personalizzato (vast.ai / casa / Ollama)</option>`;
+  } else {
+    const list = (_mediaProviders || []).filter(p => p.type === type);
+    sel.innerHTML = list.length
+      ? list.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.has_key ? ' ✓' : ''}</option>`).join('')
+      : '<option value="">(nessun provider)</option>';
+  }
+  acProviderChanged();
+}
 function acProviderChanged() {
+  const type = document.getElementById('ac-type').value;
   const pid = document.getElementById('ac-provider').value;
+  // Media providers (image/audio/video/3d): pick model + key; the agent's media
+  // tools (generate_image/text_to_speech/…) will use the saved key automatically.
+  if (type !== 'llm') {
+    document.getElementById('ac-custom-fields').style.display = 'none';
+    const mp = (_mediaProviders || []).find(x => x.id === pid);
+    document.getElementById('ac-model').innerHTML = mp
+      ? `<option value="${esc(mp.default_model)}">${esc(mp.default_model)}</option><option value="__custom__">✏️ Altro… (scrivi l'ID)</option>`
+      : '';
+    document.getElementById('ac-model-custom').placeholder = 'ID modello (es. fal-ai/flux/schnell, dall-e-3)';
+    acModelChanged();
+    document.getElementById('ac-key-note').textContent = (mp && mp.has_key) ? '— già salvata (lascia vuoto per tenerla)' : '— richiesta';
+    const link = document.getElementById('ac-key-link');
+    if (mp && mp.key_hint) { link.href = mp.key_hint; link.style.display = 'inline'; } else link.style.display = 'none';
+    return;
+  }
   const isCustom = pid === '__custom__';
   document.getElementById('ac-custom-fields').style.display = isCustom ? 'block' : 'none';
   if (isCustom) {
@@ -3468,9 +3514,30 @@ function acModelChanged() {
   document.getElementById('ac-model-custom').style.display = custom ? 'block' : 'none';
 }
 async function saveAddCloudModel() {
+  const type = document.getElementById('ac-type').value;
   const pid = document.getElementById('ac-provider').value;
   let modelId = document.getElementById('ac-model').value;
   if (modelId === '__custom__') modelId = document.getElementById('ac-model-custom').value.trim();
+
+  // Media providers (image/audio/video/3d): save the key; the agent's media tools use it.
+  if (type !== 'llm') {
+    if (!pid) { toast('Scegli un provider', 'err'); return; }
+    const mp = (_mediaProviders || []).find(x => x.id === pid);
+    const key = document.getElementById('ac-key').value.trim();
+    if ((!mp || !mp.has_key) && !key) { toast('Inserisci la API key', 'err'); return; }
+    try {
+      if (key) {
+        const r = await fetch('/api/media/key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: pid, key }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Errore salvataggio chiave');
+      }
+      await loadMediaProviders();
+      if (typeof loadModels === 'function') loadModels();
+      closeAddCloudModel();
+      toast('☁️ ' + (mp ? mp.name : type) + ' pronto — chiedi all\'agente di generare ' + type + ' e userà questa API', 'ok');
+    } catch (e) { toast('❌ ' + e.message, 'err'); }
+    return;
+  }
 
   // Custom / self-hosted server (vast.ai, home server, remote Ollama).
   if (pid === '__custom__') {
@@ -5367,8 +5434,23 @@ function buildCloudModelsHtml() {
       <button class="btn danger" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="removeCustomEndpoint('${esc(ep.id)}')">🗑 Rimuovi</button>
     </div>`);
   }
+  const _mtIcon = { image: '🎨', audio: '🔊', video: '🎬', '3d': '🧊' };
+  for (const mp of (_mediaProviders || [])) {
+    if (!mp.has_key) continue;
+    rows.push(`<div class="mtrow">
+      <span class="type-pill tp-image">${_mtIcon[mp.type] || '☁️'}</span>
+      <div style="flex:1;min-width:0"><div style="font-weight:500;font-size:14px">${esc(mp.name)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px">${esc(mp.type)} · API configurata</div></div>
+      <button class="btn danger" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="removeMediaKey('${esc(mp.id)}')">🗑 Rimuovi</button>
+    </div>`);
+  }
   if (!rows.length) return '';
   return '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">☁️ Cloud &amp; server</div>' + rows.join('');
+}
+async function removeMediaKey(providerId) {
+  if (!confirm('Rimuovere la API key media di ' + providerId + '?')) return;
+  try { await fetch('/api/media/key', { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: providerId}) }); } catch {}
+  await loadMediaProviders(); loadModels(); toast('Chiave media rimossa');
 }
 async function removeCloudKey(providerId) {
   if (!confirm('Rimuovere la API key di ' + providerId + '?')) return;

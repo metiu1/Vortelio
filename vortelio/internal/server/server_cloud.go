@@ -78,6 +78,56 @@ var cloudModelChoices = map[string][][2]string{
 
 // GET /api/cloud/providers
 // Lists providers, whether a key is stored, and the model choices.
+// GET /api/media/providers — media (image/audio/video/3d) cloud services + key state.
+func handleMediaProviders(w http.ResponseWriter, r *http.Request) {
+	type out struct {
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Type         string `json:"type"`
+		DefaultModel string `json:"default_model"`
+		KeyHint      string `json:"key_hint"`
+		HasKey       bool   `json:"has_key"`
+	}
+	res := make([]out, 0, len(cloud.MediaProviders))
+	for _, p := range cloud.MediaProviders {
+		res = append(res, out{p.ID, p.Name, p.Type, p.DefaultModel, p.KeyHint, cloud.LoadKey(p.ID) != ""})
+	}
+	respond(w, 200, map[string]interface{}{"providers": res})
+}
+
+// POST/DELETE /api/media/key — {provider, key} save or remove a media API key.
+func handleMediaKey(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Provider string `json:"provider"`
+		Key      string `json:"key"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		jsonError(w, 400, "invalid request")
+		return
+	}
+	if _, ok := cloud.FindMediaProvider(req.Provider); !ok {
+		jsonError(w, 400, "unknown media provider")
+		return
+	}
+	switch r.Method {
+	case http.MethodDelete:
+		cloud.DeleteKey(req.Provider)
+		respond(w, 200, map[string]interface{}{"ok": true, "has_key": false})
+	case http.MethodPost:
+		if req.Key == "" {
+			jsonError(w, 400, "key required")
+			return
+		}
+		if err := cloud.SaveKey(req.Provider, req.Key); err != nil {
+			jsonError(w, 500, err.Error())
+			return
+		}
+		respond(w, 200, map[string]interface{}{"ok": true, "has_key": true})
+	default:
+		jsonError(w, 405, "use POST or DELETE")
+	}
+}
+
 // normalizeChatURL turns a user-supplied server address into a full OpenAI-style
 // chat-completions URL. Accepts "host:port", "http://host:port", ".../v1", or a
 // full ".../chat/completions" URL.
