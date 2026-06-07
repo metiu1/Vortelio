@@ -77,6 +77,15 @@ func (s *codeSession) readLine() (string, bool) {
 		prevLines = len(lines)
 	}
 
+	// clearRegion erases the whole framed input + suggestions block.
+	clearRegion := func() {
+		if prevLines > 0 {
+			fmt.Printf("\033[%dA", prevLines-1)
+		}
+		fmt.Print("\r\033[J")
+		prevLines = 0
+	}
+
 	complete := func() {
 		kind, frag, sugg := s.suggestions(string(buf))
 		if kind == 0 || len(sugg) == 0 { return }
@@ -106,17 +115,17 @@ func (s *codeSession) readLine() (string, bool) {
 		if err != nil { return "", true }
 		switch ch {
 		case 3: // Ctrl+C
-			fmt.Print("\r\n")
+			clearRegion()
 			return "", true
 		case 4: // Ctrl+D
-			if len(buf) == 0 { fmt.Print("\r\n"); return "", true }
+			if len(buf) == 0 { clearRegion(); return "", true }
 		case '\r', '\n':
 			kind, _, sugg := s.suggestions(string(buf))
 			if kind == '/' && len(sugg) > 0 {
 				// Enter on a highlighted command → run it directly.
 				if suggIdx >= len(sugg) { suggIdx = 0 }
 				cmd := strings.Fields(sugg[suggIdx])[0]
-				fmt.Print("\r\033[J")
+				clearRegion()
 				fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, cmd)
 				return cmd, false
 			}
@@ -124,7 +133,7 @@ func (s *codeSession) readLine() (string, bool) {
 				// Enter on a file suggestion → insert it and keep editing.
 				complete(); render(); continue
 			}
-			fmt.Print("\r\033[J")
+			clearRegion()
 			line := string(buf)
 			fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, line)
 			return line, false
