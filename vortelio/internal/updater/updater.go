@@ -2,9 +2,9 @@ package updater
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -17,7 +17,13 @@ import (
 const (
 	RepoInstallSpec = "git+https://github.com/metiu1/Vortelio#subdirectory=vortelio-pip"
 	LatestAPIURL    = "https://api.github.com/repos/metiu1/Vortelio/releases/latest"
+	// MainVersionURL is the canonical version on the default branch. Installs come
+	// from main (git), which is usually ahead of the latest GitHub release, so we
+	// compare against this to detect available updates.
+	MainVersionURL = "https://raw.githubusercontent.com/metiu1/Vortelio/main/vortelio/internal/version/version.go"
 )
+
+var mainVersionRE = regexp.MustCompile(`Version\s*=\s*"([0-9]+(?:\.[0-9]+){1,3})"`)
 
 type Info struct {
 	Current        string `json:"current"`
@@ -36,16 +42,16 @@ type StartResult struct {
 func Check(ctx context.Context) (Info, error) {
 	info := Info{
 		Current:        version.Version,
-		InstallCommand: "uv tool install --force \"" + RepoInstallSpec + "\"",
-		Source:         LatestAPIURL,
+		InstallCommand: "uv tool install --reinstall --refresh \"" + RepoInstallSpec + "\"",
+		Source:         MainVersionURL,
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, LatestAPIURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, MainVersionURL, nil)
 	if err != nil {
 		return info, err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "vortelio-updater/"+version.Version)
+	req.Header.Set("Cache-Control", "no-cache")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -56,23 +62,16 @@ func Check(ctx context.Context) (Info, error) {
 		return info, fmt.Errorf("GitHub returned HTTP %d", resp.StatusCode)
 	}
 
-	var payload struct {
-		TagName string `json:"tag_name"`
-		Name    string `json:"name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if err != nil {
 		return info, err
 	}
-	latest := cleanVersion(payload.TagName)
-	if latest == "" {
-		latest = cleanVersion(payload.Name)
+	m := mainVersionRE.FindStringSubmatch(string(body))
+	if len(m) < 2 {
+		return info, errors.New("could not read version from main")
 	}
-	if latest == "" {
-		return info, errors.New("latest release does not contain a version")
-	}
-
-	info.Latest = latest
-	info.Available = compareVersions(latest, version.Version) > 0
+	info.Latest = m[1]
+	info.Available = compareVersions(info.Latest, version.Version) > 0
 	return info, nil
 }
 

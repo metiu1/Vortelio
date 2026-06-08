@@ -91,7 +91,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .sec-chevron { width: 9px; height: 9px; transition: transform .18s cubic-bezier(.4,0,.2,1); opacity: .7; }
 .sidebar-section.collapsible[aria-expanded="true"] .sec-chevron { transform: rotate(-180deg); }
 .nav-group { overflow: hidden; max-height: 0; transition: max-height .22s cubic-bezier(.4,0,.2,1); }
-.nav-group.open { max-height: 320px; }
+.nav-group.open { max-height: 600px; }
 
 .history-list { flex: 1; overflow-y: auto; }
 .hist-item {
@@ -1126,6 +1126,10 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
   </div>
 
   <div style="margin-top:auto">
+    <!-- Shown when a newer version is available on main -->
+    <button class="nav-item" id="sidebar-update-btn" onclick="startVortelioUpdate()" style="display:none;color:var(--accent);font-weight:600">
+      <span>⬆️</span> <span id="sidebar-update-lbl">Aggiorna Vortelio</span>
+    </button>
     <!-- Account info (when logged in) -->
     <div class="auth-user-bar" id="auth-user-bar" style="display:none">
       <div class="auth-avatar" id="auth-avatar">?</div>
@@ -3342,6 +3346,7 @@ function init() {
 
 let _onboardChecked = false;
 let vortelioUpdateInfo = null;
+let _updateNotified = false;
 
 function renderVortelioUpdate(info) {
   vortelioUpdateInfo = info || null;
@@ -3352,6 +3357,15 @@ function renderVortelioUpdate(info) {
   const setLink = document.getElementById('settings-update-link');
   const setTitle = document.getElementById('settings-update-title');
   const setSub = document.getElementById('settings-update-sub');
+  const sideBtn = document.getElementById('sidebar-update-btn');
+  const sideLbl = document.getElementById('sidebar-update-lbl');
+  if (sideBtn) sideBtn.style.display = available ? 'flex' : 'none';
+  if (sideLbl && latest) sideLbl.textContent = 'Aggiorna a ' + latest;
+  // One-time notification on open when a new version is available.
+  if (available && !_updateNotified) {
+    _updateNotified = true;
+    try { toast('🎉 Nuova versione ' + (latest || '') + ' disponibile — clicca "Aggiorna"', 'ok'); } catch {}
+  }
   if (topBtn) topBtn.style.display = available ? 'flex' : 'none';
   if (topLbl && latest) topLbl.textContent = 'Update ' + latest;
   // The settings entry is ALWAYS available so the user can reinstall the latest
