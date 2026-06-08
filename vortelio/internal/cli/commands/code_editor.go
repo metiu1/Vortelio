@@ -197,6 +197,52 @@ func (s *codeSession) readLine() (string, bool) {
 	}
 }
 
+// promptLineRaw reads one line of free text in raw mode, echoing characters and
+// handling backspace/Enter itself. Using raw mode makes input reliable even when
+// the terminal was left in a non-cooked state mid tool-loop (where a plain
+// ReadString would not echo and Enter would not submit).
+func promptLineRaw(prompt string) string {
+	fd := int(os.Stdin.Fd())
+	fmt.Print(prompt)
+	if !term.IsTerminal(fd) {
+		in, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return strings.TrimSpace(in)
+	}
+	old, err := term.MakeRaw(fd)
+	if err != nil {
+		in, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return strings.TrimSpace(in)
+	}
+	defer term.Restore(fd, old)
+	r := bufio.NewReader(os.Stdin)
+	var buf []rune
+	for {
+		ch, _, err := r.ReadRune()
+		if err != nil {
+			break
+		}
+		switch ch {
+		case 3: // Ctrl+C
+			fmt.Print("\r\n")
+			return ""
+		case '\r', '\n':
+			fmt.Print("\r\n")
+			return strings.TrimSpace(string(buf))
+		case 127, 8: // backspace
+			if len(buf) > 0 {
+				buf = buf[:len(buf)-1]
+				fmt.Print("\b \b")
+			}
+		default:
+			if ch >= 32 {
+				buf = append(buf, ch)
+				fmt.Print(string(ch)) // echo
+			}
+		}
+	}
+	return strings.TrimSpace(string(buf))
+}
+
 // cycleMode advances the session mode (ask · plan · auto) by dir (+1/-1),
 // keeps the autonomous flag in sync with "auto", and persists the choice.
 func (s *codeSession) cycleMode(dir int) {

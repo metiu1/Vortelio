@@ -179,21 +179,22 @@ func (s *codeSession) approve(tool, summary, args string) bool {
 	}
 }
 
-// askUser is the terminal answer for the ask_user tool.
+// askUser is the terminal answer for the ask_user tool. With options it shows an
+// arrow-selectable list (plus a "write your own" entry); without options (free
+// text) it reads a line. Input is read in raw mode so it works even mid tool-loop.
 func (s *codeSession) askUser(question string, options []string) string {
 	fmt.Printf("\n  %s❓ %s%s\n", cYell, question, cReset)
-	for i, o := range options {
-		fmt.Printf("   %s%d)%s %s\n", cCyan, i+1, cReset, o)
+	if len(options) > 0 {
+		items := make([]string, 0, len(options)+1)
+		items = append(items, options...)
+		items = append(items, "✏️  Scrivi una risposta…")
+		sel := selectList("↑↓ scegli · Invio conferma:", items, 0)
+		if sel >= 0 && sel < len(options) {
+			return options[sel]
+		}
+		// "write your own" or cancelled → fall through to free text
 	}
-	fmt.Printf("   %s(numero di un'opzione, o scrivi una risposta libera):%s ", cDim, cReset)
-	r := bufio.NewReader(os.Stdin)
-	in, _ := r.ReadString('\n')
-	in = strings.TrimSpace(in)
-	var n int
-	if _, err := fmt.Sscanf(in, "%d", &n); err == nil && n >= 1 && n <= len(options) {
-		return options[n-1]
-	}
-	return in
+	return promptLineRaw("   ✏️  Risposta: ")
 }
 
 func (s *codeSession) runTurn(line string) {
