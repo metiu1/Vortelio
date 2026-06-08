@@ -54,8 +54,15 @@ func (s *codeSession) readLine() (string, bool) {
 
 		if kind != 0 && len(sugg) > 0 {
 			// Scrolling viewport that follows suggIdx so the highlighted entry
-			// is always visible, even past the first page.
-			start, end := windowBounds(suggIdx, len(sugg), 6)
+			// is always visible, even past the first page. Cap the visible rows
+			// to the terminal height (box 3 + up/down markers + hint = 6 rows of
+			// overhead) so the whole block never spills past the bottom of the
+			// screen — when it did, the terminal scrolled and the in-place
+			// redraw lost the highlighted row.
+			visible := termHeight() - 6
+			if visible < 3 { visible = 3 }
+			if visible > 10 { visible = 10 }
+			start, end := windowBounds(suggIdx, len(sugg), visible)
 			if start > 0 {
 				lines = append(lines, "  "+cDim+"↑ altri "+fmt.Sprintf("%d", start)+cReset)
 			}
