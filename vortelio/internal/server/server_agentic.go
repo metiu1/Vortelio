@@ -453,7 +453,134 @@ func buildAgenticProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) rt.ToolP
 	if len(providers) > 0 {
 		providers = append(providers, &selfProvider{emit: emit, ask: cfg.AskFunc})
 	}
-	return rt.NewCompositeProvider(providers...)
+	mode := cfg.Mode
+	if mode == "" {
+		mode = "ask"
+	}
+	// Centralized approval gate: in Ask mode every state-changing/code-running
+	// tool (run_code, media generation, install, rename, create_document) must be
+	// confirmed; in Plan mode they are blocked. (write_file/edit_file/run_shell
+	// are gated inside the coding provider itself, so they are not listed here to
+	// avoid a double prompt.)
+	return &gatedProvider{
+		inner:   rt.NewCompositeProvider(providers...),
+		mode:    mode,
+		approve: cfg.ApproveFunc,
+		emit:    emit,
+	}
+}
+
+// gatedRiskyTools are tools that act on the system or run code and therefore need
+// confirmation in Ask mode (and are blocked in Plan mode).
+var gatedRiskyTools = map[string]bool{
+	"run_code":        true,
+	"create_document": true,
+	"generate_image":  true,
+	"generate_video":  true,
+	"text_to_speech":  true,
+	"generate_3d":     true,
+	"install_model":   true,
+	"rename_file":     true,
+}
+
+// gatedProvider wraps the full tool set and enforces Ask/Plan-mode approval for
+// risky tools that the per-tool providers do not gate themselves.
+type gatedProvider struct {
+	inner   rt.ToolProvider
+	mode    string
+	approve func(tool, summary, args string) bool
+	emit    rt.ToolEventEmitter
+	mu      sync.Mutex
+	counter int
+}
+
+func (g *gatedProvider) Tools() []rt.ToolDef { return g.inner.Tools() }
+
+func (g *gatedProvider) Execute(name, args string) (string, error) {
+	if gatedRiskyTools[name] {
+		switch g.mode {
+		case "plan":
+			return "", fmt.Errorf("blocked: in Plan mode the agent cannot run code or generate/modify files. Switch to Ask or Auto to proceed")
+		case "auto":
+			// proceed without prompting
+		default: // ask
+			if !g.requestApproval(name, gatedSummary(name, args), args) {
+				return "", fmt.Errorf("denied by user")
+			}
+		}
+	}
+	return g.inner.Execute(name, args)
+}
+
+func gatedSummary(name, args string) string {
+	var m map[string]interface{}
+	json.Unmarshal([]byte(args), &m)
+	clip := func(s string, n int) string {
+		s = strings.ReplaceAll(s, "\n", " ")
+		if len(s) > n {
+			return s[:n] + "…"
+		}
+		return s
+	}
+	switch name {
+	case "run_code":
+		return "Esegui codice: " + clip(fmt.Sprint(m["code"]), 120)
+	case "create_document":
+		return fmt.Sprintf("Crea documento: %v", m["path"])
+	case "install_model":
+		return fmt.Sprintf("Installa modello: %v", m["model"])
+	case "rename_file":
+		return fmt.Sprintf("Rinomina file: %v", m["path"])
+	case "generate_image", "generate_video", "generate_3d", "text_to_speech":
+		return fmt.Sprintf("%s: %v", name, clip(fmt.Sprint(m["prompt"]), 100))
+	}
+	return name
+}
+
+func (g *gatedProvider) requestApproval(tool, summary, argsJSON string) bool {
+	if g.approve != nil { // CLI synchronous y/n
+		return g.approve(tool, summary, argsJSON)
+	}
+	g.mu.Lock()
+	g.counter++
+	id := fmt.Sprintf("gappr_%d_%d", time.Now().UnixNano(), g.counter)
+	g.mu.Unlock()
+	ch := registerApproval(id)
+	if g.emit != nil {
+		g.emit("approval_request", map[string]interface{}{
+			"id": id, "tool": tool, "summary": summary, "arguments": json.RawMessage(argsJSON),
+		})
+	}
+	select {
+	case ok := <-ch:
+		return ok
+	case <-time.After(5 * time.Minute):
+		resolveApproval(id, false)
+		return false
+	}
+}
+
+// isNoiseDir reports directories whose contents are build artefacts or VCS state
+// and should be skipped by grep/glob so the model isn't fed binary garbage.
+func isNoiseDir(name string) bool {
+	switch name {
+	case ".git", "__pycache__", "node_modules", ".venv", "venv", "dist", "build", ".idea", ".vscode", ".mypy_cache", ".pytest_cache", ".next", "target":
+		return true
+	}
+	return false
+}
+
+// isBinaryName reports paths with a non-text extension that grep/glob should skip.
+func isBinaryName(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".pyc", ".pyo", ".exe", ".dll", ".so", ".dylib", ".o", ".a", ".class", ".jar",
+		".zip", ".gz", ".tar", ".7z", ".rar", ".bin", ".db", ".sqlite", ".sqlite3",
+		".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".tiff",
+		".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav", ".flac", ".ogg",
+		".pdf", ".woff", ".woff2", ".ttf", ".otf", ".eot":
+		return true
+	}
+	return false
 }
 
 // selfProvider lets the agent create reusable skills and ask the user questions
@@ -800,7 +927,16 @@ func (c *codingProvider) glob(argsJSON string) (string, error) {
 	}
 	var matches []string
 	filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if isNoiseDir(d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isBinaryName(path) {
 			return nil
 		}
 		rel, _ := filepath.Rel(base, path)
@@ -849,7 +985,16 @@ func (c *codingProvider) grep(argsJSON string) (string, error) {
 	}
 	var hits []string
 	filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if isNoiseDir(d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isBinaryName(path) {
 			return nil
 		}
 		info, _ := d.Info()
@@ -859,6 +1004,9 @@ func (c *codingProvider) grep(argsJSON string) (string, error) {
 		data, e := os.ReadFile(path)
 		if e != nil {
 			return nil
+		}
+		if strings.IndexByte(string(data), 0) >= 0 {
+			return nil // binary file (null byte) — skip garbage matches
 		}
 		for i, line := range strings.Split(string(data), "\n") {
 			if strings.Contains(line, a.Query) {

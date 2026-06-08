@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -165,8 +164,7 @@ func (s *codeSession) approve(tool, summary, args string) bool {
 	fmt.Printf("\n  %s⚠ Conferma azione%s  %s%s%s\n", cYell, cReset, cBold, summary, cReset)
 	fmt.Printf("  %s%s%s\n", cDim, truncStr(args, 200), cReset)
 	fmt.Printf("  [%sy%s] sì   [%sn%s] no   [%sa%s] sì a tutto (auto)  ", cGreen, cReset, cRed, cReset, cCyan, cReset)
-	r := bufio.NewReader(os.Stdin)
-	in, _ := r.ReadString('\n')
+	in := promptLineRaw("")
 	switch strings.ToLower(strings.TrimSpace(in)) {
 	case "y", "yes", "s", "si", "":
 		return true
