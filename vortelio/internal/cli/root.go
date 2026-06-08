@@ -28,7 +28,11 @@ func Execute() error {
 		commands.NewCleanupCommand(),
 		commands.NewUpdateCommand(),
 		commands.NewImportOllamaCommand(),
+		commands.NewInstallAppCommand(),
 	)
+	// Make the GUI app discoverable from the OS search (Start Menu / Spotlight /
+	// app menu) on first run after install. Best-effort, never blocks.
+	commands.EnsureAppShortcut()
 	return root.run(os.Args[1:])
 }
 
@@ -95,6 +99,7 @@ func (r *rootCommand) printHelp() {
 	fmt.Println("  vortelio rm            --all            Remove all models")
 	fmt.Println("  vortelio info          <model>          Model details")
 	fmt.Println("  vortelio gui                            Open the Web UI in the browser")
+	fmt.Println("  vortelio install-app                    Add Vortelio to the OS search (Start Menu/Spotlight)")
 	fmt.Println("  vortelio serve         [--port N]       Start server (default port 11500)")
 	fmt.Println("  vortelio serve         --bg             Start server in background")
 	fmt.Println("  vortelio stop          [--port N]       Stop background server")
