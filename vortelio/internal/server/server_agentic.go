@@ -138,6 +138,7 @@ func autoSystemPrompt(existing string) string {
 		"When a visual or interactive answer would help (a chart, diagram, calculator, table, mock UI, game, " +
 		"animation…), you MAY reply with a single self-contained ```html code block (inline CSS/JS allowed) — it " +
 		"will be rendered live for the user. Use this whenever building it answers the question better than text. " +
+		conciseNudgeEN + " " +
 		askUserNudgeEN
 	if strings.TrimSpace(existing) == "" {
 		return nudge
@@ -159,7 +160,8 @@ func autonomousSystemPrompt(existing string) string {
 		"create_skill to save it. Keep going until the goal is fully met, then end with a short summary of what " +
 		"you built and how to use it. " +
 		"Stay autonomous, but if you hit a genuinely ambiguous choice you cannot reasonably decide on your own, " +
-		"use ask_user(question, 2-5 options) to get a quick graphical decision from the user, then continue."
+		"use ask_user(question, 2-5 options) to get a quick graphical decision from the user, then continue. " +
+		conciseNudgeEN
 	if strings.TrimSpace(existing) == "" {
 		return nudge
 	}
@@ -203,8 +205,20 @@ func CodingSystemPrompt(autonomous bool) string {
 		"l'utente li chiede davvero, e per impostazione predefinita salva gli artefatti dentro la cartella di lavoro. " +
 		"Dopo che uno strumento restituisce un risultato, scrivi una risposta chiara e completa nella lingua dell'utente; " +
 		"non limitarti a ripetere il JSON grezzo. " +
+		conciseNudgeIT + " " +
 		askUserNudgeIT
 }
+
+// conciseNudgeIT / conciseNudgeEN push the model to minimize output tokens:
+// answer essentially, without filler, padding or redundant recap.
+const conciseNudgeIT = "SII CONCISO e minimizza i token di output: vai dritto al punto, niente preamboli, " +
+	"chiacchiere, ripetizioni o riassunti ridondanti. Rispondi solo a ciò che è stato chiesto, con il minor numero " +
+	"di parole possibile; preferisci elenchi puntati brevi a lunghe tabelle e paragrafi, ometti dettagli ovvi o non " +
+	"richiesti. Resta corretto e completo, ma essenziale: meno testo è meglio."
+
+const conciseNudgeEN = "BE CONCISE and minimize output tokens: get straight to the point, no preamble, filler, " +
+	"repetition or redundant recap. Answer only what was asked, in as few words as possible; prefer short bullet " +
+	"lists over long tables and paragraphs, and omit obvious or unrequested detail. Stay correct and complete, but lean."
 
 // askUserNudgeIT / askUserNudgeEN instruct the model to use the graphical
 // ask_user tool instead of guessing when it needs a decision from the user.
