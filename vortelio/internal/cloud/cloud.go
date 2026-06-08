@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,20 @@ import (
 
 	"github.com/vortelio/vortelio/internal/config"
 )
+
+// streamingHTTPClient is used for streaming cloud calls. It caps connection, TLS
+// and time-to-first-byte, but does NOT cap the total streaming duration — so long
+// generations (e.g. writing a whole document/story) are not killed mid-stream the
+// way a flat 120s client.Timeout did ("Can't reach the assistant" after 120s).
+var streamingHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   30 * time.Second,
+		ResponseHeaderTimeout: 120 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	},
+}
 
 // truncToolResult caps a tool result fed back to a cloud model so big outputs
 // (e.g. list_directory of a large repo) don't bloat the request and trigger
@@ -326,7 +341,7 @@ func chatOpenAI(p Provider, apiKey string, messages []Message, onToken func(stri
 		req.Header.Set("X-Title", "Vortelio")
 	}
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := streamingHTTPClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("network error: %w", err)
@@ -405,7 +420,7 @@ func chatAnthropic(p Provider, apiKey string, messages []Message, onToken func(s
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := streamingHTTPClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("network error: %w", err)
@@ -486,7 +501,7 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 			req.Header.Set("X-Title", "Vortelio")
 		}
 
-		client := &http.Client{Timeout: 120 * time.Second}
+		client := streamingHTTPClient
 		resp, err := client.Do(req)
 		if err != nil {
 			return "", fmt.Errorf("network error: %w", err)
@@ -658,7 +673,7 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 				req.Header.Set("HTTP-Referer", "https://vortelio.app")
 				req.Header.Set("X-Title", "Vortelio")
 			}
-			client := &http.Client{Timeout: 120 * time.Second}
+			client := streamingHTTPClient
 			if resp, err := client.Do(req); err == nil {
 				if resp.StatusCode == 200 {
 					scanner := bufio.NewScanner(resp.Body)
@@ -782,7 +797,7 @@ func chatAnthropicWithTools(p Provider, apiKey string, messages []Message, opts 
 		req.Header.Set("x-api-key", apiKey)
 		req.Header.Set("anthropic-version", "2023-06-01")
 
-		client := &http.Client{Timeout: 120 * time.Second}
+		client := streamingHTTPClient
 		resp, err := client.Do(req)
 		if err != nil {
 			return "", fmt.Errorf("network error: %w", err)
@@ -990,7 +1005,7 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 		maxRounds = opts.MaxRounds
 	}
 	url := p.BaseURL + "?key=" + apiKey
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := streamingHTTPClient
 
 	for round := 0; round < maxRounds; round++ {
 		_ = round
@@ -1175,7 +1190,7 @@ func chatGemini(p Provider, apiKey string, messages []Message, onToken func(stri
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := streamingHTTPClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("network error: %w", err)
