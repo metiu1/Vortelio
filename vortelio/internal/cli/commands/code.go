@@ -468,5 +468,5 @@ func printCodeHelp() {
 	fmt.Println("      --auto / -y     Esegue le azioni senza chiedere conferma")
 	fmt.Println("      --cpu           Forza CPU")
 	fmt.Println("")
-	fmt.Println("In chat:  /model /skills /mcp /mode /auto /cd /clear /help /exit  ·  @file")
+	fmt.Println("In chat:  /model /skills /mcp /mode /auto /init /cd /clear /help /exit  ·  @file")
 }
