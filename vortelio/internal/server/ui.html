@@ -3354,9 +3354,11 @@ function renderVortelioUpdate(info) {
   const setSub = document.getElementById('settings-update-sub');
   if (topBtn) topBtn.style.display = available ? 'flex' : 'none';
   if (topLbl && latest) topLbl.textContent = 'Update ' + latest;
-  if (setLink) setLink.style.display = available ? 'flex' : 'none';
-  if (setTitle && latest) setTitle.textContent = 'Update to Vortelio ' + latest;
-  if (setSub && info) setSub.textContent = 'Installed: ' + (info.current || '?') + ' · latest: ' + (latest || '?');
+  // The settings entry is ALWAYS available so the user can reinstall the latest
+  // from main at any time (the git install can be ahead of the latest release).
+  if (setLink) setLink.style.display = 'flex';
+  if (setTitle) setTitle.textContent = (available && latest) ? ('Update to Vortelio ' + latest) : 'Reinstalla / aggiorna Vortelio';
+  if (setSub) setSub.textContent = info ? ('Installed: ' + (info.current || '?') + ' · latest: ' + (latest || '?')) : 'Reinstalla l\'ultima versione via uv';
 }
 
 async function checkVortelioUpdate() {
@@ -3374,11 +3376,11 @@ async function checkVortelioUpdate() {
 
 async function startVortelioUpdate() {
   const info = vortelioUpdateInfo || await checkVortelioUpdate();
-  if (!info || !info.available) {
-    toast('Vortelio is already up to date', 'ok');
-    return;
-  }
-  if (!confirm('Install Vortelio ' + info.latest + ' now?\n\nThe server will close, uv will update the tool, then the GUI will reopen.')) return;
+  const latest = info && info.latest ? info.latest : '';
+  const msg = (info && info.available)
+    ? ('Install Vortelio ' + latest + ' now?\n\nThe server will close, uv will update the tool, then the GUI will reopen.')
+    : ('Reinstall the latest Vortelio from main now?\n\nThe server will close, uv will reinstall the tool, then the GUI will reopen.');
+  if (!confirm(msg)) return;
   const topBtn = document.getElementById('update-topbar-btn');
   const setLink = document.getElementById('settings-update-link');
   if (topBtn) { topBtn.disabled = true; topBtn.textContent = 'Updating...'; }

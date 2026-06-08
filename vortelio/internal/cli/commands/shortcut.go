@@ -126,6 +126,7 @@ func createWindowsShortcut(exe string) (string, error) {
 		"$s.Arguments = 'gui';",
 		fmt.Sprintf("$s.IconLocation = %s;", psQuote(ico)),
 		fmt.Sprintf("$s.WorkingDirectory = %s;", psQuote(filepath.Dir(exe))),
+		"$s.WindowStyle = 7;", // start minimized so the console doesn't flash over the app window
 		"$s.Description = 'Vortelio — AI locale';",
 		"$s.Save();",
 	}, " ")

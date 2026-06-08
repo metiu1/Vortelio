@@ -29,7 +29,7 @@ log=%s
 echo "Vortelio update started at $(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)" > "$log"
 while kill -0 %d 2>/dev/null; do sleep 0.2; done
 sleep 1
-%s tool install --force %s >> "$log" 2>&1
+%s tool install --reinstall --refresh %s >> "$log" 2>&1
 code=$?
 echo "Exit code: $code" >> "$log"
 %sexit "$code"

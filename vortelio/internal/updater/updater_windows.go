@@ -30,7 +30,7 @@ $log = %q
 "Vortelio update started at $(Get-Date -Format o)" | Out-File -FilePath $log -Encoding utf8
 try { Wait-Process -Id %d -ErrorAction SilentlyContinue } catch {}
 Start-Sleep -Milliseconds 1200
-& %q tool install --force %q *> $log
+& %q tool install --reinstall --refresh %q *> $log
 $code = $LASTEXITCODE
 "Exit code: $code" | Out-File -FilePath $log -Append -Encoding utf8
 %sexit $code

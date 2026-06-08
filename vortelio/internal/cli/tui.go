@@ -41,8 +41,9 @@ func typeLabels() []string {
 
 func runInteractiveMenu() error {
 	updateLabel := ""
+	updateLabel = "🔄 Update Vortelio (reinstall latest)"
 	if info, err := updater.CheckWithTimeout(2 * time.Second); err == nil && info.Available {
-		updateLabel = fmt.Sprintf("Update Vortelio to %s", info.Latest)
+		updateLabel = fmt.Sprintf("🔄 Update Vortelio → %s", info.Latest)
 	}
 	for {
 		type menuAction struct {
@@ -61,7 +62,9 @@ func runInteractiveMenu() error {
 		}
 		if updateLabel != "" {
 			actions = append(actions, menuAction{updateLabel, func() error {
-				if err := commands.NewUpdateCommand().Run(nil); err != nil {
+				// Always force a reinstall of the latest main via uv (the user
+				// installs from git, which can be ahead of the latest release).
+				if err := commands.NewUpdateCommand().Run([]string{"--force"}); err != nil {
 					fmt.Printf("\n  Update failed: %s\n", err)
 				}
 				os.Exit(0)

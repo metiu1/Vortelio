@@ -105,7 +105,16 @@ func (c *CompositeProvider) Execute(name, args string) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("unknown tool: %s", name)
+	// List the real tool names so a model that hallucinated a name (e.g. "search",
+	// "print_tree") can correct itself on the next round instead of looping on the
+	// same invalid call until it runs out of rounds.
+	var names []string
+	for _, p := range c.providers {
+		for _, t := range p.Tools() {
+			names = append(names, t.Function.Name)
+		}
+	}
+	return "", fmt.Errorf("unknown tool %q. Available tools: %s", name, strings.Join(names, ", "))
 }
 
 // ── Built-in tool catalog ────────────────────────────────────────────────────
