@@ -97,7 +97,31 @@ func (c *CompositeProvider) Tools() []ToolDef {
 	return all
 }
 
+// toolAliases maps common names models hallucinate (used to other agents) onto
+// the real tool names, so the call succeeds instead of wasting a round.
+var toolAliases = map[string]string{
+	"search":     "grep_search",
+	"grep":       "grep_search",
+	"find":       "glob_search",
+	"glob":       "glob_search",
+	"tree":       "list_directory",
+	"print_tree": "list_directory",
+	"ls":         "list_directory",
+	"cat":        "read_file",
+	"read":       "read_file",
+}
+
 func (c *CompositeProvider) Execute(name, args string) (string, error) {
+	if alias, ok := toolAliases[name]; ok {
+		// Only remap if a provider actually offers the canonical tool.
+		for _, p := range c.providers {
+			for _, t := range p.Tools() {
+				if t.Function.Name == alias {
+					name = alias
+				}
+			}
+		}
+	}
 	for _, p := range c.providers {
 		for _, t := range p.Tools() {
 			if t.Function.Name == name {
@@ -150,8 +174,8 @@ func BuiltinTools() []ToolDef {
 			Type: "function",
 			Function: ToolFuncDef{
 				Name:        "read_file",
-				Description: "Reads the contents of a file from the local filesystem.",
-				Parameters:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Absolute or relative path to the file"}},"required":["path"]}`),
+				Description: "Reads a text file. Optionally read only a line range with line_start/line_end (1-based, inclusive) to navigate large files.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Absolute or relative path to the file"},"line_start":{"type":"integer","description":"First line to return (1-based, inclusive). Optional."},"line_end":{"type":"integer","description":"Last line to return (1-based, inclusive). Optional."}},"required":["path"]}`),
 			},
 		},
 		{
@@ -620,6 +644,12 @@ func evalFunc(name string, args []float64) (float64, error) {
 func toolReadFile(argsJSON string) (string, error) {
 	var args struct {
 		Path string `json:"path"`
+		// Accept several common aliases models use for line ranges so navigation
+		// works instead of silently re-reading the file head.
+		LineStart *int `json:"line_start"`
+		LineEnd   *int `json:"line_end"`
+		Offset    *int `json:"offset"`
+		Limit     *int `json:"limit"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil || args.Path == "" {
 		return "", fmt.Errorf("path is required")
@@ -629,16 +659,46 @@ func toolReadFile(argsJSON string) (string, error) {
 		return "", fmt.Errorf("cannot read file %q: %w", args.Path, err)
 	}
 	content := string(data)
+	lines := strings.Split(content, "\n")
+	total := len(lines)
+
+	// Resolve a 1-based inclusive [start,end] window from whichever params were
+	// given (line_start/line_end, or offset+limit).
+	start, end := 1, total
+	if args.LineStart != nil {
+		start = *args.LineStart
+	} else if args.Offset != nil {
+		start = *args.Offset + 1
+	}
+	if args.LineEnd != nil {
+		end = *args.LineEnd
+	} else if args.Limit != nil {
+		end = start + *args.Limit - 1
+	}
+	ranged := args.LineStart != nil || args.LineEnd != nil || args.Offset != nil || args.Limit != nil
+	if start < 1 {
+		start = 1
+	}
+	if end > total {
+		end = total
+	}
+	if ranged && start <= end {
+		content = strings.Join(lines[start-1:end], "\n")
+	}
+
 	const maxLen = 32000
 	truncated := false
 	if len(content) > maxLen {
 		content = content[:maxLen]
 		truncated = true
 	}
-	out := map[string]interface{}{"path": args.Path, "content": content}
+	out := map[string]interface{}{"path": args.Path, "content": content, "total_lines": total}
+	if ranged {
+		out["line_start"], out["line_end"] = start, end
+	}
 	if truncated {
 		out["truncated"] = true
-		out["note"] = fmt.Sprintf("file truncated to %d chars", maxLen)
+		out["note"] = fmt.Sprintf("content truncated to %d chars; request a smaller line range", maxLen)
 	}
 	b, _ := json.Marshal(out)
 	return string(b), nil

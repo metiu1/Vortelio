@@ -638,10 +638,17 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 		}
 	}
 
-	// Rounds exhausted while the model was still calling tools and never wrote a
-	// textual answer → the user would otherwise see silence. Force one final
-	// completion with tools disabled so there is always a reply.
-	if finalContent.Len() == 0 {
+	// Reaching here means every round ended in tool calls and we ran out of
+	// rounds without a concluding answer (a natural finish returns inside the
+	// loop). Force one final completion with tools disabled so the user always
+	// gets a real reply instead of silence — even if a little interim text leaked.
+	{
+		if finalContent.Len() > 0 {
+			finalContent.WriteString("\n\n")
+			if onToken != nil {
+				onToken("\n\n")
+			}
+		}
 		body := map[string]interface{}{"model": p.DefaultModel, "messages": msgs, "stream": true}
 		data, _ := json.Marshal(body)
 		if req, err := http.NewRequest("POST", p.BaseURL, bytes.NewReader(data)); err == nil {

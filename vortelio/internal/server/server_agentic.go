@@ -198,7 +198,7 @@ func CodingSystemPrompt(autonomous bool) string {
 		"Sei orientato al progetto corrente: le richieste dell'utente riguardano quasi sempre i file e il codice " +
 		"di QUESTA cartella, non attività generiche. " +
 		"Prima di rispondere su \"il progetto\", \"questo\", \"qui\" o un file citato, USA gli strumenti " +
-		"(list_directory, read_file, glob, grep) per guardare i file reali: non indovinare e non inventare contenuti. " +
+		"(list_directory, read_file, glob_search, grep_search) per guardare i file reali: non indovinare e non inventare contenuti. " +
 		"Per modificare il progetto usa write_file / edit_file con percorsi relativi alla cartella di lavoro e " +
 		"riferisci sempre il percorso esatto. Non affermare di aver creato o cambiato un file se non hai chiamato lo strumento. " +
 		"Hai anche strumenti web (web_search) e di generazione media (immagini/audio/video/3D): usali solo quando " +
@@ -583,8 +583,8 @@ func newCodingProvider(cfg *AgenticConfig, emit rt.ToolEventEmitter) *codingProv
 
 func (c *codingProvider) Tools() []rt.ToolDef {
 	defs := []rt.ToolDef{
-		toolDef("read_file", "Read a UTF-8 text file from the workspace.",
-			`{"type":"object","properties":{"path":{"type":"string","description":"File path, relative to the workspace root or absolute."}},"required":["path"]}`),
+		toolDef("read_file", "Read a UTF-8 text file from the workspace. Use line_start/line_end (1-based, inclusive) to read only part of a large file.",
+			`{"type":"object","properties":{"path":{"type":"string","description":"File path, relative to the workspace root or absolute."},"line_start":{"type":"integer","description":"First line (1-based, inclusive). Optional."},"line_end":{"type":"integer","description":"Last line (1-based, inclusive). Optional."}},"required":["path"]}`),
 		toolDef("list_directory", "List files and folders at a path in the workspace.",
 			`{"type":"object","properties":{"path":{"type":"string","description":"Directory path. Defaults to workspace root."}},"required":[]}`),
 		toolDef("glob_search", "Find files matching a glob pattern (e.g. **/*.go).",
@@ -720,7 +720,9 @@ func (c *codingProvider) resolvePath(p string) (string, error) {
 
 func (c *codingProvider) readFile(argsJSON string) (string, error) {
 	var a struct {
-		Path string `json:"path"`
+		Path      string `json:"path"`
+		LineStart *int   `json:"line_start"`
+		LineEnd   *int   `json:"line_end"`
 	}
 	json.Unmarshal([]byte(argsJSON), &a)
 	full, err := c.resolvePath(a.Path)
@@ -733,6 +735,27 @@ func (c *codingProvider) readFile(argsJSON string) (string, error) {
 	}
 	if len(data) > 200*1024 {
 		data = data[:200*1024]
+	}
+	// Honor an optional 1-based inclusive line range so the model can navigate
+	// large files instead of re-reading the head.
+	if a.LineStart != nil || a.LineEnd != nil {
+		lines := strings.Split(string(data), "\n")
+		start, end := 1, len(lines)
+		if a.LineStart != nil {
+			start = *a.LineStart
+		}
+		if a.LineEnd != nil {
+			end = *a.LineEnd
+		}
+		if start < 1 {
+			start = 1
+		}
+		if end > len(lines) {
+			end = len(lines)
+		}
+		if start <= end {
+			return strings.Join(lines[start-1:end], "\n"), nil
+		}
 	}
 	return string(data), nil
 }
