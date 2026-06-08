@@ -309,6 +309,11 @@ func toolCreateDocument(argsJSON string) (string, error) {
 	if strings.TrimSpace(a.Path) == "" {
 		return "", fmt.Errorf("path is required")
 	}
+	// A bare filename (no directory) is saved to the user's Downloads folder so
+	// the document is actually findable, instead of the server's working dir.
+	if filepath.Dir(a.Path) == "." {
+		a.Path = filepath.Join(DefaultOutputDir(), a.Path)
+	}
 	if dir := filepath.Dir(a.Path); dir != "" {
 		os.MkdirAll(dir, 0755)
 	}
@@ -316,12 +321,19 @@ func toolCreateDocument(argsJSON string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if abs, e := filepath.Abs(p); e == nil {
+		p = abs
+	}
 	fi, _ := os.Stat(p)
 	size := int64(0)
 	if fi != nil {
 		size = fi.Size()
 	}
-	return fmt.Sprintf("Documento creato: %s (%d byte)", p, size), nil
+	b, _ := json.Marshal(map[string]interface{}{
+		"status": "ok", "path": p, "size": size,
+		"note": "Document saved. The user can open/download it from the path above.",
+	})
+	return string(b), nil
 }
 
 // ── run_code ─────────────────────────────────────────────────────────────────

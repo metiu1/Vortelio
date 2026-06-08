@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -509,7 +510,49 @@ func (g *gatedProvider) Execute(name, args string) (string, error) {
 			}
 		}
 	}
-	return g.inner.Execute(name, args)
+	res, err := g.inner.Execute(name, args)
+	// Surface a created document in the GUI like generated media (path + inline
+	// download), otherwise the user is told "created" but never sees the file.
+	if err == nil && name == "create_document" && g.emit != nil {
+		g.emitDocument(res)
+	}
+	return res, err
+}
+
+// emitDocument reads the just-created document and emits a media_generated event
+// so the GUI shows a clickable/downloadable card.
+func (g *gatedProvider) emitDocument(result string) {
+	var r struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal([]byte(result), &r) != nil || r.Path == "" {
+		return
+	}
+	data, err := os.ReadFile(r.Path)
+	if err != nil || len(data) > 25*1024*1024 {
+		// Still tell the UI where it is, even if too big to inline.
+		g.emit("media_generated", map[string]interface{}{"kind": "document", "path": r.Path})
+		return
+	}
+	mime := "application/octet-stream"
+	switch strings.ToLower(filepath.Ext(r.Path)) {
+	case ".pdf":
+		mime = "application/pdf"
+	case ".docx":
+		mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case ".txt", ".md":
+		mime = "text/plain"
+	case ".html":
+		mime = "text/html"
+	case ".csv":
+		mime = "text/csv"
+	case ".json":
+		mime = "application/json"
+	}
+	g.emit("media_generated", map[string]interface{}{
+		"kind": "document", "path": r.Path, "mime": mime,
+		"data_uri": "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data),
+	})
 }
 
 func gatedSummary(name, args string) string {
