@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/vortelio/vortelio/internal/cli/commands"
 	"github.com/vortelio/vortelio/internal/config"
 	"github.com/vortelio/vortelio/internal/hub"
+	"github.com/vortelio/vortelio/internal/updater"
 	"golang.org/x/term"
 )
 
@@ -38,56 +40,50 @@ func typeLabels() []string {
 // ─── main menu ───────────────────────────────────────────────────────────────
 
 func runInteractiveMenu() error {
+	updateLabel := ""
+	if info, err := updater.CheckWithTimeout(2 * time.Second); err == nil && info.Available {
+		updateLabel = fmt.Sprintf("Update Vortelio to %s", info.Latest)
+	}
 	for {
-		sel := selectMenu("Vortelio", []string{
-			"Chat with a model",
-			"🧑‍💻 Code agent (terminal)",
-			"Download a model",
-			"Cloud Models",
-			"AI Agents",
-			"🤖 CrewAI Orchestration",
-			"Import from Ollama",
-			"Advanced Tools",
-			"Open Web UI",
-			"Show commands",
-		})
+		type menuAction struct {
+			label string
+			run   func() error
+		}
+		actions := []menuAction{
+			{"Chat with a model", handleChatta},
+			{"🧑‍💻 Code agent (terminal)", func() error { return commands.NewCodeCommand().Run(nil) }},
+			{"Download a model", handleScarica},
+			{"Cloud Models", handleModelloCloud},
+			{"AI Agents", handleAgentiAI},
+			{"🤖 CrewAI Orchestration", handleCrewAI},
+			{"Import from Ollama", handleImportOllama},
+			{"Advanced Tools", handleAdvancedTools},
+		}
+		if updateLabel != "" {
+			actions = append(actions, menuAction{updateLabel, func() error {
+				if err := commands.NewUpdateCommand().Run(nil); err != nil {
+					fmt.Printf("\n  Update failed: %s\n", err)
+				}
+				os.Exit(0)
+				return nil
+			}})
+		}
+		actions = append(actions,
+			menuAction{"Open Web UI", func() error { return reExec("gui") }},
+			menuAction{"Show commands", func() error { return reExec("help") }},
+		)
+		items := make([]string, len(actions))
+		for i, action := range actions {
+			items[i] = action.label
+		}
+		sel := selectMenu("Vortelio", items)
 		switch sel {
 		case -1:
 			os.Exit(0)
-		case 0:
-			if err := handleChatta(); err != nil {
+		default:
+			if err := actions[sel].run(); err != nil {
 				return err
 			}
-		case 1:
-			_ = commands.NewCodeCommand().Run(nil)
-		case 2:
-			if err := handleScarica(); err != nil {
-				return err
-			}
-		case 3:
-			if err := handleModelloCloud(); err != nil {
-				return err
-			}
-		case 4:
-			if err := handleAgentiAI(); err != nil {
-				return err
-			}
-		case 5:
-			if err := handleCrewAI(); err != nil {
-				return err
-			}
-		case 6:
-			if err := handleImportOllama(); err != nil {
-				return err
-			}
-		case 7:
-			if err := handleAdvancedTools(); err != nil {
-				return err
-			}
-		case 8:
-			return reExec("gui")
-		case 9:
-			return reExec("help")
 		}
 	}
 }

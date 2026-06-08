@@ -188,20 +188,178 @@ func CodingSystemPrompt(autonomous bool) string {
 	if autonomous {
 		return autonomousSystemPrompt("")
 	}
-	return autoSystemPrompt("")
+	return "Sei Vortelio Code, un agente di coding che lavora nel terminale dentro la cartella di lavoro " +
+		"descritta nel CONTESTO WORKSPACE. Rispondi nella lingua dell'utente. " +
+		"Sei orientato al progetto corrente: le richieste dell'utente riguardano quasi sempre i file e il codice " +
+		"di QUESTA cartella, non attività generiche. " +
+		"Prima di rispondere su \"il progetto\", \"questo\", \"qui\" o un file citato, USA gli strumenti " +
+		"(list_directory, read_file, glob, grep) per guardare i file reali: non indovinare e non inventare contenuti. " +
+		"Per modificare il progetto usa write_file / edit_file con percorsi relativi alla cartella di lavoro e " +
+		"riferisci sempre il percorso esatto. Non affermare di aver creato o cambiato un file se non hai chiamato lo strumento. " +
+		"Hai anche strumenti web (web_search) e di generazione media (immagini/audio/video/3D): usali solo quando " +
+		"l'utente li chiede davvero, e per impostazione predefinita salva gli artefatti dentro la cartella di lavoro. " +
+		"Dopo che uno strumento restituisce un risultato, scrivi una risposta chiara e completa nella lingua dell'utente; " +
+		"non limitarti a ripetere il JSON grezzo."
 }
 
-// workspaceContext tells the agent which folder it is working in, so it creates
-// files in the right place and reports the exact path (instead of guessing).
+// workspaceContext tells the agent which folder it is working in AND gives it a
+// live snapshot of that folder (git branch, project type, file tree) so it knows
+// "where it is" and what "this project" / "qui" refers to without having to guess.
 func workspaceContext(cfg *AgenticConfig) string {
 	if cfg == nil || !cfg.Coding || strings.TrimSpace(cfg.WorkingDir) == "" {
 		return ""
 	}
-	return "CARTELLA DI LAVORO (radice del progetto): " + cfg.WorkingDir + "\n" +
-		"Tutte le operazioni sui file avvengono QUI. Per creare o modificare file DEVI chiamare gli strumenti " +
-		"write_file / edit_file con un percorso relativo a questa cartella (oppure assoluto dentro di essa). " +
-		"Dopo aver creato o modificato un file, indica SEMPRE il percorso completo esatto. " +
-		"Non dire mai che un file è stato creato se non hai effettivamente chiamato write_file."
+	dir := cfg.WorkingDir
+	var b strings.Builder
+	b.WriteString("=== CONTESTO WORKSPACE (aggiornato a questo turno) ===\n")
+	b.WriteString("CARTELLA DI LAVORO (radice del progetto): " + dir + "\n")
+	if branch, clean := workspaceGitInfo(dir); branch != "" {
+		st := "modificato"
+		if clean {
+			st = "pulito"
+		}
+		b.WriteString("Git: branch " + branch + " (" + st + ")\n")
+	}
+	if kind := detectProjectKind(dir); kind != "" {
+		b.WriteString("Tipo progetto: " + kind + "\n")
+	}
+	if tree := workspaceTree(dir); tree != "" {
+		b.WriteString("Contenuto della cartella (i file REALI presenti qui ora):\n" + tree)
+	}
+	if sum := projectSummaryExcerpt(dir); sum != "" {
+		b.WriteString("\nRIASSUNTO DEL PROGETTO (da PROJECT.md, generato da /init):\n" + sum + "\n")
+		b.WriteString("Se durante il lavoro modifichi qualcosa che rende PROJECT.md obsoleto (nuovi file/moduli, comandi, dipendenze, configurazione), AGGIORNA PROJECT.md con write_file/edit_file per tenerlo allineato.\n")
+	}
+	b.WriteString("\nREGOLE DI CONTESTO:\n")
+	b.WriteString("- Quando l'utente dice \"questo progetto\", \"qui\", \"il sistema\", \"questa cartella\" si riferisce SEMPRE alla cartella di lavoro qui sopra. Non chiedere di quale progetto si tratta: leggilo.\n")
+	b.WriteString("- Prima di rispondere a domande sul progetto o di eseguire azioni su di esso, ISPEZIONA i file reali con list_directory / read_file invece di indovinare o inventare.\n")
+	b.WriteString("- Se l'utente cita un percorso o un file (es. agent.py), aprilo con read_file prima di rispondere.\n")
+	b.WriteString("- I percorsi relativi degli strumenti file sono relativi a questa cartella; usa write_file / edit_file per creare o modificare file e indica SEMPRE il percorso esatto.\n")
+	b.WriteString("- Non dire mai che un file è stato creato o modificato se non hai davvero chiamato lo strumento corrispondente.\n")
+	b.WriteString("- Non confondere la cartella di lavoro con cartelle temporanee di sistema: salva e riferisci i file dentro la cartella di lavoro salvo richiesta esplicita diversa.\n")
+	return b.String()
+}
+
+// projectSummaryExcerpt returns the first lines of PROJECT.md if present, so the
+// agent always has the project summary in context and can keep it up to date.
+func projectSummaryExcerpt(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "PROJECT.md"))
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	const maxLines = 40
+	if len(lines) > maxLines {
+		lines = append(lines[:maxLines], "… (PROJECT.md continua)")
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// workspaceGitInfo returns the current branch and whether the tree is clean.
+func workspaceGitInfo(dir string) (string, bool) {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return "", false
+	}
+	branch := strings.TrimSpace(string(out))
+	st, _ := exec.Command("git", "-C", dir, "status", "--porcelain").Output()
+	return branch, strings.TrimSpace(string(st)) == ""
+}
+
+// detectProjectKind guesses the project type from marker files in the root.
+func detectProjectKind(dir string) string {
+	markers := []struct{ file, kind string }{
+		{"go.mod", "Go"},
+		{"package.json", "Node.js / JavaScript"},
+		{"pyproject.toml", "Python"},
+		{"requirements.txt", "Python"},
+		{"Cargo.toml", "Rust"},
+		{"pom.xml", "Java (Maven)"},
+		{"build.gradle", "Java/Kotlin (Gradle)"},
+		{"CMakeLists.txt", "C/C++ (CMake)"},
+	}
+	var kinds []string
+	seen := map[string]bool{}
+	for _, m := range markers {
+		if _, err := os.Stat(filepath.Join(dir, m.file)); err == nil {
+			if !seen[m.kind] {
+				kinds = append(kinds, m.kind)
+				seen[m.kind] = true
+			}
+		}
+	}
+	return strings.Join(kinds, ", ")
+}
+
+// workspaceTree returns a compact listing of the workspace: top-level entries
+// plus one level of nesting, skipping noise dirs, capped so it never floods the
+// prompt. This is what lets the model know what "this project" actually contains.
+func workspaceTree(dir string) string {
+	skip := map[string]bool{
+		".git": true, "node_modules": true, ".venv": true, "venv": true,
+		"__pycache__": true, "dist": true, "build": true, ".next": true,
+		"target": true, ".idea": true, ".vscode": true, "vendor": true,
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].IsDir() != entries[j].IsDir() {
+			return entries[i].IsDir()
+		}
+		return entries[i].Name() < entries[j].Name()
+	})
+	var b strings.Builder
+	lines := 0
+	const maxLines = 60
+	for _, e := range entries {
+		if lines >= maxLines {
+			b.WriteString("  … (altri file omessi)\n")
+			break
+		}
+		name := e.Name()
+		if e.IsDir() {
+			b.WriteString("  " + name + "/\n")
+			lines++
+			if skip[name] {
+				continue
+			}
+			// one level of children
+			children, err := os.ReadDir(filepath.Join(dir, name))
+			if err != nil {
+				continue
+			}
+			sort.Slice(children, func(i, j int) bool {
+				if children[i].IsDir() != children[j].IsDir() {
+					return children[i].IsDir()
+				}
+				return children[i].Name() < children[j].Name()
+			})
+			shown := 0
+			for _, c := range children {
+				if lines >= maxLines {
+					break
+				}
+				if shown >= 12 {
+					b.WriteString("    … (" + name + " ha altri file)\n")
+					lines++
+					break
+				}
+				suffix := ""
+				if c.IsDir() {
+					suffix = "/"
+				}
+				b.WriteString("    " + c.Name() + suffix + "\n")
+				lines++
+				shown++
+			}
+		} else {
+			b.WriteString("  " + name + "\n")
+			lines++
+		}
+	}
+	return b.String()
 }
 
 // SkillInfo is a lightweight skill descriptor for the CLI.

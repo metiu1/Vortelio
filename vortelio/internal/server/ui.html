@@ -532,6 +532,7 @@ textarea.inp::placeholder { color: var(--text3); }
 .dark .topbar-title { color: var(--text2) !important; }
 .dark .topbar-btn  { background: var(--bg) !important; color: var(--text2) !important; border-color: var(--border2) !important; }
 .dark .topbar-btn:hover { background: var(--bg3) !important; }
+.dark .topbar-btn.update { background: #052e16 !important; color: #86efac !important; border-color: #166534 !important; }
 .dark .input-zone  { background: var(--bg) !important; border-color: var(--border) !important; }
 .dark .input-box   { background: var(--bg2) !important; border-color: var(--border2) !important; }
 .dark .ctrl-btn    { background: var(--bg) !important; color: var(--text2) !important; border-color: var(--border2) !important; }
@@ -593,6 +594,8 @@ textarea.inp::placeholder { color: var(--text3); }
   font-family: var(--sans); transition: all .14s; white-space: nowrap;
 }
 .topbar-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+.topbar-btn.update { color: #166534; border-color: #86efac; background: #f0fdf4; }
+.topbar-btn.update:hover { background: #dcfce7; color: #14532d; border-color: #4ade80; }
 
 /* ── CPU/GPU split button ─────────────────────────────── */
 .hw-split {
@@ -1188,6 +1191,9 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
         🔗 <span id="remote-topbar-label">remote</span>
       </div>
       <div class="topbar-right">
+        <button class="topbar-btn update" id="update-topbar-btn" onclick="startVortelioUpdate()" title="Install the latest Vortelio update" style="display:none">
+          ↑ <span id="update-topbar-label">Update</span>
+        </button>
         <button class="topbar-btn" onclick="toggleAcctMenu()" id="topbar-auth-btn" aria-label="Account" title="Account" style="gap:6px">
           <span id="topbar-avatar" style="width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">?</span>
           <span id="topbar-username" style="font-size:12px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Account</span>
@@ -1953,6 +1959,9 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
     <div class="settings-section">
       <div class="settings-section-title">Manage</div>
       <div class="set-links">
+        <button class="set-link" id="settings-update-link" onclick="startVortelioUpdate()" style="display:none">
+          <span class="sl-ic">↑</span><span><div id="settings-update-title">Update Vortelio</div><div class="sl-sub" id="settings-update-sub">Install the latest version</div></span>
+        </button>
         <button class="set-link" onclick="showPanel('models');closeSettings()">
           <span class="sl-ic">💾</span><span><div>Installed models</div><div class="sl-sub">Manage &amp; set defaults</div></span>
         </button>
@@ -3332,6 +3341,63 @@ function init() {
 }
 
 let _onboardChecked = false;
+let vortelioUpdateInfo = null;
+
+function renderVortelioUpdate(info) {
+  vortelioUpdateInfo = info || null;
+  const available = !!(info && info.available);
+  const latest = info && info.latest ? info.latest : '';
+  const topBtn = document.getElementById('update-topbar-btn');
+  const topLbl = document.getElementById('update-topbar-label');
+  const setLink = document.getElementById('settings-update-link');
+  const setTitle = document.getElementById('settings-update-title');
+  const setSub = document.getElementById('settings-update-sub');
+  if (topBtn) topBtn.style.display = available ? 'flex' : 'none';
+  if (topLbl && latest) topLbl.textContent = 'Update ' + latest;
+  if (setLink) setLink.style.display = available ? 'flex' : 'none';
+  if (setTitle && latest) setTitle.textContent = 'Update to Vortelio ' + latest;
+  if (setSub && info) setSub.textContent = 'Installed: ' + (info.current || '?') + ' · latest: ' + (latest || '?');
+}
+
+async function checkVortelioUpdate() {
+  try {
+    const r = await fetch('/api/update/check', { signal: AbortSignal.timeout(10000) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    renderVortelioUpdate(d);
+    return d;
+  } catch {
+    renderVortelioUpdate(null);
+    return null;
+  }
+}
+
+async function startVortelioUpdate() {
+  const info = vortelioUpdateInfo || await checkVortelioUpdate();
+  if (!info || !info.available) {
+    toast('Vortelio is already up to date', 'ok');
+    return;
+  }
+  if (!confirm('Install Vortelio ' + info.latest + ' now?\n\nThe server will close, uv will update the tool, then the GUI will reopen.')) return;
+  const topBtn = document.getElementById('update-topbar-btn');
+  const setLink = document.getElementById('settings-update-link');
+  if (topBtn) { topBtn.disabled = true; topBtn.textContent = 'Updating...'; }
+  if (setLink) setLink.style.opacity = '.6';
+  try {
+    const r = await fetch('/api/update/start', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ restart: true })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    toast('Update started. Vortelio will close and reopen.', 'ok');
+  } catch(e) {
+    if (topBtn) { topBtn.disabled = false; topBtn.innerHTML = '↑ <span id="update-topbar-label">Update</span>'; renderVortelioUpdate(vortelioUpdateInfo); }
+    if (setLink) setLink.style.opacity = '';
+    toast('❌ ' + e.message, 'err');
+  }
+}
 
 // ── Status ────────────────────────────────────────
 async function loadStatus() {
@@ -3342,6 +3408,7 @@ async function loadStatus() {
     document.getElementById('hw-dot').classList.remove('off');
     document.getElementById('hw-lbl').textContent = d.hardware || 'CPU';
     document.getElementById('ver').textContent = d.version ? ('v' + d.version) : 'v?';
+    checkVortelioUpdate();
     await refreshModels();
     autoSelectModel();
     if (!_onboardChecked) { _onboardChecked = true; maybeShowOnboarding(); }
