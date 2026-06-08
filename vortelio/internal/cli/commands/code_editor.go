@@ -53,15 +53,22 @@ func (s *codeSession) readLine() (string, bool) {
 		lines = append(lines, cDim+"╰"+strings.Repeat("─", w)+"╯"+cReset)
 
 		if kind != 0 && len(sugg) > 0 {
-			max := len(sugg)
-			if max > 6 { max = 6 }
-			for i := 0; i < max; i++ {
+			// Scrolling viewport that follows suggIdx so the highlighted entry
+			// is always visible, even past the first page.
+			start, end := windowBounds(suggIdx, len(sugg), 6)
+			if start > 0 {
+				lines = append(lines, "  "+cDim+"↑ altri "+fmt.Sprintf("%d", start)+cReset)
+			}
+			for i := start; i < end; i++ {
 				sg := sugg[i]
 				if i == suggIdx {
 					lines = append(lines, "  "+cInv+" "+sg+" "+cReset)
 				} else {
 					lines = append(lines, "  "+cDim+sg+cReset)
 				}
+			}
+			if end < len(sugg) {
+				lines = append(lines, "  "+cDim+"↓ altri "+fmt.Sprintf("%d", len(sugg)-end)+cReset)
 			}
 			hint := "Tab/→ completa · ↑↓ scegli · Invio invia"
 			lines = append(lines, "  "+cDim+hint+cReset)
@@ -152,7 +159,9 @@ func (s *codeSession) readLine() (string, bool) {
 					if suggIdx > 0 { suggIdx-- }
 					render()
 				case 'B': // down
-					suggIdx++
+					if _, _, sugg := s.suggestions(string(buf)); suggIdx < len(sugg)-1 {
+						suggIdx++
+					}
 					render()
 				case 'C': // right → complete
 					complete(); render()
@@ -233,14 +242,28 @@ func selectList(title string, items []string, start int) int {
 	}
 	prev := 0
 	draw := func() {
+		// Reserve rows for title + hint (+ scroll markers) and keep the
+		// highlighted row inside the visible viewport.
+		maxRows := termHeight() - 4
+		if maxRows < 3 {
+			maxRows = 3
+		}
+		start, end := windowBounds(idx, len(items), maxRows)
 		var lines []string
 		lines = append(lines, cBold+title+cReset)
-		for i, it := range items {
+		if start > 0 {
+			lines = append(lines, cDim+"   ↑ altri "+fmt.Sprintf("%d", start)+cReset)
+		}
+		for i := start; i < end; i++ {
+			it := items[i]
 			if i == idx {
 				lines = append(lines, cInv+" › "+it+" "+cReset)
 			} else {
 				lines = append(lines, "   "+it)
 			}
+		}
+		if end < len(items) {
+			lines = append(lines, cDim+"   ↓ altri "+fmt.Sprintf("%d", len(items)-end)+cReset)
 		}
 		lines = append(lines, cDim+"↑↓ scegli · Invio conferma · q annulla"+cReset)
 		if prev > 0 {
@@ -288,4 +311,27 @@ func termWidth() int {
 	w, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil || w <= 0 { return 80 }
 	return w
+}
+
+func termHeight() int {
+	_, h, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || h <= 0 { return 24 }
+	return h
+}
+
+// windowBounds returns [start,end) of a scrolling viewport of length total that
+// keeps idx visible within at most max rows. Used so long selection lists and
+// autocomplete menus never push the highlighted row off-screen.
+func windowBounds(idx, total, max int) (int, int) {
+	if max <= 0 || total <= max {
+		return 0, total
+	}
+	start := idx - max/2
+	if start < 0 {
+		start = 0
+	}
+	if start+max > total {
+		start = total - max
+	}
+	return start, start + max
 }

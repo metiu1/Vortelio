@@ -149,6 +149,8 @@ func NewMux() *http.ServeMux {
 
 	mux.HandleFunc("/", handleUI)
 	mux.HandleFunc("/api/status", ca(handleStatus))
+	mux.HandleFunc("/api/update/check", ca(handleUpdateCheck))
+	mux.HandleFunc("/api/update/start", ca(handleUpdateStart))
 	mux.HandleFunc("/api/upload", ca(handleUpload))
 
 	// Hub — models + download (pull rate limited)
