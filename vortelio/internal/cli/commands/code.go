@@ -58,6 +58,7 @@ var slashCmds = []struct{ Cmd, Desc string }{
 	{"/mcp", "attiva/disattiva tool MCP"},
 	{"/mode", "plan · ask · auto (conferma azioni)"},
 	{"/auto", "modalità autonoma verso l'obiettivo"},
+	{"/init", "genera/aggiorna PROJECT.md (riassunto del progetto)"},
 	{"/cd", "cambia cartella di lavoro"},
 	{"/clear", "azzera il contesto"},
 	{"/help", "elenco comandi"},
@@ -222,6 +223,55 @@ func (s *codeSession) runTurn(line string) {
 	s.messages = append(s.messages, map[string]interface{}{"role": "assistant", "content": resp.String()})
 }
 
+// projectSummaryFile is the canonical project-summary document /init maintains.
+const projectSummaryFile = "PROJECT.md"
+
+// runInit generates (or updates) PROJECT.md: a concise, always-current summary of
+// the project. It drives the same agentic harness autonomously so the model reads
+// the real files and writes the document itself.
+func (s *codeSession) runInit() {
+	target := filepath.Join(s.workdir, projectSummaryFile)
+	_, statErr := os.Stat(target)
+	exists := statErr == nil
+
+	if exists {
+		fmt.Printf("\n  %s⟳ Aggiorno %s…%s\n", cCyan, projectSummaryFile, cReset)
+	} else {
+		fmt.Printf("\n  %s✚ Genero %s…%s\n", cCyan, projectSummaryFile, cReset)
+	}
+
+	var sb strings.Builder
+	if exists {
+		sb.WriteString("Aggiorna il file " + projectSummaryFile + " nella cartella di lavoro. ")
+		sb.WriteString("PRIMA leggilo con read_file, poi confronta con lo stato reale del progetto e aggiorna SOLO le parti " +
+			"diventate obsolete o mancanti, preservando le note scritte a mano. ")
+	} else {
+		sb.WriteString("Crea il file " + projectSummaryFile + " nella cartella di lavoro: un riassunto chiaro e sintetico del progetto. ")
+	}
+	sb.WriteString("Esplora prima il progetto con gli strumenti (list_directory, read_file, glob, grep): " +
+		"leggi i file chiave reali (README, manifest delle dipendenze come go.mod/package.json/requirements.txt/pyproject.toml, " +
+		"entrypoint principali, file di configurazione). NON inventare: descrivi solo ciò che esiste davvero. ")
+	sb.WriteString("Il documento deve essere in Markdown, conciso e ben strutturato, con queste sezioni:\n" +
+		"1. Nome e scopo del progetto (1-2 frasi)\n" +
+		"2. Stack e tecnologie principali\n" +
+		"3. Struttura delle cartelle (le directory principali e a cosa servono)\n" +
+		"4. Componenti / moduli chiave (file principali e loro responsabilità)\n" +
+		"5. Come si installa, avvia, builda e testa (comandi reali)\n" +
+		"6. Configurazione ed env necessari (variabili, chiavi, file di config)\n" +
+		"7. Note di architettura / flusso principale\n" +
+		"8. TODO o punti aperti noti (se rilevabili)\n")
+	sb.WriteString("Inizia il file con una riga di commento HTML: <!-- Generato/aggiornato da `vortelio code /init`. Modificabile a mano. -->\n")
+	sb.WriteString("Alla fine SCRIVI davvero il file con write_file e conferma il percorso completo. " +
+		"Termina con una frase che riassume cosa hai scritto o aggiornato.")
+
+	// /init always runs autonomously for this turn so the tools actually execute
+	// without per-step confirmation, then the previous mode is restored.
+	prevAuto, prevMode := s.autonomous, s.mode
+	s.autonomous, s.mode = true, "auto"
+	s.runTurn(sb.String())
+	s.autonomous, s.mode = prevAuto, prevMode
+}
+
 var fileRefRE = regexp.MustCompile(`@([^\s"']+)`)
 
 func (s *codeSession) expandFileRefs(line string) string {
@@ -267,6 +317,8 @@ func (s *codeSession) handleCommand(line string) bool {
 		fmt.Printf("  %sMCP: %v%s\n", cYell, s.mcpOn, cReset)
 	case "/cd":
 		if len(parts) > 1 { s.workdir = strings.TrimSpace(line[len("/cd "):]); fmt.Printf("  %scartella: %s%s\n", cCyan, s.workdir, cReset) }
+	case "/init":
+		s.runInit()
 	case "/model", "/m":
 		s.chooseModel()
 	case "/skills", "/skill":
@@ -416,5 +468,5 @@ func printCodeHelp() {
 	fmt.Println("      --auto / -y     Esegue le azioni senza chiedere conferma")
 	fmt.Println("      --cpu           Forza CPU")
 	fmt.Println("")
-	fmt.Println("In chat:  /model /skills /mcp /mode /auto /cd /clear /help /exit  ·  @file")
+	fmt.Println("In chat:  /model /skills /mcp /mode /auto /init /cd /clear /help /exit  ·  @file")
 }

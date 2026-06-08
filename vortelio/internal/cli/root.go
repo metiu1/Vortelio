@@ -26,6 +26,7 @@ func Execute() error {
 		commands.NewGUICommand(),
 		commands.NewSetupCommand(),
 		commands.NewCleanupCommand(),
+		commands.NewUpdateCommand(),
 		commands.NewImportOllamaCommand(),
 	)
 	return root.run(os.Args[1:])
@@ -102,6 +103,7 @@ func (r *rootCommand) printHelp() {
 	fmt.Println("  vortelio setup                          Install dependencies (llama.cpp, Python)")
 	fmt.Println("  vortelio cleanup                        Analyze disk space")
 	fmt.Println("  vortelio cleanup       --delete         Delete unnecessary files")
+	fmt.Println("  vortelio update        [--check]        Check and install Vortelio updates")
 	fmt.Println("  vortelio help                           Show this message")
 	fmt.Println()
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
