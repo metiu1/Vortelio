@@ -134,6 +134,10 @@ func RunCLICloudTurn(providerID, model, workdir, mode string, autonomous, mcpOn 
 	toolOpts := &cloud.ToolCallOptions{Tools: prov.Tools(), ExecTool: prov.Execute, OnEvent: emit}
 	if autonomous {
 		toolOpts.MaxRounds = 40
+	} else {
+		// Interactive ask/plan turns still need room to read several files before
+		// answering; the default of 5 was too low (model ran out mid-exploration).
+		toolOpts.MaxRounds = 16
 	}
 	return cloud.ChatWithTools(p, key, msgs, toolOpts, onToken)
 }

@@ -638,6 +638,56 @@ func chatOpenAIWithTools(p Provider, apiKey string, messages []Message, opts *To
 		}
 	}
 
+	// Rounds exhausted while the model was still calling tools and never wrote a
+	// textual answer → the user would otherwise see silence. Force one final
+	// completion with tools disabled so there is always a reply.
+	if finalContent.Len() == 0 {
+		body := map[string]interface{}{"model": p.DefaultModel, "messages": msgs, "stream": true}
+		data, _ := json.Marshal(body)
+		if req, err := http.NewRequest("POST", p.BaseURL, bytes.NewReader(data)); err == nil {
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(p.AuthHeader, p.AuthPrefix+apiKey)
+			if p.ID == "openrouter" {
+				req.Header.Set("HTTP-Referer", "https://vortelio.app")
+				req.Header.Set("X-Title", "Vortelio")
+			}
+			client := &http.Client{Timeout: 120 * time.Second}
+			if resp, err := client.Do(req); err == nil {
+				if resp.StatusCode == 200 {
+					scanner := bufio.NewScanner(resp.Body)
+					scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+					for scanner.Scan() {
+						line := scanner.Text()
+						if !strings.HasPrefix(line, "data: ") {
+							continue
+						}
+						payload := strings.TrimPrefix(line, "data: ")
+						if payload == "[DONE]" {
+							break
+						}
+						var chunk struct {
+							Choices []struct {
+								Delta struct {
+									Content string `json:"content"`
+								} `json:"delta"`
+							} `json:"choices"`
+						}
+						if json.Unmarshal([]byte(payload), &chunk) != nil || len(chunk.Choices) == 0 {
+							continue
+						}
+						if c := chunk.Choices[0].Delta.Content; c != "" {
+							finalContent.WriteString(c)
+							if onToken != nil {
+								onToken(c)
+							}
+						}
+					}
+				}
+				resp.Body.Close()
+			}
+		}
+	}
+
 	return finalContent.String(), nil
 }
 

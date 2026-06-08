@@ -137,7 +137,8 @@ func autoSystemPrompt(existing string) string {
 		"never just describe or repeat the raw JSON/output. " +
 		"When a visual or interactive answer would help (a chart, diagram, calculator, table, mock UI, game, " +
 		"animation…), you MAY reply with a single self-contained ```html code block (inline CSS/JS allowed) — it " +
-		"will be rendered live for the user. Use this whenever building it answers the question better than text."
+		"will be rendered live for the user. Use this whenever building it answers the question better than text. " +
+		askUserNudgeEN
 	if strings.TrimSpace(existing) == "" {
 		return nudge
 	}
@@ -156,7 +157,9 @@ func autonomousSystemPrompt(existing string) string {
 		"together, and run them to confirm they work. Do NOT stop to ask for permission or confirmation — act, " +
 		"and only pause if you truly cannot proceed. When you hit a reusable procedure worth keeping, call " +
 		"create_skill to save it. Keep going until the goal is fully met, then end with a short summary of what " +
-		"you built and how to use it."
+		"you built and how to use it. " +
+		"Stay autonomous, but if you hit a genuinely ambiguous choice you cannot reasonably decide on your own, " +
+		"use ask_user(question, 2-5 options) to get a quick graphical decision from the user, then continue."
 	if strings.TrimSpace(existing) == "" {
 		return nudge
 	}
@@ -199,8 +202,19 @@ func CodingSystemPrompt(autonomous bool) string {
 		"Hai anche strumenti web (web_search) e di generazione media (immagini/audio/video/3D): usali solo quando " +
 		"l'utente li chiede davvero, e per impostazione predefinita salva gli artefatti dentro la cartella di lavoro. " +
 		"Dopo che uno strumento restituisce un risultato, scrivi una risposta chiara e completa nella lingua dell'utente; " +
-		"non limitarti a ripetere il JSON grezzo."
+		"non limitarti a ripetere il JSON grezzo. " +
+		askUserNudgeIT
 }
+
+// askUserNudgeIT / askUserNudgeEN instruct the model to use the graphical
+// ask_user tool instead of guessing when it needs a decision from the user.
+const askUserNudgeIT = "Quando ti serve una decisione o un chiarimento dall'utente (più strade valide, dati mancanti, " +
+	"conferma di un approccio), NON tirare a indovinare: chiama lo strumento ask_user con una domanda chiara e 2-5 " +
+	"opzioni — all'utente comparirà un popup grafico con i pulsanti delle opzioni e un campo \"Altro\" per la risposta libera. Usalo solo quando serve davvero."
+
+const askUserNudgeEN = "When you need a decision or clarification from the user (several valid options, missing info, " +
+	"confirming an approach), call the ask_user tool with a clear question and 2-5 options instead of guessing — " +
+	"the user gets a graphical popup with option buttons and an \"Other\" free-text field. Use it only when it genuinely helps."
 
 // workspaceContext tells the agent which folder it is working in AND gives it a
 // live snapshot of that folder (git branch, project type, file tree) so it knows

@@ -51,15 +51,18 @@ func (s *codeSession) readLine() (string, bool) {
 		if pad < 0 { pad = 0 }
 		lines = append(lines, cDim+"│"+cReset+" "+cCyan+"›"+cReset+" "+shown+cInv+" "+cReset+strings.Repeat(" ", pad)+cDim+"│"+cReset)
 		lines = append(lines, cDim+"╰"+strings.Repeat("─", w)+"╯"+cReset)
+		// Status line: current mode + key hints. Always visible so ←/→ mode
+		// switching has a discoverable, live indicator.
+		lines = append(lines, "  "+cDim+"mode "+cReset+cYell+s.mode+cReset+cDim+"  ·  ←/→ mode · / comandi · @ file"+cReset)
 
 		if kind != 0 && len(sugg) > 0 {
 			// Scrolling viewport that follows suggIdx so the highlighted entry
 			// is always visible, even past the first page. Cap the visible rows
-			// to the terminal height (box 3 + up/down markers + hint = 6 rows of
-			// overhead) so the whole block never spills past the bottom of the
-			// screen — when it did, the terminal scrolled and the in-place
-			// redraw lost the highlighted row.
-			visible := termHeight() - 6
+			// to the terminal height (box 3 + status line + up/down markers +
+			// hint = 7 rows of overhead) so the whole block never spills past the
+			// bottom of the screen — when it did, the terminal scrolled and the
+			// in-place redraw lost the highlighted row.
+			visible := termHeight() - 7
 			if visible < 3 { visible = 3 }
 			if visible > 10 { visible = 10 }
 			start, end := windowBounds(suggIdx, len(sugg), visible)
@@ -170,9 +173,18 @@ func (s *codeSession) readLine() (string, bool) {
 						suggIdx++
 					}
 					render()
-				case 'C': // right → complete
-					complete(); render()
-				case 'D': // left — ignore
+				case 'C': // right → complete suggestion, else cycle mode forward
+					if k, _, sg := s.suggestions(string(buf)); k != 0 && len(sg) > 0 {
+						complete()
+					} else {
+						s.cycleMode(1)
+					}
+					render()
+				case 'D': // left → cycle mode backward (when no suggestion menu)
+					if k, _, sg := s.suggestions(string(buf)); k == 0 || len(sg) == 0 {
+						s.cycleMode(-1)
+					}
+					render()
 				}
 			}
 		default:
@@ -183,6 +195,22 @@ func (s *codeSession) readLine() (string, bool) {
 			}
 		}
 	}
+}
+
+// cycleMode advances the session mode (ask · plan · auto) by dir (+1/-1),
+// keeps the autonomous flag in sync with "auto", and persists the choice.
+func (s *codeSession) cycleMode(dir int) {
+	order := []string{"ask", "plan", "auto"}
+	i := 0
+	for k, m := range order {
+		if m == s.mode {
+			i = k
+		}
+	}
+	i = (i + dir + len(order)) % len(order)
+	s.mode = order[i]
+	s.autonomous = s.mode == "auto"
+	s.savePrefs()
 }
 
 // suggestions returns (kind, fragment, list) for the current input.
