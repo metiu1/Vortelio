@@ -95,10 +95,11 @@ func (c *CodeCommand) Run(args []string) error {
 		if err != nil { return fmt.Errorf("modello non valido: %w", err) }
 		s.model, err = store.Resolve(ref)
 		if err != nil { return fmt.Errorf("modello non trovato: %w", err) }
-	} else {
+	} else if !s.restoreFromPrefs(store) {
+		// No explicit model and nothing restorable from last session → default.
 		s.model = pickDefaultLLM(store)
 	}
-	if s.model == nil {
+	if s.model == nil && s.cloudProvider == "" {
 		if cl := server.CloudModelsForCLI(); len(cl) > 0 {
 			s.cloudProvider = cl[0].Provider; s.cloudModel = cl[0].Model
 		} else {
@@ -212,7 +213,7 @@ func (s *codeSession) runTurn(line string) {
 	} else {
 		prov, sys := server.BuildCLIHarness(s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, s.emit, s.approve, s.askUser)
 		sopts := runtime.StreamOpts{System: sys, Messages: s.messages, ToolsEnabled: true, ToolProvider: prov}
-		if s.autonomous { sopts.MaxToolRounds = 40 }
+		if s.autonomous { sopts.MaxToolRounds = 40 } else { sopts.MaxToolRounds = 16 }
 		err = s.runner.StreamWithOpts(sopts, onTok, s.emit)
 	}
 	fmt.Print("\n")
@@ -304,6 +305,7 @@ func (s *codeSession) handleCommand(line string) bool {
 		s.autonomous = !s.autonomous
 		if s.autonomous { s.mode = "auto" }
 		fmt.Printf("  %sautonomo: %v%s\n", cYell, s.autonomous, cReset)
+		s.savePrefs()
 	case "/mode":
 		if len(parts) > 1 && (parts[1] == "plan" || parts[1] == "ask" || parts[1] == "auto") {
 			s.mode = parts[1]
@@ -311,7 +313,9 @@ func (s *codeSession) handleCommand(line string) bool {
 			fmt.Printf("  %smode attuale: %s — usa /mode plan|ask|auto%s\n", cDim, s.mode, cReset)
 			return false
 		}
+		s.autonomous = s.mode == "auto"
 		fmt.Printf("  %smode: %s%s\n", cYell, s.mode, cReset)
+		s.savePrefs()
 	case "/mcp":
 		s.mcpOn = !s.mcpOn
 		fmt.Printf("  %sMCP: %v%s\n", cYell, s.mcpOn, cReset)
@@ -361,6 +365,7 @@ func (s *codeSession) chooseModel() {
 		s.cloudProvider = c.Provider; s.cloudModel = c.Model
 		fmt.Printf("  %s✓ ☁ %s%s\n", cGreen, c.Label, cReset)
 	}
+	s.savePrefs()
 }
 
 func (s *codeSession) chooseSkills() {

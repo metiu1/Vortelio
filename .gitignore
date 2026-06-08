@@ -13,6 +13,13 @@ vortelio/vortelio-*-amd64
 vortelio/vortelio-*-amd64.exe
 vortelio-installer/build/*.exe
 vortelio-installer/*.exe
+# Local dev exes / backups / scratch (never commit)
+vortelio/*.exe
+vortelio/*.exe~
+vortelio/bin/
+vortelio/bin._old*/
+vortelio/output.txt
+vortelio/*.log
 .DS_Store
 Thumbs.db
 # Firebase credentials — NEVER commit
