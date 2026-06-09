@@ -161,6 +161,12 @@ func (s *codeSession) emit(ev string, data interface{}) {
 
 // approve is the synchronous terminal approval for "ask" mode.
 func (s *codeSession) approve(tool, summary, args string) bool {
+	// Once the user picked "a" (auto) — or the session is autonomous — stop
+	// prompting: the gate keeps calling approve with its build-time mode, so this
+	// is what actually silences further confirmations for the rest of the session.
+	if s.mode == "auto" || s.autonomous {
+		return true
+	}
 	fmt.Printf("\n  %s⚠ Conferma azione%s  %s%s%s\n", cYell, cReset, cBold, summary, cReset)
 	fmt.Printf("  %s%s%s\n", cDim, truncStr(args, 200), cReset)
 	fmt.Printf("  [%sy%s] sì   [%sn%s] no   [%sa%s] sì a tutto (auto)  ", cGreen, cReset, cRed, cReset, cCyan, cReset)
@@ -456,7 +462,17 @@ func pickDefaultLLM(store *hub.ModelStore) *hub.Model {
 }
 
 func truncStr(s string, max int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
+	// Strip control chars (esp. \r) so printed tool output can't move the cursor
+	// to column 0 and overwrite previous lines (garbled terminal rendering).
+	s = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return ' '
+		}
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
 	if len(s) > max { return s[:max] + "…" }
 	return s
 }
