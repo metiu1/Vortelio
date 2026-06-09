@@ -10,7 +10,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-VERSION = "0.3.61"
+VERSION = "0.3.62"
 RELEASE_BASE = os.environ.get(
     "VORTELIO_RELEASE_BASE",
     f"https://github.com/metiu1/Vortelio/releases/download/v{VERSION}",
@@ -49,21 +49,33 @@ def _download(url: str, dest: Path) -> None:
 
 def _resolve_binary() -> Path:
     name = _binary_name()
-    bundled = BIN_DIR / name
-    if bundled.exists():
-        return bundled
     cached = _cache_dir() / name
-    if cached.exists():
-        return cached
-    url = f"{RELEASE_BASE}/{name}"
-    try:
-        _download(url, cached)
-    except Exception as e:
-        sys.stderr.write(
-            f"vortelio: no bundled binary for this platform ({name}) and "
-            f"download failed: {e}\nSet VORTELIO_RELEASE_BASE or place a binary at {bundled}\n"
-        )
-        sys.exit(1)
+    bundled = BIN_DIR / name
+    # IMPORTANT: always run the binary from the cache dir, never directly from the
+    # package inside the uv venv. A running server keeps the exe open; if that exe
+    # lived in the venv, the next `uv tool install/uninstall` could not replace it
+    # ("Access denied") and would leave a half-removed install
+    # (ModuleNotFoundError: vortelio_cli). The cache is version-scoped and outside
+    # the venv, so the venv is never locked.
+    if not cached.exists():
+        if bundled.exists():
+            try:
+                cached.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(bundled, cached)
+                if os.name != "nt":
+                    cached.chmod(cached.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            except Exception:
+                return bundled  # fall back to in-package binary
+        else:
+            url = f"{RELEASE_BASE}/{name}"
+            try:
+                _download(url, cached)
+            except Exception as e:
+                sys.stderr.write(
+                    f"vortelio: no bundled binary for this platform ({name}) and "
+                    f"download failed: {e}\nSet VORTELIO_RELEASE_BASE or place a binary at {bundled}\n"
+                )
+                sys.exit(1)
     return cached
 
 
