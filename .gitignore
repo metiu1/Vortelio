@@ -33,3 +33,6 @@ service-account*.json
 *.swp
 *.bak
 
+
+# Claude Code local settings
+.claude/
