@@ -10,7 +10,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-VERSION = "0.3.66"
+VERSION = "0.3.67"
 RELEASE_BASE = os.environ.get(
     "VORTELIO_RELEASE_BASE",
     f"https://github.com/metiu1/Vortelio/releases/download/v{VERSION}",
@@ -62,7 +62,14 @@ def _resolve_binary() -> Path:
             try:
                 cached.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(bundled, cached)
-                if os.name != "nt":
+                if os.name == "nt":
+                    # Strip the "Mark of the Web" so Windows SmartScreen doesn't
+                    # block the copied binary as "downloaded from the internet".
+                    try:
+                        os.remove(str(cached) + ":Zone.Identifier")
+                    except OSError:
+                        pass
+                else:
                     cached.chmod(cached.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             except Exception:
                 return bundled  # fall back to in-package binary
@@ -92,28 +99,57 @@ def _prune_old_cache() -> None:
         pass
 
 
+def _blocked_by_policy(err: OSError) -> bool:
+    if getattr(err, "winerror", None) == 4551:
+        return True
+    msg = str(err).lower()
+    return "criterio di controllo" in msg or "application control" in msg or "blocked" in msg
+
+
+def _explain_policy_block(binary: Path) -> None:
+    sys.stderr.write(
+        "\n"
+        "⚠ Windows ha bloccato l'avvio di Vortelio (Smart App Control / criterio di\n"
+        "controllo applicazioni). Il binario non è ancora firmato digitalmente.\n\n"
+        "Per consentirlo (una volta sola):\n"
+        "  Impostazioni → Privacy e sicurezza → Sicurezza di Windows →\n"
+        "  Controllo app e browser → Smart App Control → impostalo su 'Disattivato'.\n"
+        "  (Su PC aziendali può essere una policy AppLocker/WDAC: chiedi all'IT\n"
+        "   di consentire questo eseguibile.)\n\n"
+        f"Eseguibile bloccato:\n  {binary}\n\n"
+        "In alternativa, scarica e avvia l'exe dalle Release:\n"
+        "  https://github.com/metiu1/Vortelio/releases/latest\n"
+    )
+
+
 def main() -> int:
     binary = _resolve_binary()
     _prune_old_cache()
     args = sys.argv[1:]
-    if os.name == "nt":
-        # `gui` just starts a detached background server and opens a window, then
-        # it's done. Launch it fully detached and exit immediately, so this python
-        # process (which lives in the uv venv) doesn't linger and lock the venv —
-        # a lingering launcher is what made `uv tool install` fail with
-        # "Access denied" and corrupt the install.
-        if args[:1] == ["gui"]:
-            DETACHED_PROCESS = 0x00000008
-            CREATE_NEW_PROCESS_GROUP = 0x00000200
-            subprocess.Popen(
-                [str(binary), *args],
-                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-                close_fds=True,
-            )
-            return 0
-        return subprocess.call([str(binary), *args])
-    os.execv(str(binary), [str(binary), *args])
-    return 0  # unreachable
+    try:
+        if os.name == "nt":
+            # `gui` just starts a detached background server and opens a window,
+            # then it's done. Launch it fully detached and exit immediately, so
+            # this python process (which lives in the uv venv) doesn't linger and
+            # lock the venv — a lingering launcher is what made `uv tool install`
+            # fail with "Access denied" and corrupt the install.
+            if args[:1] == ["gui"]:
+                DETACHED_PROCESS = 0x00000008
+                CREATE_NEW_PROCESS_GROUP = 0x00000200
+                subprocess.Popen(
+                    [str(binary), *args],
+                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                    close_fds=True,
+                )
+                return 0
+            return subprocess.call([str(binary), *args])
+        os.execv(str(binary), [str(binary), *args])
+        return 0  # unreachable
+    except OSError as e:
+        if _blocked_by_policy(e):
+            _explain_policy_block(binary)
+            return 1
+        raise
 
 
 if __name__ == "__main__":
