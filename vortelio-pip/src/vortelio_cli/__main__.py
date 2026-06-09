@@ -10,7 +10,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-VERSION = "0.3.62"
+VERSION = "0.3.63"
 RELEASE_BASE = os.environ.get(
     "VORTELIO_RELEASE_BASE",
     f"https://github.com/metiu1/Vortelio/releases/download/v{VERSION}",
@@ -79,8 +79,22 @@ def _resolve_binary() -> Path:
     return cached
 
 
+def _prune_old_cache() -> None:
+    """Remove cached binaries from previous versions so updates don't pile up
+    38MB folders forever. Best-effort: a still-running old server keeps its exe
+    locked, so that folder is skipped and cleaned on a later run."""
+    try:
+        base = _cache_dir().parent  # ~/.cache/vortelio
+        for child in base.iterdir():
+            if child.is_dir() and child.name != VERSION:
+                shutil.rmtree(child, ignore_errors=True)
+    except Exception:
+        pass
+
+
 def main() -> int:
     binary = _resolve_binary()
+    _prune_old_cache()
     if os.name == "nt":
         return subprocess.call([str(binary), *sys.argv[1:]])
     os.execv(str(binary), [str(binary), *sys.argv[1:]])
