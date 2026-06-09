@@ -349,6 +349,11 @@ func toolRunCode(argsJSON string) (string, error) {
 	if strings.TrimSpace(a.Code) == "" {
 		return "", fmt.Errorf("code is required")
 	}
+	// Models frequently omit the language; default to Python (the most common)
+	// instead of failing the round with "unsupported language".
+	if strings.TrimSpace(a.Language) == "" {
+		a.Language = "python"
+	}
 	out, err := RunCodeSnippet(a.Language, a.Code)
 	if err != nil {
 		return fmt.Sprintf("Errore: %v\n%s", err, out), nil
