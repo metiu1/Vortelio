@@ -95,6 +95,41 @@ Release-download users and PyPI users get the signed binary immediately.
 
 ---
 
+## End-user workaround — running on a PC with Smart App Control ON
+
+If a user hits `WinError 4551 — an application control policy has blocked the
+file`, their Windows 11 has **Smart App Control** enabled and it blocks the
+unsigned binary. There is **no per-app allow** and **no temporary disable** for
+Smart App Control — it's all-or-nothing and, once turned off, **cannot be turned
+back on without reinstalling Windows**. The only ways to run the unsigned binary
+are below; the user must do this **consciously, on their own machine**.
+
+**Option A — Settings (recommended, reversible only by OS reinstall):**
+1. Start → search **Windows Security** → open it
+2. **App & browser control**
+3. **Smart App Control settings**
+4. Set it to **Off** → confirm
+5. Re-run `vortelio`
+
+**Option B — PowerShell (same effect as Option A, run as Administrator):**
+
+```powershell
+# ⚠️ Requires Administrator. PERMANENTLY disables Smart App Control
+# (0 = off, 1 = enforce, 2 = evaluation). A reboot is required.
+# Re-enabling later needs a Windows reinstall. Same one-way switch as the UI.
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" `
+  -Name "VerifiedAndReputablePolicyState" -Value 0 -Type DWord
+# then reboot the PC
+```
+
+> 🚫 **Vortelio must NEVER run this automatically.** Software that disables a
+> Windows security feature is exactly what malware does and would get Vortelio
+> flagged as a PUA/virus. This is documented only as a manual, informed choice
+> the end user makes on their own PC. The clean fix is to **sign the binary**
+> (above), so users never have to touch Smart App Control at all.
+
+---
+
 ### Alternatives if SignPath OSS is declined
 
 - **Azure Trusted Signing** — ~$10/month, Microsoft-trusted, needs identity
