@@ -29,9 +29,17 @@ func startWindowsUpdater(uv string, pid int, restartGUI bool, logPath string) (S
 $log = %q
 "Vortelio update started at $(Get-Date -Format o)" | Out-File -FilePath $log -Encoding utf8
 try { Wait-Process -Id %d -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Milliseconds 1200
-& %q tool install --reinstall --refresh %q *> $log
-$code = $LASTEXITCODE
+Start-Sleep -Milliseconds 800
+# Stop every running Vortelio process (the background server locks the install
+# files; otherwise uv fails with "Access denied" and corrupts the install).
+Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like '*vortelio*' } | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 800
+$code = 1
+for ($i = 0; $i -lt 3 -and $code -ne 0; $i++) {
+  & %q tool install --reinstall --refresh %q *>> $log
+  $code = $LASTEXITCODE
+  if ($code -ne 0) { Start-Sleep -Seconds 2 }
+}
 "Exit code: $code" | Out-File -FilePath $log -Append -Encoding utf8
 %sexit $code
 `, logPath, pid, uv, RepoInstallSpec, restartLine)
