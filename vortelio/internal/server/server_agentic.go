@@ -206,6 +206,9 @@ func CodingSystemPrompt(autonomous bool) string {
 		"l'utente li chiede davvero, e per impostazione predefinita salva gli artefatti dentro la cartella di lavoro. " +
 		"Dopo che uno strumento restituisce un risultato, scrivi una risposta chiara e completa nella lingua dell'utente; " +
 		"non limitarti a ripetere il JSON grezzo. " +
+		"Per file molto grandi (dataset, migliaia di righe) NON tentare un'unica scrittura gigante: " +
+		"crea il file e poi AGGIUNGI il contenuto a blocchi con write_file e append=true, ripetendo finché è completo, " +
+		"e alla fine verifica la dimensione/righe con read_file. " +
 		conciseNudgeIT + " " +
 		askUserNudgeIT
 }
@@ -761,8 +764,8 @@ func (c *codingProvider) Tools() []rt.ToolDef {
 			`{"type":"object","properties":{"pattern":{"type":"string","description":"Glob pattern relative to workspace root."}},"required":["pattern"]}`),
 		toolDef("grep_search", "Search file contents for a substring and return matching lines.",
 			`{"type":"object","properties":{"query":{"type":"string"},"path":{"type":"string","description":"Optional sub-path to search. Defaults to workspace root."}},"required":["query"]}`),
-		toolDef("write_file", "Create or overwrite a file with the given content. (requires approval)",
-			`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`),
+		toolDef("write_file", "Create or overwrite a file. Set append=true to add to the end instead — use it to build large files (e.g. a big dataset) in several chunks. (requires approval)",
+			`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"append":{"type":"boolean","description":"Append to the end instead of overwriting. Default false."}},"required":["path","content"]}`),
 		toolDef("edit_file", "Replace the first occurrence of old_text with new_text in a file. (requires approval)",
 			`{"type":"object","properties":{"path":{"type":"string"},"old_text":{"type":"string"},"new_text":{"type":"string"}},"required":["path","old_text","new_text"]}`),
 		toolDef("run_shell", "Run a shell command in the workspace and return its output. (requires approval)",
@@ -1070,6 +1073,7 @@ func (c *codingProvider) writeFile(argsJSON string) (string, error) {
 	var a struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
+		Append  bool   `json:"append"`
 	}
 	json.Unmarshal([]byte(argsJSON), &a)
 	full, err := c.resolvePath(a.Path)
@@ -1079,10 +1083,28 @@ func (c *codingProvider) writeFile(argsJSON string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(full, []byte(a.Content), 0644); err != nil {
+	if a.Append {
+		f, err := os.OpenFile(full, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return "", err
+		}
+		if _, err := f.WriteString(a.Content); err != nil {
+			f.Close()
+			return "", err
+		}
+		f.Close()
+	} else if err := os.WriteFile(full, []byte(a.Content), 0644); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("wrote %d bytes to %s", len(a.Content), full), nil
+	total := int64(0)
+	if fi, err := os.Stat(full); err == nil {
+		total = fi.Size()
+	}
+	verb := "wrote"
+	if a.Append {
+		verb = "appended"
+	}
+	return fmt.Sprintf("%s %d bytes to %s (total %d bytes)", verb, len(a.Content), full, total), nil
 }
 
 func (c *codingProvider) editFile(argsJSON string) (string, error) {

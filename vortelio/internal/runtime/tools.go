@@ -182,8 +182,8 @@ func BuiltinTools() []ToolDef {
 			Type: "function",
 			Function: ToolFuncDef{
 				Name:        "write_file",
-				Description: "Writes content to a file on the local filesystem. Creates the file if it does not exist.",
-				Parameters:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Path to the file"},"content":{"type":"string","description":"Content to write"}},"required":["path","content"]}`),
+				Description: "Writes content to a file. Creates it if missing. Set append=true to add to the end instead of overwriting — use this to build large files (e.g. a big dataset) in several chunks.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"Path to the file"},"content":{"type":"string","description":"Content to write"},"append":{"type":"boolean","description":"If true, append to the end of the file instead of overwriting. Default false."}},"required":["path","content"]}`),
 			},
 		},
 		{
@@ -722,6 +722,7 @@ func toolWriteFile(argsJSON string) (string, error) {
 	var args struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
+		Append  bool   `json:"append"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil || args.Path == "" {
 		return "", fmt.Errorf("path and content are required")
@@ -729,13 +730,29 @@ func toolWriteFile(argsJSON string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(args.Path), 0755); err != nil {
 		return "", fmt.Errorf("cannot create directory: %w", err)
 	}
-	if err := os.WriteFile(args.Path, []byte(args.Content), 0644); err != nil {
+	if args.Append {
+		f, err := os.OpenFile(args.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return "", fmt.Errorf("cannot open file %q: %w", args.Path, err)
+		}
+		if _, err := f.WriteString(args.Content); err != nil {
+			f.Close()
+			return "", fmt.Errorf("cannot append to file %q: %w", args.Path, err)
+		}
+		f.Close()
+	} else if err := os.WriteFile(args.Path, []byte(args.Content), 0644); err != nil {
 		return "", fmt.Errorf("cannot write file %q: %w", args.Path, err)
 	}
+	total := int64(0)
+	if fi, err := os.Stat(args.Path); err == nil {
+		total = fi.Size()
+	}
 	b, _ := json.Marshal(map[string]interface{}{
-		"path":    args.Path,
-		"written": len(args.Content),
-		"status":  "ok",
+		"path":       args.Path,
+		"written":    len(args.Content),
+		"total_size": total,
+		"appended":   args.Append,
+		"status":     "ok",
 	})
 	return string(b), nil
 }
