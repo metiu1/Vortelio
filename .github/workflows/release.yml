@@ -44,16 +44,61 @@ jobs:
           name: vortelio-${{ matrix.goos }}-${{ matrix.goarch }}
           path: vortelio/dist/vortelio-*
 
+  # Authenticode-sign the Windows binary via SignPath. Runs ONLY when SignPath is
+  # configured (org id present), so the pipeline keeps working unsigned until the
+  # free OSS signing is approved and the secrets/vars are set. See SIGNING.md.
+  sign-windows:
+    name: Sign Windows binary (SignPath)
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ vars.SIGNPATH_ORG_ID != '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vortelio-windows-amd64
+          path: to-sign
+      - id: sign
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORG_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_SLUG }}
+          github-artifact-id: ${{ github.event.workflow_run.id || '' }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vortelio-windows-amd64-signed
+          path: signed/*
+
   release:
     name: GitHub Release
-    needs: build
+    needs: [build, sign-windows]
+    if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: dist
-          merge-multiple: true
+          path: artifacts
+      - name: Assemble dist (prefer the SIGNED Windows binary if present)
+        run: |
+          mkdir -p dist
+          # Non-Windows binaries straight from the build job.
+          cp artifacts/vortelio-linux-amd64/*   dist/ 2>/dev/null || true
+          cp artifacts/vortelio-linux-arm64/*   dist/ 2>/dev/null || true
+          cp artifacts/vortelio-darwin-amd64/*  dist/ 2>/dev/null || true
+          cp artifacts/vortelio-darwin-arm64/*  dist/ 2>/dev/null || true
+          # Windows: signed if available, else the unsigned build.
+          if [ -f artifacts/vortelio-windows-amd64-signed/vortelio-windows-amd64.exe ]; then
+            echo "Using SIGNED Windows binary"
+            cp artifacts/vortelio-windows-amd64-signed/vortelio-windows-amd64.exe dist/
+          else
+            echo "::warning::SignPath not configured — shipping UNSIGNED Windows binary"
+            cp artifacts/vortelio-windows-amd64/vortelio-windows-amd64.exe dist/
+          fi
       - name: Generate checksums
         working-directory: dist
         run: sha256sum * > SHA256SUMS.txt
@@ -66,19 +111,27 @@ jobs:
 
   pypi:
     name: Publish Python wrapper to PyPI
-    needs: build
+    needs: [build, sign-windows]
+    if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     environment: pypi
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: bins
-          merge-multiple: true
-      - name: Copy binaries into wheel
+          path: artifacts
+      - name: Copy binaries into wheel (signed Windows if present)
         run: |
           mkdir -p vortelio-pip/src/vortelio_cli/bin
-          cp bins/vortelio-* vortelio-pip/src/vortelio_cli/bin/
+          cp artifacts/vortelio-linux-amd64/*   vortelio-pip/src/vortelio_cli/bin/ 2>/dev/null || true
+          cp artifacts/vortelio-linux-arm64/*   vortelio-pip/src/vortelio_cli/bin/ 2>/dev/null || true
+          cp artifacts/vortelio-darwin-amd64/*  vortelio-pip/src/vortelio_cli/bin/ 2>/dev/null || true
+          cp artifacts/vortelio-darwin-arm64/*  vortelio-pip/src/vortelio_cli/bin/ 2>/dev/null || true
+          if [ -f artifacts/vortelio-windows-amd64-signed/vortelio-windows-amd64.exe ]; then
+            cp artifacts/vortelio-windows-amd64-signed/vortelio-windows-amd64.exe vortelio-pip/src/vortelio_cli/bin/
+          else
+            cp artifacts/vortelio-windows-amd64/vortelio-windows-amd64.exe vortelio-pip/src/vortelio_cli/bin/
+          fi
       - uses: astral-sh/setup-uv@v3
       - run: uv build
         working-directory: vortelio-pip
