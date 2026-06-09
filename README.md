@@ -77,18 +77,42 @@
 
 ## 🚀 Install
 
-### Via `uv` (cross-platform, recommended)
+### 0. Install `uv` first (required)
+
+Vortelio is installed and updated through [`uv`](https://docs.astral.sh/uv/). Install it once:
+
+```bash
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# …or, if you already have Python/pip
+pip install uv
+```
+
+Close and reopen your terminal so `uv` is on your `PATH`, then continue below.
+
+### 1. Install Vortelio (cross-platform, recommended)
 
 ```bash
 uv tool install "git+https://github.com/metiu1/Vortelio#subdirectory=vortelio-pip"
 vortelio gui
 ```
 
-### Via `pip`
+### Update Vortelio
+
+Always update from inside Vortelio — it stops the running server first, so the
+install never breaks:
 
 ```bash
-pip install "vortelio @ git+https://github.com/metiu1/Vortelio#subdirectory=vortelio-pip"
+vortelio update          # CLI
 ```
+
+…or click **🔄 Update Vortelio** in the menu / **Aggiorna Vortelio** in the web UI.
+A notification appears automatically when a new version is available. Avoid
+re-running `uv tool install` by hand while Vortelio is open.
 
 ### Windows installer
 

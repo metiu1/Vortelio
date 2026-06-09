@@ -10,7 +10,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-VERSION = "0.3.63"
+VERSION = "0.3.64"
 RELEASE_BASE = os.environ.get(
     "VORTELIO_RELEASE_BASE",
     f"https://github.com/metiu1/Vortelio/releases/download/v{VERSION}",
@@ -95,9 +95,24 @@ def _prune_old_cache() -> None:
 def main() -> int:
     binary = _resolve_binary()
     _prune_old_cache()
+    args = sys.argv[1:]
     if os.name == "nt":
-        return subprocess.call([str(binary), *sys.argv[1:]])
-    os.execv(str(binary), [str(binary), *sys.argv[1:]])
+        # `gui` just starts a detached background server and opens a window, then
+        # it's done. Launch it fully detached and exit immediately, so this python
+        # process (which lives in the uv venv) doesn't linger and lock the venv —
+        # a lingering launcher is what made `uv tool install` fail with
+        # "Access denied" and corrupt the install.
+        if args[:1] == ["gui"]:
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_PROCESS_GROUP = 0x00000200
+            subprocess.Popen(
+                [str(binary), *args],
+                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                close_fds=True,
+            )
+            return 0
+        return subprocess.call([str(binary), *args])
+    os.execv(str(binary), [str(binary), *args])
     return 0  # unreachable
 
 
