@@ -709,16 +709,17 @@ func toolReadFile(argsJSON string) (string, error) {
 		content = content[:maxLen]
 		truncated = true
 	}
-	out := map[string]interface{}{"path": args.Path, "content": content, "total_lines": total}
+	// Return RAW text, not JSON-wrapped: JSON escaping (\n, \") roughly doubles
+	// the tokens of source code. A tiny bracketed header carries the metadata only
+	// when it's actually useful (a partial or truncated read).
+	var header string
 	if ranged {
-		out["line_start"], out["line_end"] = start, end
+		header += fmt.Sprintf("[%s · lines %d-%d of %d]\n", args.Path, start, end, total)
 	}
 	if truncated {
-		out["truncated"] = true
-		out["note"] = fmt.Sprintf("content truncated to %d chars; request a smaller line range", maxLen)
+		header += fmt.Sprintf("[truncated to %d chars — request a smaller line range]\n", maxLen)
 	}
-	b, _ := json.Marshal(out)
-	return string(b), nil
+	return header + content, nil
 }
 
 // ── write_file ───────────────────────────────────────────────────────────────
@@ -777,30 +778,22 @@ func toolListDirectory(argsJSON string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot list directory %q: %w", dir, err)
 	}
-	type entry struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-		Size int64  `json:"size,omitempty"`
-	}
-	var list []entry
+	// Compact, token-efficient listing instead of an array of repeated
+	// {name,type,size} objects: directories end with "/", files show their size.
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s (%d items) — dirs end with /, files show size in bytes:\n", dir, len(entries)))
 	for _, e := range entries {
-		t := "file"
 		if e.IsDir() {
-			t = "dir"
+			sb.WriteString(e.Name() + "/\n")
+			continue
 		}
 		var sz int64
-		if !e.IsDir() {
-			if info, err := e.Info(); err == nil {
-				sz = info.Size()
-			}
+		if info, err := e.Info(); err == nil {
+			sz = info.Size()
 		}
-		list = append(list, entry{Name: e.Name(), Type: t, Size: sz})
+		sb.WriteString(fmt.Sprintf("%s\t%d\n", e.Name(), sz))
 	}
-	if list == nil {
-		list = []entry{}
-	}
-	b, _ := json.Marshal(map[string]interface{}{"path": dir, "entries": list})
-	return string(b), nil
+	return sb.String(), nil
 }
 
 // ── web_search ───────────────────────────────────────────────────────────────
