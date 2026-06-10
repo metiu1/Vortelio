@@ -1200,6 +1200,7 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
         🔗 <span id="remote-topbar-label">remote</span>
       </div>
       <div class="topbar-right">
+        <button class="topbar-btn" id="pwa-install-btn" onclick="installPWA()" title="Installa Vortelio come app con la sua icona" style="display:none">📥 Installa app</button>
         <button class="topbar-btn update" id="update-topbar-btn" onclick="startVortelioUpdate()" title="Install the latest Vortelio update" style="display:none">
           ↑ <span id="update-topbar-label">Update</span>
         </button>
@@ -3376,6 +3377,32 @@ function init() {
 }
 
 let _onboardChecked = false;
+// ── Install as a PWA (so Windows shows the Vortelio icon, not Edge's) ──
+let _deferredPWA = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredPWA = e;
+  const b = document.getElementById('pwa-install-btn');
+  if (b) b.style.display = '';
+});
+window.addEventListener('appinstalled', () => {
+  _deferredPWA = null;
+  const b = document.getElementById('pwa-install-btn');
+  if (b) b.style.display = 'none';
+  try { toast('✅ Vortelio installato come app — cercalo nel menu Start (icona Vortelio)', 'ok'); } catch {}
+});
+async function installPWA() {
+  if (!_deferredPWA) {
+    try { toast('Apri http://localhost:11500 in una scheda Edge normale e usa "Installa" nella barra indirizzi', 'ok'); } catch {}
+    return;
+  }
+  _deferredPWA.prompt();
+  try { await _deferredPWA.userChoice; } catch {}
+  _deferredPWA = null;
+  const b = document.getElementById('pwa-install-btn');
+  if (b) b.style.display = 'none';
+}
+
 let vortelioUpdateInfo = null;
 let _updateNotified = false;
 
