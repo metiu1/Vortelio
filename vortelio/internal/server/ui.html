@@ -7364,11 +7364,23 @@ async function agentStart(id) {
       body: JSON.stringify({ id }),
     });
     const d = await r.json();
-    if (d.healthy) {
+    await refreshAgentCatalog();
+    // Auto-open the agent's web interface once it's up — that's what the user
+    // expects after "Start" (before, nothing opened and you had to find the
+    // "Open web interface" button).
+    const a = agentCatalog.find(x => x.id === id);
+    const port = a && a.state && a.state.port;
+    if (port > 0) {
+      window.open('http://localhost:' + port, '_blank');
+      toast('🌐 ' + (a && a.name ? a.name : 'Agent') + ' avviato — apro l\'interfaccia…', 'ok');
+    } else if (a && a.state && a.state.running) {
+      toast('▶ ' + (a && a.name ? a.name : 'Agent') + ' avviato (nessuna interfaccia web — è da terminale)', 'ok');
+    } else if (d.healthy) {
       toast('✅ Agent started and ready!', 'ok');
     } else {
       toast('▶ Agent started (health check not responded yet)', 'ok');
     }
+    return;
   } catch(e) {
     toast('❌ Start failed: ' + e.message, 'err');
   }
