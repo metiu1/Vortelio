@@ -1395,7 +1395,7 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
         <div style="font-size:13px;font-weight:500;margin-bottom:8px">🤗 Cerca modelli su HuggingFace</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
           <input id="hf-q" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:13px;outline:none"
-            placeholder="es. qwen2.5 gguf, llama 3, flux, whisper…" onkeydown="if(event.key==='Enter')hfSearch()">
+            placeholder="es. qwen2.5 gguf, llama 3, flux, whisper…" oninput="hfSearchDebounced()" onkeydown="if(event.key==='Enter')hfSearch()">
           <button class="btn primary" onclick="hfSearch()">Cerca</button>
         </div>
         <div id="hf-results" style="max-height:340px;overflow-y:auto"></div>
@@ -6206,15 +6206,33 @@ function showCustomInstall() {
   }
 }
 
-// Search HuggingFace and offer one-click download of a found model.
-async function hfSearch() {
+// Live HuggingFace search: debounce typing and cancel in-flight requests so the
+// results update in real time without races/flicker.
+let _hfTimer = null, _hfAbort = null, _hfSeq = 0;
+function hfSearchDebounced() {
+  clearTimeout(_hfTimer);
   const q = document.getElementById('hf-q').value.trim();
   const box = document.getElementById('hf-results');
-  if (!q) return;
+  if (q.length < 2) { if (box) box.innerHTML = ''; return; }
+  _hfTimer = setTimeout(hfSearch, 300);
+}
+
+// Search HuggingFace and offer one-click download of a found model.
+async function hfSearch() {
+  clearTimeout(_hfTimer);
+  const q = document.getElementById('hf-q').value.trim();
+  const box = document.getElementById('hf-results');
+  if (!q) { if (box) box.innerHTML = ''; return; }
+  // Cancel any in-flight search so a slower older response can't overwrite a newer one.
+  if (_hfAbort) { try { _hfAbort.abort(); } catch {} }
+  _hfAbort = new AbortController();
+  const seq = ++_hfSeq;
   box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Cerco su HuggingFace…</div>';
   try {
-    const r = await fetch('/api/hf/search?q=' + encodeURIComponent(q));
+    const r = await fetch('/api/hf/search?q=' + encodeURIComponent(q), { signal: _hfAbort.signal });
+    if (seq !== _hfSeq) return; // a newer search started — ignore this stale result
     const d = await r.json();
+    if (seq !== _hfSeq) return;
     const models = d.models || [];
     if (!models.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Nessun risultato</div>'; return; }
     const ico = { llm: '💬', image: '🎨', audio: '🔊', video: '🎬', '3d': '🧊' };
@@ -6230,7 +6248,10 @@ async function hfSearch() {
         <button class="btn primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="hfDownload('${esc(m.id)}','${m.type}')">⬇ Scarica</button>
       </div>`;
     }).join('');
-  } catch (e) { box.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px">Errore: ' + esc(e.message) + '</div>'; }
+  } catch (e) {
+    if (e.name === 'AbortError' || seq !== _hfSeq) return; // cancelled / superseded — ignore
+    box.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px">Errore: ' + esc(e.message) + '</div>';
+  }
 }
 function hfDownload(id, type) {
   showCustomInstall();
