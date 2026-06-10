@@ -1398,6 +1398,31 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
             placeholder="es. qwen2.5 gguf, llama 3, flux, whisper…" oninput="hfSearchDebounced()" onkeydown="if(event.key==='Enter')hfSearch()">
           <button class="btn primary" onclick="hfSearch()">Cerca</button>
         </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12px">
+          <select id="hf-type" onchange="hfSearch()" class="hf-filter" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:12px;font-family:var(--sans)">
+            <option value="">Tutti i tipi</option>
+            <option value="llm">💬 LLM</option>
+            <option value="image">🎨 Immagini</option>
+            <option value="audio">🔊 Audio</option>
+            <option value="video">🎬 Video</option>
+            <option value="3d">🧊 3D</option>
+          </select>
+          <select id="hf-sort" onchange="hfSearch()" class="hf-filter" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:12px;font-family:var(--sans)">
+            <option value="downloads">⬇ Più scaricati</option>
+            <option value="likes">♥ Più piaciuti</option>
+            <option value="trending">🔥 Trending</option>
+            <option value="recent">🕒 Recenti</option>
+          </select>
+          <select id="hf-size" onchange="hfSearch()" class="hf-filter" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--bg);color:var(--text);font-size:12px;font-family:var(--sans)">
+            <option value="">Qualsiasi peso</option>
+            <option value="3">≤ 3B · leggeri</option>
+            <option value="8">≤ 8B</option>
+            <option value="14">≤ 14B</option>
+            <option value="34">≤ 34B</option>
+            <option value="big">&gt; 34B · pesanti</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text2)"><input type="checkbox" id="hf-gguf" onchange="hfSearch()" style="margin:0"> GGUF</label>
+        </div>
         <div id="hf-results" style="max-height:340px;overflow-y:auto"></div>
       </div>
       <div id="custom-install" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
@@ -6227,22 +6252,35 @@ async function hfSearch() {
   if (_hfAbort) { try { _hfAbort.abort(); } catch {} }
   _hfAbort = new AbortController();
   const seq = ++_hfSeq;
+  // Server-side filters (real HuggingFace params): sort + GGUF.
+  const sort = document.getElementById('hf-sort').value;
+  const ggufOnly = document.getElementById('hf-gguf').checked;
+  let url = '/api/hf/search?q=' + encodeURIComponent(q);
+  if (sort && sort !== 'downloads') url += '&sort=' + sort;
+  if (ggufOnly) url += '&gguf=true';
   box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Cerco su HuggingFace…</div>';
   try {
-    const r = await fetch('/api/hf/search?q=' + encodeURIComponent(q), { signal: _hfAbort.signal });
+    const r = await fetch(url, { signal: _hfAbort.signal });
     if (seq !== _hfSeq) return; // a newer search started — ignore this stale result
     const d = await r.json();
     if (seq !== _hfSeq) return;
-    const models = d.models || [];
-    if (!models.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Nessun risultato</div>'; return; }
+    let models = d.models || [];
+    // Client-side filters: type + weight (estimated parameter count).
+    const typeF = document.getElementById('hf-type').value;
+    if (typeF) models = models.filter(m => m.type === typeF);
+    const sizeF = document.getElementById('hf-size').value;
+    if (sizeF === 'big') models = models.filter(m => m.params > 34);
+    else if (sizeF) { const max = parseFloat(sizeF); models = models.filter(m => m.params > 0 && m.params <= max); }
+    if (!models.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Nessun risultato con questi filtri</div>'; return; }
     const ico = { llm: '💬', image: '🎨', audio: '🔊', video: '🎬', '3d': '🧊' };
     box.innerHTML = models.map(m => {
       const dl = m.downloads >= 1000 ? Math.round(m.downloads / 1000) + 'k' : m.downloads;
+      const pB = m.params ? ' · ' + (Number.isInteger(m.params) ? m.params : m.params.toFixed(1)) + 'B' : '';
       return `<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border)">
         <span>${ico[m.type] || '📦'}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.id)}${m.gguf ? ' <span style="font-size:10px;color:var(--accent);font-weight:600">GGUF</span>' : ''}</div>
-          <div style="font-size:11px;color:var(--text3)">⬇ ${dl} · ♥ ${m.likes} · ${esc(m.task || m.type)}</div>
+          <div style="font-size:11px;color:var(--text3)">⬇ ${dl} · ♥ ${m.likes}${pB} · ${esc(m.task || m.type)}</div>
         </div>
         <a href="https://huggingface.co/${esc(m.id)}" target="_blank" class="btn" style="padding:4px 8px;font-size:11px;flex-shrink:0">↗</a>
         <button class="btn primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="hfDownload('${esc(m.id)}','${m.type}')">⬇ Scarica</button>
