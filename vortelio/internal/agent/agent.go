@@ -658,12 +658,23 @@ func Start(id string) error {
 		return fmt.Errorf("unknown agent: %s", id)
 	}
 
+	// Reserve the slot atomically so two concurrent Starts can't both pass the
+	// "already running" check and spawn two processes.
 	mu.Lock()
 	if _, already := procMap[id]; already {
 		mu.Unlock()
 		return nil
 	}
+	procMap[id] = nil // reservation; replaced with the real cmd below
 	mu.Unlock()
+	failed := true
+	defer func() {
+		if failed {
+			mu.Lock()
+			delete(procMap, id)
+			mu.Unlock()
+		}
+	}()
 
 	if !isBinInstalled(entry) {
 		if entry.InstallMethod == MethodUV {
@@ -736,11 +747,16 @@ func Start(id string) error {
 	mu.Lock()
 	procMap[id] = cmd
 	mu.Unlock()
+	failed = false
 
 	go func() {
 		cmd.Wait()
 		mu.Lock()
-		delete(procMap, id)
+		// Only remove our own entry — after a Stop+Start the slot may already
+		// belong to a newer process.
+		if procMap[id] == cmd {
+			delete(procMap, id)
+		}
 		mu.Unlock()
 	}()
 

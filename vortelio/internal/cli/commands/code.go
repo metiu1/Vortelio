@@ -34,7 +34,7 @@ const (
 // Developer GUI: agentic tool loop, coding tools, web, media, skills, MCP.
 type CodeCommand struct{}
 
-func NewCodeCommand() *CodeCommand { return &CodeCommand{} }
+func NewCodeCommand() *CodeCommand  { return &CodeCommand{} }
 func (c *CodeCommand) Name() string { return "code" }
 
 type codeSession struct {
@@ -73,55 +73,84 @@ func (c *CodeCommand) Run(args []string) error {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--model", "-m":
-			if i+1 < len(args) { modelRef = args[i+1]; i++ }
+			if i+1 < len(args) {
+				modelRef = args[i+1]
+				i++
+			}
 		case "--dir", "-d":
-			if i+1 < len(args) { s.workdir = args[i+1]; i++ }
+			if i+1 < len(args) {
+				s.workdir = args[i+1]
+				i++
+			}
 		case "--auto", "--autonomous":
-			s.autonomous = true; s.mode = "auto"
+			s.autonomous = true
+			s.mode = "auto"
 		case "--yes", "-y":
 			s.mode = "auto"
 		case "--cpu":
 		case "--help", "-h":
-			printCodeHelp(); return nil
+			printCodeHelp()
+			return nil
 		default:
-			if !strings.HasPrefix(args[i], "--") { firstPrompt = append(firstPrompt, args[i]) }
+			if !strings.HasPrefix(args[i], "--") {
+				firstPrompt = append(firstPrompt, args[i])
+			}
 		}
 	}
 
 	store := hub.NewModelStore()
 	if modelRef != "" {
 		ref, err := hub.ParseModelRef(modelRef)
-		if err != nil { return fmt.Errorf("modello non valido: %w", err) }
+		if err != nil {
+			return fmt.Errorf("modello non valido: %w", err)
+		}
 		s.model, err = store.Resolve(ref)
-		if err != nil { return fmt.Errorf("modello non trovato: %w", err) }
+		if err != nil {
+			return fmt.Errorf("modello non trovato: %w", err)
+		}
 	} else if !s.restoreFromPrefs(store) {
 		// No explicit model and nothing restorable from last session → default.
 		s.model = pickDefaultLLM(store)
 	}
 	if s.model == nil && s.cloudProvider == "" {
 		if cl := server.CloudModelsForCLI(); len(cl) > 0 {
-			s.cloudProvider = cl[0].Provider; s.cloudModel = cl[0].Model
+			s.cloudProvider = cl[0].Provider
+			s.cloudModel = cl[0].Model
 		} else {
 			return fmt.Errorf("nessun LLM installato e nessun cloud configurato.\n  vortelio pull llm/qwen2.5:7b")
 		}
 	}
 	s.hw = runtime.DetectHardware()
-	for _, a := range args { if a == "--cpu" { s.hw.Backend = runtime.BackendCPU } }
+	for _, a := range args {
+		if a == "--cpu" {
+			s.hw.Backend = runtime.BackendCPU
+		}
+	}
 
 	s.printBanner()
 	if s.cloudProvider == "" {
-		if err := s.loadModel(); err != nil { return err }
+		if err := s.loadModel(); err != nil {
+			return err
+		}
 	}
 
-	if len(firstPrompt) > 0 { s.runTurn(strings.Join(firstPrompt, " ")) }
+	if len(firstPrompt) > 0 {
+		s.runTurn(strings.Join(firstPrompt, " "))
+	}
 
 	for {
 		line, exit := s.readLine()
-		if exit { return nil }
+		if exit {
+			return nil
+		}
 		line = strings.TrimSpace(line)
-		if line == "" { continue }
+		if line == "" {
+			continue
+		}
 		if strings.HasPrefix(line, "/") {
-			if s.handleCommand(line) { return nil }
+			if s.handleCommand(line) {
+				return nil
+			}
 			continue
 		}
 		s.runTurn(line)
@@ -130,14 +159,20 @@ func (c *CodeCommand) Run(args []string) error {
 
 func (s *codeSession) loadModel() error {
 	r, err := runtime.GlobalModelManager.GetOrLoad(s.model, s.hw, 30*time.Minute)
-	if err != nil { return fmt.Errorf("caricamento modello fallito: %w", err) }
+	if err != nil {
+		return fmt.Errorf("caricamento modello fallito: %w", err)
+	}
 	s.runner = r
 	return nil
 }
 
 func (s *codeSession) modelLabel() string {
-	if s.cloudProvider != "" { return "☁ " + s.cloudModel }
-	if s.model != nil { return s.model.Name + ":" + s.model.Tag }
+	if s.cloudProvider != "" {
+		return "☁ " + s.cloudModel
+	}
+	if s.model != nil {
+		return s.model.Name + ":" + s.model.Tag
+	}
 	return "?"
 }
 
@@ -218,11 +253,18 @@ func (s *codeSession) runTurn(line string) {
 	} else {
 		prov, sys := server.BuildCLIHarness(s.workdir, s.mode, s.autonomous, s.mcpOn, s.skills, s.emit, s.approve, s.askUser)
 		sopts := runtime.StreamOpts{System: sys, Messages: s.messages, ToolsEnabled: true, ToolProvider: prov}
-		if s.autonomous { sopts.MaxToolRounds = 40 } else { sopts.MaxToolRounds = 16 }
+		if s.autonomous {
+			sopts.MaxToolRounds = 40
+		} else {
+			sopts.MaxToolRounds = 16
+		}
 		err = s.runner.StreamWithOpts(sopts, onTok, s.emit)
 	}
 	fmt.Print("\n")
-	if err != nil { fmt.Printf("%s✕ errore: %v%s\n", cRed, err, cReset); return }
+	if err != nil {
+		fmt.Printf("%s✕ errore: %v%s\n", cRed, err, cReset)
+		return
+	}
 	secs := time.Since(t0).Seconds()
 	tokens := len(resp.String())/4 + 1
 	fmt.Printf("%s⏱ %.1fs · ~%d token · %s%s\n", cDim, secs, tokens, s.modelLabel(), cReset)
@@ -285,10 +327,16 @@ func (s *codeSession) expandFileRefs(line string) string {
 	out := fileRefRE.ReplaceAllStringFunc(line, func(tok string) string {
 		p := tok[1:]
 		full := p
-		if !filepath.IsAbs(p) { full = filepath.Join(s.workdir, p) }
+		if !filepath.IsAbs(p) {
+			full = filepath.Join(s.workdir, p)
+		}
 		data, err := os.ReadFile(full)
-		if err != nil { return tok }
-		if len(data) > 40000 { data = data[:40000] }
+		if err != nil {
+			return tok
+		}
+		if len(data) > 40000 {
+			data = data[:40000]
+		}
 		extras = append(extras, fmt.Sprintf("\n\n--- File \"%s\" ---\n%s", p, string(data)))
 		fmt.Printf("  %s📎 incluso %s (%d byte)%s\n", cDim, p, len(data), cReset)
 		return p
@@ -308,7 +356,9 @@ func (s *codeSession) handleCommand(line string) bool {
 		fmt.Printf("  %scontesto azzerato%s\n", cDim, cReset)
 	case "/auto":
 		s.autonomous = !s.autonomous
-		if s.autonomous { s.mode = "auto" }
+		if s.autonomous {
+			s.mode = "auto"
+		}
 		fmt.Printf("  %sautonomo: %v%s\n", cYell, s.autonomous, cReset)
 		s.savePrefs()
 	case "/mode":
@@ -325,7 +375,10 @@ func (s *codeSession) handleCommand(line string) bool {
 		s.mcpOn = !s.mcpOn
 		fmt.Printf("  %sMCP: %v%s\n", cYell, s.mcpOn, cReset)
 	case "/cd":
-		if len(parts) > 1 { s.workdir = strings.TrimSpace(line[len("/cd "):]); fmt.Printf("  %scartella: %s%s\n", cCyan, s.workdir, cReset) }
+		if len(parts) > 1 {
+			s.workdir = strings.TrimSpace(line[len("/cd "):])
+			fmt.Printf("  %scartella: %s%s\n", cCyan, s.workdir, cReset)
+		}
 	case "/init":
 		s.runInit()
 	case "/model", "/m":
@@ -341,33 +394,57 @@ func (s *codeSession) handleCommand(line string) bool {
 func (s *codeSession) chooseModel() {
 	models, _ := hub.NewModelStore().List()
 	var llms []*hub.Model
-	for _, m := range models { if m.Type == "llm" { llms = append(llms, m) } }
+	for _, m := range models {
+		if m.Type == "llm" {
+			llms = append(llms, m)
+		}
+	}
 	cloud := server.CloudModelsForCLI()
-	if len(llms) == 0 && len(cloud) == 0 { fmt.Printf("  %snessun modello%s\n", cDim, cReset); return }
+	if len(llms) == 0 && len(cloud) == 0 {
+		fmt.Printf("  %snessun modello%s\n", cDim, cReset)
+		return
+	}
 
 	var items []string
 	start := 0
 	for _, m := range llms {
 		mark := "  "
-		if s.cloudProvider == "" && s.model != nil && m.Name == s.model.Name && m.Tag == s.model.Tag { mark = "● "; start = len(items) }
+		if s.cloudProvider == "" && s.model != nil && m.Name == s.model.Name && m.Tag == s.model.Tag {
+			mark = "● "
+			start = len(items)
+		}
 		tl := ""
-		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { tl = " 🛠" }
+		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) {
+			tl = " 🛠"
+		}
 		items = append(items, "💻 "+mark+m.Name+":"+m.Tag+tl)
 	}
 	for _, c := range cloud {
 		mark := "  "
-		if s.cloudProvider == c.Provider && s.cloudModel == c.Model { mark = "● "; start = len(items) }
+		if s.cloudProvider == c.Provider && s.cloudModel == c.Model {
+			mark = "● "
+			start = len(items)
+		}
 		items = append(items, "☁ "+mark+c.Label+" · "+c.ProviderName)
 	}
 	sel := selectList("Scegli un modello:", items, start)
-	if sel < 0 { return }
+	if sel < 0 {
+		return
+	}
 	if sel < len(llms) {
-		s.cloudProvider = ""; s.cloudModel = ""; s.model = llms[sel]
+		s.cloudProvider = ""
+		s.cloudModel = ""
+		s.model = llms[sel]
 		fmt.Printf("  %s⏳ carico…%s\n", cDim, cReset)
-		if err := s.loadModel(); err != nil { fmt.Printf("  %s%v%s\n", cRed, err, cReset) } else { fmt.Printf("  %s✓ %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset) }
+		if err := s.loadModel(); err != nil {
+			fmt.Printf("  %s%v%s\n", cRed, err, cReset)
+		} else {
+			fmt.Printf("  %s✓ %s:%s%s\n", cGreen, s.model.Name, s.model.Tag, cReset)
+		}
 	} else {
 		c := cloud[sel-len(llms)]
-		s.cloudProvider = c.Provider; s.cloudModel = c.Model
+		s.cloudProvider = c.Provider
+		s.cloudModel = c.Model
 		fmt.Printf("  %s✓ ☁ %s%s\n", cGreen, c.Label, cReset)
 	}
 	s.savePrefs()
@@ -375,22 +452,35 @@ func (s *codeSession) chooseModel() {
 
 func (s *codeSession) chooseSkills() {
 	all := server.ListSkillInfos()
-	if len(all) == 0 { fmt.Printf("  %snessuna skill%s\n", cDim, cReset); return }
+	if len(all) == 0 {
+		fmt.Printf("  %snessuna skill%s\n", cDim, cReset)
+		return
+	}
 	for {
 		on := map[string]bool{}
-		for _, id := range s.skills { on[id] = true }
+		for _, id := range s.skills {
+			on[id] = true
+		}
 		var items []string
 		for _, sk := range all {
 			box := "[ ] "
-			if on[sk.ID] { box = "[x] " }
+			if on[sk.ID] {
+				box = "[x] "
+			}
 			items = append(items, box+sk.Name)
 		}
 		sel := selectList("Skill (Invio per attivare/disattivare · q per chiudere):", items, 0)
-		if sel < 0 { return }
+		if sel < 0 {
+			return
+		}
 		id := all[sel].ID
 		if on[id] {
 			var ns []string
-			for _, x := range s.skills { if x != id { ns = append(ns, x) } }
+			for _, x := range s.skills {
+				if x != id {
+					ns = append(ns, x)
+				}
+			}
 			s.skills = ns
 		} else {
 			s.skills = append(s.skills, id)
@@ -405,7 +495,9 @@ func (s *codeSession) printBanner() {
 	fmt.Printf("\n %s%s🤖 Vortelio Code%s\n", cBold, cCyan, cReset)
 	if branch != "" {
 		st := cGreen + "clean" + cReset
-		if !clean { st = cYell + "modificato" + cReset }
+		if !clean {
+			st = cYell + "modificato" + cReset
+		}
 		fmt.Printf("   %s📂 Git:%s %s (%s)\n", cDim, cReset, branch, st)
 	} else {
 		fmt.Printf("   %s📂 Cartella:%s %s\n", cDim, cReset, s.workdir)
@@ -417,7 +509,9 @@ func (s *codeSession) printBanner() {
 
 func gitInfo(dir string) (string, bool) {
 	out, err := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
-	if err != nil { return "", false }
+	if err != nil {
+		return "", false
+	}
 	branch := strings.TrimSpace(string(out))
 	st, _ := exec.Command("git", "-C", dir, "status", "--porcelain").Output()
 	return branch, strings.TrimSpace(string(st)) == ""
@@ -426,7 +520,9 @@ func gitInfo(dir string) (string, bool) {
 func countFiles(dir string) int {
 	n := 0
 	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil { return nil }
+		if err != nil {
+			return nil
+		}
 		if d.IsDir() {
 			name := d.Name()
 			if name == ".git" || name == "node_modules" || name == ".venv" || name == "__pycache__" || name == "dist" || name == "build" {
@@ -435,7 +531,9 @@ func countFiles(dir string) int {
 			return nil
 		}
 		n++
-		if n > 9999 { return filepath.SkipAll }
+		if n > 9999 {
+			return filepath.SkipAll
+		}
 		return nil
 	})
 	return n
@@ -451,12 +549,20 @@ func printSlashHelp() {
 
 func pickDefaultLLM(store *hub.ModelStore) *hub.Model {
 	models, err := store.List()
-	if err != nil { return nil }
+	if err != nil {
+		return nil
+	}
 	var firstLLM *hub.Model
 	for _, m := range models {
-		if m.Type != "llm" { continue }
-		if firstLLM == nil { firstLLM = m }
-		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) { return m }
+		if m.Type != "llm" {
+			continue
+		}
+		if firstLLM == nil {
+			firstLLM = m
+		}
+		if runtime.ModelSupportsTools(m.Name + ":" + m.Tag) {
+			return m
+		}
 	}
 	return firstLLM
 }
@@ -473,7 +579,9 @@ func truncStr(s string, max int) string {
 		}
 		return r
 	}, s)
-	if len(s) > max { return s[:max] + "…" }
+	if len(s) > max {
+		return s[:max] + "…"
+	}
 	return s
 }
 

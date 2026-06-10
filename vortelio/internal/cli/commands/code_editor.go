@@ -17,7 +17,9 @@ func (s *codeSession) readLine() (string, bool) {
 	if !term.IsTerminal(fd) {
 		// Non-interactive (piped): plain read.
 		in, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil { return "", true }
+		if err != nil {
+			return "", true
+		}
 		return in, false
 	}
 	old, err := term.MakeRaw(fd)
@@ -34,10 +36,16 @@ func (s *codeSession) readLine() (string, bool) {
 
 	render := func() {
 		kind, frag, sugg := s.suggestions(string(buf))
-		if suggIdx >= len(sugg) { suggIdx = 0 }
+		if suggIdx >= len(sugg) {
+			suggIdx = 0
+		}
 		w := termWidth() - 4
-		if w < 20 { w = 20 }
-		if w > 100 { w = 100 }
+		if w < 20 {
+			w = 20
+		}
+		if w > 100 {
+			w = 100
+		}
 
 		var lines []string
 		lines = append(lines, cDim+"╭"+strings.Repeat("─", w)+"╮"+cReset)
@@ -48,7 +56,9 @@ func (s *codeSession) readLine() (string, bool) {
 			shown = "…" + string(rs[len(rs)-(w-5):])
 		}
 		pad := w - 3 - len([]rune(shown))
-		if pad < 0 { pad = 0 }
+		if pad < 0 {
+			pad = 0
+		}
 		lines = append(lines, cDim+"│"+cReset+" "+cCyan+"›"+cReset+" "+shown+cInv+" "+cReset+strings.Repeat(" ", pad)+cDim+"│"+cReset)
 		lines = append(lines, cDim+"╰"+strings.Repeat("─", w)+"╯"+cReset)
 		// Status line: current mode + key hints. Always visible so ←/→ mode
@@ -63,8 +73,12 @@ func (s *codeSession) readLine() (string, bool) {
 			// bottom of the screen — when it did, the terminal scrolled and the
 			// in-place redraw lost the highlighted row.
 			visible := termHeight() - 7
-			if visible < 3 { visible = 3 }
-			if visible > 10 { visible = 10 }
+			if visible < 3 {
+				visible = 3
+			}
+			if visible > 10 {
+				visible = 10
+			}
 			start, end := windowBounds(suggIdx, len(sugg), visible)
 			if start > 0 {
 				lines = append(lines, "  "+cDim+"↑ altri "+fmt.Sprintf("%d", start)+cReset)
@@ -105,8 +119,12 @@ func (s *codeSession) readLine() (string, bool) {
 
 	complete := func() {
 		kind, frag, sugg := s.suggestions(string(buf))
-		if kind == 0 || len(sugg) == 0 { return }
-		if suggIdx >= len(sugg) { suggIdx = 0 }
+		if kind == 0 || len(sugg) == 0 {
+			return
+		}
+		if suggIdx >= len(sugg) {
+			suggIdx = 0
+		}
 		sel := sugg[suggIdx]
 		if kind == '/' {
 			buf = []rune(strings.Fields(sel)[0] + " ")
@@ -129,18 +147,25 @@ func (s *codeSession) readLine() (string, bool) {
 	render()
 	for {
 		ch, _, err := r.ReadRune()
-		if err != nil { return "", true }
+		if err != nil {
+			return "", true
+		}
 		switch ch {
 		case 3: // Ctrl+C
 			clearRegion()
 			return "", true
 		case 4: // Ctrl+D
-			if len(buf) == 0 { clearRegion(); return "", true }
+			if len(buf) == 0 {
+				clearRegion()
+				return "", true
+			}
 		case '\r', '\n':
 			kind, _, sugg := s.suggestions(string(buf))
 			if kind == '/' && len(sugg) > 0 {
 				// Enter on a highlighted command → run it directly.
-				if suggIdx >= len(sugg) { suggIdx = 0 }
+				if suggIdx >= len(sugg) {
+					suggIdx = 0
+				}
 				cmd := strings.Fields(sugg[suggIdx])[0]
 				clearRegion()
 				fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, cmd)
@@ -148,16 +173,21 @@ func (s *codeSession) readLine() (string, bool) {
 			}
 			if kind == '@' && len(sugg) > 0 {
 				// Enter on a file suggestion → insert it and keep editing.
-				complete(); render(); continue
+				complete()
+				render()
+				continue
 			}
 			clearRegion()
 			line := string(buf)
 			fmt.Printf("  %s›%s %s\r\n", cCyan, cReset, line)
 			return line, false
 		case '\t':
-			complete(); render()
+			complete()
+			render()
 		case 127, 8: // backspace
-			if len(buf) > 0 { buf = buf[:len(buf)-1] }
+			if len(buf) > 0 {
+				buf = buf[:len(buf)-1]
+			}
 			suggIdx = 0
 			render()
 		case 27: // ESC — maybe an arrow
@@ -166,7 +196,9 @@ func (s *codeSession) readLine() (string, bool) {
 				b2, _, _ := r.ReadRune()
 				switch b2 {
 				case 'A': // up
-					if suggIdx > 0 { suggIdx-- }
+					if suggIdx > 0 {
+						suggIdx--
+					}
 					render()
 				case 'B': // down
 					if _, _, sugg := s.suggestions(string(buf)); suggIdx < len(sugg)-1 {
@@ -284,19 +316,27 @@ func (s *codeSession) suggestions(line string) (byte, string, []string) {
 			frag = after[d+1:]
 		}
 		entries, err := os.ReadDir(dir)
-		if err != nil { return '@', after, nil }
+		if err != nil {
+			return '@', after, nil
+		}
 		var out []string
 		fl := strings.ToLower(frag)
 		for _, e := range entries {
 			name := e.Name()
-			if strings.HasPrefix(name, ".") && fl == "" { continue }
+			if strings.HasPrefix(name, ".") && fl == "" {
+				continue
+			}
 			if fl == "" || strings.Contains(strings.ToLower(name), fl) {
-				if e.IsDir() { name += "/" }
+				if e.IsDir() {
+					name += "/"
+				}
 				out = append(out, name)
 			}
 		}
 		sort.Strings(out)
-		if len(out) > 20 { out = out[:20] }
+		if len(out) > 20 {
+			out = out[:20]
+		}
 		return '@', after, out
 	}
 	return 0, "", nil
@@ -368,10 +408,14 @@ func selectList(title string, items []string, start int) int {
 			fmt.Print("\r\n")
 			return idx
 		case 'k':
-			if idx > 0 { idx-- }
+			if idx > 0 {
+				idx--
+			}
 			draw()
 		case 'j':
-			if idx < len(items)-1 { idx++ }
+			if idx < len(items)-1 {
+				idx++
+			}
 			draw()
 		case 27:
 			b1, _, _ := r.ReadRune()
@@ -390,13 +434,17 @@ func selectList(title string, items []string, start int) int {
 
 func termWidth() int {
 	w, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || w <= 0 { return 80 }
+	if err != nil || w <= 0 {
+		return 80
+	}
 	return w
 }
 
 func termHeight() int {
 	_, h, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || h <= 0 { return 24 }
+	if err != nil || h <= 0 {
+		return 24
+	}
 	return h
 }
 

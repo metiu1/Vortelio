@@ -415,7 +415,7 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 		provider := buildAgenticProvider(req.Agentic, toolEmit)
 		if tools := provider.Tools(); len(tools) > 0 {
 			toolOpts = &cloud.ToolCallOptions{
-				Tools:   tools,
+				Tools:    tools,
 				ExecTool: provider.Execute,
 				OnEvent:  toolEmit,
 			}

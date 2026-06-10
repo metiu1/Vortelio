@@ -62,12 +62,12 @@ func handleHFSearch(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	var raw []struct {
-		ID           string   `json:"id"`
-		Likes        int      `json:"likes"`
-		Downloads    int      `json:"downloads"`
-		PipelineTag  string   `json:"pipeline_tag"`
-		Tags         []string `json:"tags"`
-		LibraryName  string   `json:"library_name"`
+		ID          string   `json:"id"`
+		Likes       int      `json:"likes"`
+		Downloads   int      `json:"downloads"`
+		PipelineTag string   `json:"pipeline_tag"`
+		Tags        []string `json:"tags"`
+		LibraryName string   `json:"library_name"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		jsonError(w, 502, "risposta HuggingFace non valida")

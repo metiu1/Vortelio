@@ -199,7 +199,7 @@ func (m *mediaProvider) installModel(argsJSON string) (string, error) {
 	}
 	b, _ := json.Marshal(map[string]interface{}{
 		"status": "ok", "model": refStr,
-		"note":   "Installed and ready. You can now use it (e.g. call generate_image again).",
+		"note": "Installed and ready. You can now use it (e.g. call generate_image again).",
 	})
 	return string(b), nil
 }

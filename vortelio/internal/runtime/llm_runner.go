@@ -309,6 +309,7 @@ func (r *LLMRunner) stopServer() {
 		r.proc.Process.Kill()
 		r.proc = nil
 	}
+	r.apiURL = ""
 }
 
 // chatAPI sends a message via /v1/chat/completions with SSE streaming.
@@ -934,20 +935,20 @@ func (r *LLMRunner) EmbedBatch(inputs []string) ([][]float64, error) {
 // StreamOpts holds per-request options for StreamWithOpts.
 // Thread-safe: does not mutate runner state.
 type StreamOpts struct {
-	Prompt       string
-	Messages     []map[string]interface{} // nil = use Prompt with default system prompt
-	System       string                   // system prompt override (used when Messages is nil)
-	Images       []string                 // base64-encoded images for multimodal input
-	Raw          bool                     // skip system/chat-template wrapping
-	Think        bool
-	ThinkEmit    func(string)     // called with thinking tokens (separate from content)
-	ToolsEnabled bool             // enable server-side builtin tool execution loop
-	ClientTools  json.RawMessage  // tool definitions from client forwarded to model as-is
-	ToolCallEmit func([]ToolCall) // when set: emit tool_calls to client instead of executing server-side
-	ToolProvider ToolProvider     // when set (with ToolsEnabled): supplies tool defs + execution; defaults to builtins
-	Options      LLMOptions
-	Format       string // "json" or raw JSON schema string
-	MaxToolRounds int   // override the tool-loop round cap (0 = default); raised for autonomous goal sessions
+	Prompt        string
+	Messages      []map[string]interface{} // nil = use Prompt with default system prompt
+	System        string                   // system prompt override (used when Messages is nil)
+	Images        []string                 // base64-encoded images for multimodal input
+	Raw           bool                     // skip system/chat-template wrapping
+	Think         bool
+	ThinkEmit     func(string)     // called with thinking tokens (separate from content)
+	ToolsEnabled  bool             // enable server-side builtin tool execution loop
+	ClientTools   json.RawMessage  // tool definitions from client forwarded to model as-is
+	ToolCallEmit  func([]ToolCall) // when set: emit tool_calls to client instead of executing server-side
+	ToolProvider  ToolProvider     // when set (with ToolsEnabled): supplies tool defs + execution; defaults to builtins
+	Options       LLMOptions
+	Format        string // "json" or raw JSON schema string
+	MaxToolRounds int    // override the tool-loop round cap (0 = default); raised for autonomous goal sessions
 }
 
 // applyModelfileTemplate renders an Ollama-style TEMPLATE with the given StreamOpts.
@@ -1591,11 +1592,11 @@ func (r *LLMRunner) streamWithTransformers(opts *RunOptions, emit func(string)) 
 	}
 	conversation += "Utente: " + opts.Prompt + "\nAssistente:"
 
-	script := fmt.Sprintf(`import sys, os
+	script := fmt.Sprintf(`import sys, os, json
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 model_path = r"""%s"""
-prompt = r"""%s"""
+prompt = """%s"""
 device = "%s"
 max_new = %d
 
@@ -1619,13 +1620,11 @@ except ImportError:
     import torch
     from threading import Thread
 
-sys.stdout.write("VORTELIO_PROGRESS:10:Loading tokenizer...
-"); sys.stdout.flush()
+sys.stdout.write("VORTELIO_PROGRESS:10:Loading tokenizer...\n"); sys.stdout.flush()
 dtype = torch.float16 if device != "cpu" else torch.float32
 try:
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    sys.stdout.write("VORTELIO_PROGRESS:30:Loading model...
-"); sys.stdout.flush()
+    sys.stdout.write("VORTELIO_PROGRESS:30:Loading model...\n"); sys.stdout.flush()
     model = AutoModelForCausalLM.from_pretrained(
         model_path, torch_dtype=dtype,
         device_map="auto" if device == "cuda" else "cpu",
@@ -1635,8 +1634,7 @@ except Exception as e:
     print(f"VORTELIO_ERROR: {e}")
     sys.exit(1)
 
-sys.stdout.write("VORTELIO_PROGRESS:60:Generating response...
-"); sys.stdout.flush()
+sys.stdout.write("VORTELIO_PROGRESS:60:Generating response...\n"); sys.stdout.flush()
 inputs = tokenizer(prompt, return_tensors="pt").to(device if device == "cuda" else "cpu")
 streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 gen_kwargs = dict(
@@ -1649,12 +1647,10 @@ t = Thread(target=model.generate, kwargs=gen_kwargs)
 t.start()
 for token in streamer:
     if token:
-        sys.stdout.write("VORTELIO_TOKEN:" + token)
+        sys.stdout.write("VORTELIO_TOKEN:" + json.dumps(token) + "\n")
         sys.stdout.flush()
 t.join()
-sys.stdout.write("
-VORTELIO_DONE
-"); sys.stdout.flush()
+sys.stdout.write("VORTELIO_DONE\n"); sys.stdout.flush()
 `, modelDirFwd, escapePy(conversation), hwDevice, maxNew)
 
 	tmp, err := os.CreateTemp("", "vortelio-stream-*.py")
@@ -1678,10 +1674,16 @@ VORTELIO_DONE
 	}
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "VORTELIO_TOKEN:") {
-			emit(strings.TrimPrefix(line, "VORTELIO_TOKEN:"))
+			raw := strings.TrimPrefix(line, "VORTELIO_TOKEN:")
+			var token string
+			if err := json.Unmarshal([]byte(raw), &token); err != nil {
+				token = raw // plain-text fallback for older script output
+			}
+			emit(token)
 		} else if strings.HasPrefix(line, "VORTELIO_ERROR:") {
 			cmd.Wait()
 			return fmt.Errorf("%s", strings.TrimPrefix(line, "VORTELIO_ERROR:"))

@@ -7,7 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -355,13 +357,19 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	tmp, err := os.CreateTemp("", "vortelio-upload-*-"+header.Filename)
+	// Strip any path components from the client-supplied filename, and the "*"
+	// that would change the CreateTemp pattern.
+	safeName := filepath.Base(strings.NewReplacer("/", "_", "\\", "_", "*", "_").Replace(header.Filename))
+	tmp, err := os.CreateTemp("", "vortelio-upload-*-"+safeName)
 	if err != nil {
 		jsonError(w, 500, err.Error())
 		return
 	}
 	defer tmp.Close()
-	io.Copy(tmp, file)
+	if _, err := io.Copy(tmp, file); err != nil {
+		jsonError(w, 500, "upload failed: "+err.Error())
+		return
+	}
 	respond(w, 200, map[string]string{"path": tmp.Name()})
 }
 
@@ -395,8 +403,15 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 					break
 				}
 			}
-			if !allowed && (strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1")) {
-				allowed = true
+			if !allowed {
+				// Allow local origins only — match the parsed hostname exactly,
+				// so "http://evil-localhost.example.com" cannot slip through.
+				if u, err := url.Parse(origin); err == nil {
+					switch u.Hostname() {
+					case "localhost", "127.0.0.1", "::1":
+						allowed = true
+					}
+				}
 			}
 			if allowed {
 				if len(cfg.AllowOrigins) == 1 && cfg.AllowOrigins[0] == "*" {

@@ -24,8 +24,8 @@ var appIcon []byte
 // the Vortelio GUI, so the app shows up in the OS search after install.
 type InstallAppCommand struct{}
 
-func NewInstallAppCommand() *InstallAppCommand   { return &InstallAppCommand{} }
-func (c *InstallAppCommand) Name() string        { return "install-app" }
+func NewInstallAppCommand() *InstallAppCommand { return &InstallAppCommand{} }
+func (c *InstallAppCommand) Name() string      { return "install-app" }
 func (c *InstallAppCommand) Run(args []string) error {
 	path, err := createAppShortcut(true)
 	if err != nil {

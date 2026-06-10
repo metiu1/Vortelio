@@ -402,6 +402,8 @@ func pickFile(files []hfFileInfo, fileHint string) (hfFileInfo, error) {
 
 	// Priority order for model weights
 	priority := []string{".gguf", ".safetensors", ".pth", ".pt", ".bin", ".ckpt"}
+	var chosen *hfFileInfo
+	var weightNames []string
 	for _, ext := range priority {
 		var matched []hfFileInfo
 		for _, f := range files {
@@ -414,52 +416,35 @@ func pickFile(files []hfFileInfo, fileHint string) (hfFileInfo, error) {
 				matched = append(matched, f)
 			}
 		}
-		if len(matched) > 0 {
+		for _, f := range matched {
+			weightNames = append(weightNames, "  "+f.Rfilename)
+		}
+		if chosen == nil && len(matched) > 0 {
+			best := matched[0]
 			// Pick smallest (most quantized) for gguf, else first
 			if ext == ".gguf" {
-				best := matched[0]
 				for _, f := range matched[1:] {
 					if f.Size < best.Size && f.Size > 0 {
 						best = f
 					}
 				}
-				return best, nil
 			}
-			return matched[0], nil
+			chosen = &best
 		}
 	}
 
-	var ggufFiles []hfFileInfo // kept for error reporting below
-	if len(ggufFiles) == 0 {
+	if chosen == nil {
 		return hfFileInfo{}, fmt.Errorf("no model file found in the repository")
 	}
-
-	// If hint given, filter by it
 	if hint != "" {
-		for _, f := range ggufFiles {
-			if strings.Contains(strings.ToLower(f.Rfilename), hint) {
-				return f, nil
-			}
-		}
-		// Hint not found — list available
-		names := make([]string, len(ggufFiles))
-		for i, f := range ggufFiles {
-			names[i] = "  " + f.Rfilename
-		}
+		// An explicit hint that matched nothing must not silently download a
+		// different file — report what is actually available instead.
 		return hfFileInfo{}, fmt.Errorf(
 			"no file matching pattern %q found in the repository.\nAvailable files:\n%s",
-			fileHint, strings.Join(names, "\n"),
+			fileHint, strings.Join(weightNames, "\n"),
 		)
 	}
-
-	// No hint: pick the smallest gguf (most quantized = fastest)
-	best := ggufFiles[0]
-	for _, f := range ggufFiles[1:] {
-		if f.Size < best.Size && f.Size > 0 {
-			best = f
-		}
-	}
-	return best, nil
+	return *chosen, nil
 }
 
 // ─── DOWNLOADER ──────────────────────────────────────────────────────────────
@@ -1270,11 +1255,17 @@ func (d *Downloader) downloadWithProgress(url, destFile string, progress Progres
 	if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
 		return fmt.Errorf("create directory: %w", err)
 	}
-	f, err := os.Create(destFile)
+	// Download to a temp file and rename at the end, so an interrupted download
+	// never leaves a partial file that alreadyDownloaded() would treat as complete.
+	tmpFile := destFile + ".partial"
+	f, err := os.Create(tmpFile)
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
-	defer f.Close()
+	cleanup := func() {
+		f.Close()
+		os.Remove(tmpFile)
+	}
 
 	total := resp.ContentLength
 	var downloaded int64
@@ -1282,11 +1273,13 @@ func (d *Downloader) downloadWithProgress(url, destFile string, progress Progres
 
 	for {
 		if ctx.Err() != nil {
+			cleanup()
 			return fmt.Errorf("download cancelled")
 		}
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
 			if _, werr := f.Write(buf[:n]); werr != nil {
+				cleanup()
 				return werr
 			}
 			downloaded += int64(n)
@@ -1298,6 +1291,7 @@ func (d *Downloader) downloadWithProgress(url, destFile string, progress Progres
 			break
 		}
 		if readErr != nil {
+			cleanup()
 			if ctx.Err() != nil {
 				return fmt.Errorf("download cancelled")
 			}
@@ -1305,7 +1299,21 @@ func (d *Downloader) downloadWithProgress(url, destFile string, progress Progres
 		}
 	}
 	if downloaded == 0 {
+		cleanup()
 		return fmt.Errorf("empty file received from HuggingFace")
+	}
+	if total > 0 && downloaded < total {
+		cleanup()
+		return fmt.Errorf("incomplete download: received %d of %d bytes", downloaded, total)
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("write error: %w", err)
+	}
+	os.Remove(destFile) // Windows: rename fails if the target exists
+	if err := os.Rename(tmpFile, destFile); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("finalize download: %w", err)
 	}
 	return nil
 }
