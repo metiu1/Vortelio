@@ -67,7 +67,12 @@ func runCloudChat(p cloud.Provider) error {
 		}
 	}
 
-	// Chat loop
+	// Chat loop. Use all stored keys for failover (the active key is saved above
+	// so it's first); fall back to the just-entered one if nothing is stored.
+	keys := cloud.LoadKeys(p.ID)
+	if len(keys) == 0 {
+		keys = []string{apiKey}
+	}
 	var history []cloud.Message
 	fmt.Printf("\n  Chat with %s  (type 'exit' to quit)\n", p.Name)
 	fmt.Println("  " + strings.Repeat("─", 50))
@@ -91,7 +96,7 @@ func runCloudChat(p cloud.Provider) error {
 			Tools:    runtime.BuiltinTools(),
 			ExecTool: runtime.ExecuteTool,
 		}
-		response, err := cloud.ChatWithTools(p, apiKey, history, toolOpts, func(tok string) {
+		response, err := cloud.ChatWithToolsFailover(p, keys, history, toolOpts, func(tok string) {
 			tok = strings.ReplaceAll(tok, "\n", "\n  ")
 			fmt.Print(tok)
 		})

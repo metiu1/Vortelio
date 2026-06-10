@@ -2487,7 +2487,8 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
     <input id="ac-model-custom" class="tool-input" placeholder="ID modello (es. gpt-4.1, claude-opus-4)" style="width:100%;margin-bottom:12px;display:none">
 
     <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">API key <span id="ac-key-note" style="color:var(--text3);font-weight:400"></span></label>
-    <input id="ac-key" class="tool-input" type="password" placeholder="Incolla la tua API key" style="width:100%;margin-bottom:6px" autocomplete="off">
+    <textarea id="ac-key" class="tool-input" rows="1" placeholder="Incolla la tua API key" style="width:100%;margin-bottom:4px;min-height:36px;resize:vertical;font-family:var(--mono);font-size:12px" autocomplete="off"></textarea>
+    <div id="ac-key-multi" style="font-size:11px;color:var(--text3);margin-bottom:4px;display:none">💡 Puoi inserire fino a 5 chiavi, <b>una per riga</b>: se una non funziona (limite/quota) passa automaticamente alla successiva.</div>
     <a id="ac-key-link" href="#" target="_blank" style="font-size:11px;color:var(--accent);display:none">Dove trovo la chiave?</a>
 
     <div style="display:flex;gap:8px;margin-top:16px">
@@ -3795,6 +3796,7 @@ function acProviderChanged() {
     document.getElementById('ac-model-custom').placeholder = 'ID modello (es. fal-ai/flux/schnell, dall-e-3)';
     acModelChanged();
     document.getElementById('ac-key-note').textContent = (mp && mp.has_key) ? '— già salvata (lascia vuoto per tenerla)' : '— richiesta';
+    document.getElementById('ac-key-multi').style.display = 'none';
     const link = document.getElementById('ac-key-link');
     if (mp && mp.key_hint) { link.href = mp.key_hint; link.style.display = 'inline'; } else link.style.display = 'none';
     return;
@@ -3807,6 +3809,7 @@ function acProviderChanged() {
     acModelChanged();
     document.getElementById('ac-model-custom').placeholder = 'ID modello sul server (es. llama3.1:8b, qwen2.5:7b)';
     document.getElementById('ac-key-note').textContent = '— opzionale (solo se il server la richiede)';
+    document.getElementById('ac-key-multi').style.display = 'none';
     document.getElementById('ac-key-link').style.display = 'none';
     return;
   }
@@ -3816,7 +3819,10 @@ function acProviderChanged() {
   document.getElementById('ac-model').innerHTML = opts;
   document.getElementById('ac-model-custom').placeholder = 'ID modello (es. gpt-4.1, claude-opus-4)';
   acModelChanged();
-  document.getElementById('ac-key-note').textContent = (p && p.has_key) ? '— già salvata (lascia vuoto per tenerla)' : '— richiesta';
+  const cnt = (p && p.key_count) || 0;
+  document.getElementById('ac-key-note').textContent = cnt > 0 ? ('— ' + cnt + ' salvata' + (cnt > 1 ? 'e' : '') + ' (reinserisci tutte per cambiarle, o lascia vuoto per tenerle)') : '— richiesta';
+  const multi = document.getElementById('ac-key-multi');
+  if (multi) multi.style.display = '';
   const link = document.getElementById('ac-key-link');
   if (p && p.key_hint) { link.href = p.key_hint; link.style.display = 'inline'; } else link.style.display = 'none';
 }
@@ -3834,7 +3840,7 @@ async function saveAddCloudModel() {
   if (type !== 'llm') {
     if (!pid) { toast('Scegli un provider', 'err'); return; }
     const mp = (_mediaProviders || []).find(x => x.id === pid);
-    const key = document.getElementById('ac-key').value.trim();
+    const key = document.getElementById('ac-key').value.split('\n')[0].trim();
     if ((!mp || !mp.has_key) && !key) { toast('Inserisci la API key', 'err'); return; }
     try {
       if (key) {
@@ -3854,7 +3860,7 @@ async function saveAddCloudModel() {
   if (pid === '__custom__') {
     const name = (document.getElementById('ac-name').value.trim()) || 'Server';
     const baseURL = document.getElementById('ac-baseurl').value.trim();
-    const key = document.getElementById('ac-key').value.trim();
+    const key = document.getElementById('ac-key').value.split('\n')[0].trim();
     if (!baseURL) { toast('Inserisci l\'indirizzo del server', 'err'); return; }
     if (!modelId) { toast('Scrivi l\'ID del modello (es. llama3.1:8b)', 'err'); return; }
     const id = 'ep' + Date.now();
@@ -3868,13 +3874,15 @@ async function saveAddCloudModel() {
 
   const p = (_cloudProviders || []).find(x => x.id === pid);
   if (!modelId) { toast('Scegli o scrivi un modello', 'err'); return; }
-  const key = document.getElementById('ac-key').value.trim();
-  if ((!p || !p.has_key) && !key) { toast('Inserisci la API key per questo provider', 'err'); return; }
+  // LLM providers: accept up to 5 keys (one per line) for automatic failover.
+  const keys = document.getElementById('ac-key').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 5);
+  if ((!p || !p.has_key) && keys.length === 0) { toast('Inserisci la API key per questo provider', 'err'); return; }
   try {
-    if (key) {
-      const r = await fetch('/api/cloud/key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: pid, key }) });
+    if (keys.length) {
+      const r = await fetch('/api/cloud/key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: pid, keys }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Errore salvataggio chiave');
+      if (keys.length > 1) toast('☁️ ' + keys.length + ' chiavi salvate (failover attivo)', 'ok');
     }
     saveCustomCloudModel(pid, modelId, modelId);
     await loadCloudProviders();

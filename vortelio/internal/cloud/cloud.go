@@ -189,38 +189,74 @@ func keysPath() string {
 	return filepath.Join(config.HomeDir(), "cloud_keys.json")
 }
 
-// LoadKey legge e decifra la API key. Supporta migrazione trasparente da formato plaintext.
-func LoadKey(providerID string) string {
-	data, err := os.ReadFile(keysPath())
-	if err != nil {
-		return ""
-	}
-	var m map[string]string
-	if err := json.Unmarshal(data, &m); err != nil {
-		return ""
-	}
-	stored := m[providerID]
+// MaxKeysPerProvider is how many API keys can be stored per provider for failover.
+const MaxKeysPerProvider = 5
+
+// decryptStored decrypts one stored value (base64 of DPAPI data), with transparent
+// fallback for the old plaintext format.
+func decryptStored(stored string) string {
 	if stored == "" {
 		return ""
 	}
-	// Prova a decifrare (formato cifrato = base64 di dati DPAPI).
 	raw, err := base64.StdEncoding.DecodeString(stored)
 	if err != nil {
-		// Non è base64 → vecchio formato plaintext → usalo direttamente.
-		return stored
+		return stored // old plaintext
 	}
 	plain, err := decryptKey(raw)
 	if err != nil {
-		// Decifratura fallita → potrebbe essere base64 di testo normale → prova.
 		return string(raw)
 	}
 	return string(plain)
 }
 
-// SaveKey cifra la API key con DPAPI e la salva in base64.
-func SaveKey(providerID, key string) error {
+// LoadKeys returns ALL stored API keys for a provider, in priority order (used for
+// failover). Multiple keys are stored newline-separated inside one encrypted blob.
+func LoadKeys(providerID string) []string {
+	data, err := os.ReadFile(keysPath())
+	if err != nil {
+		return nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	decoded := decryptStored(m[providerID])
+	var out []string
+	for _, line := range strings.Split(decoded, "\n") {
+		if k := strings.TrimSpace(line); k != "" {
+			out = append(out, k)
+		}
+	}
+	if len(out) > MaxKeysPerProvider {
+		out = out[:MaxKeysPerProvider]
+	}
+	return out
+}
+
+// LoadKey legge e decifra la prima API key del provider (compatibilità).
+func LoadKey(providerID string) string {
+	keys := LoadKeys(providerID)
+	if len(keys) == 0 {
+		return ""
+	}
+	return keys[0]
+}
+
+// SaveKeys stores up to MaxKeysPerProvider API keys for a provider (newline-joined,
+// encrypted as one blob). Empty/blank entries are dropped.
+func SaveKeys(providerID string, keys []string) error {
 	path := keysPath()
 	os.MkdirAll(filepath.Dir(path), 0700)
+
+	var clean []string
+	for _, k := range keys {
+		if k = strings.TrimSpace(k); k != "" {
+			clean = append(clean, k)
+		}
+		if len(clean) >= MaxKeysPerProvider {
+			break
+		}
+	}
 
 	var m map[string]string
 	if data, err := os.ReadFile(path); err == nil {
@@ -229,13 +265,15 @@ func SaveKey(providerID, key string) error {
 	if m == nil {
 		m = map[string]string{}
 	}
-
-	encrypted, err := encryptKey([]byte(key))
-	if err != nil {
-		// Fallback: salva plaintext se la cifratura non è disponibile.
-		m[providerID] = key
+	if len(clean) == 0 {
+		delete(m, providerID)
 	} else {
-		m[providerID] = base64.StdEncoding.EncodeToString(encrypted)
+		joined := strings.Join(clean, "\n")
+		if encrypted, err := encryptKey([]byte(joined)); err == nil {
+			m[providerID] = base64.StdEncoding.EncodeToString(encrypted)
+		} else {
+			m[providerID] = joined // plaintext fallback
+		}
 	}
 
 	data, err := json.MarshalIndent(m, "", "  ")
@@ -243,6 +281,11 @@ func SaveKey(providerID, key string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0600)
+}
+
+// SaveKey stores a single API key (compatibilità).
+func SaveKey(providerID, key string) error {
+	return SaveKeys(providerID, []string{key})
 }
 
 // HasKey reports whether a stored API key exists for the provider.
@@ -318,6 +361,75 @@ func ChatWithTools(p Provider, apiKey string, messages []Message, opts *ToolCall
 	default:
 		return "", fmt.Errorf("unknown API format")
 	}
+}
+
+// isRetryableKeyError reports whether an error looks like a bad/exhausted/rate-
+// limited API key, so failover should try the next key.
+func isRetryableKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, sig := range []string{
+		"api error 401", "api error 402", "api error 403", "api error 429",
+		"api error 500", "api error 502", "api error 503", "api error 529",
+		"unauthorized", "forbidden", "invalid api key", "invalid_api_key",
+		"incorrect api key", "rate limit", "rate_limit", "quota", "insufficient",
+		"expired", "no api key", "authentication",
+	} {
+		if strings.Contains(s, sig) {
+			return true
+		}
+	}
+	return false
+}
+
+// ChatWithToolsFailover tries each key in order, moving to the next on a
+// key-related failure (bad key, rate limit, quota). It does NOT retry once any
+// token has been streamed to the user, to avoid duplicated output.
+func ChatWithToolsFailover(p Provider, keys []string, messages []Message, opts *ToolCallOptions, onToken func(string)) (string, error) {
+	if len(keys) == 0 {
+		return "", fmt.Errorf("nessuna API key configurata per %s", p.Name)
+	}
+	var lastErr error
+	for _, k := range keys {
+		streamed := false
+		wrapped := func(t string) {
+			streamed = true
+			if onToken != nil {
+				onToken(t)
+			}
+		}
+		out, err := ChatWithTools(p, k, messages, opts, wrapped)
+		if err == nil || streamed || !isRetryableKeyError(err) {
+			return out, err
+		}
+		lastErr = err
+	}
+	return "", lastErr
+}
+
+// ChatFailover is like Chat but tries each key in order on key-related errors.
+func ChatFailover(p Provider, keys []string, messages []Message, onToken func(string)) (string, error) {
+	if len(keys) == 0 {
+		return "", fmt.Errorf("nessuna API key configurata per %s", p.Name)
+	}
+	var lastErr error
+	for _, k := range keys {
+		streamed := false
+		wrapped := func(t string) {
+			streamed = true
+			if onToken != nil {
+				onToken(t)
+			}
+		}
+		out, err := Chat(p, k, messages, wrapped)
+		if err == nil || streamed || !isRetryableKeyError(err) {
+			return out, err
+		}
+		lastErr = err
+	}
+	return "", lastErr
 }
 
 // ── OpenAI-compatible (OpenAI, Groq, Mistral, OpenRouter) ─────────────────────

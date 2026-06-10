@@ -113,8 +113,8 @@ func RunCLICloudTurn(providerID, model, workdir, mode string, autonomous, mcpOn 
 	if !ok {
 		return "", fmt.Errorf("provider cloud sconosciuto: %s", providerID)
 	}
-	key := cloud.LoadKey(providerID)
-	if key == "" {
+	keys := cloud.LoadKeys(providerID)
+	if len(keys) == 0 {
 		return "", fmt.Errorf("nessuna API key per %s", p.Name)
 	}
 	if model != "" {
@@ -139,7 +139,7 @@ func RunCLICloudTurn(providerID, model, workdir, mode string, autonomous, mcpOn 
 		// answering; the default of 5 was too low (model ran out mid-exploration).
 		toolOpts.MaxRounds = 16
 	}
-	return cloud.ChatWithTools(p, key, msgs, toolOpts, onToken)
+	return cloud.ChatWithToolsFailover(p, keys, msgs, toolOpts, onToken)
 }
 
 // GET /api/media/providers — media (image/audio/video/3d) cloud services + key state.
@@ -219,11 +219,13 @@ func handleCloudProviders(w http.ResponseWriter, r *http.Request) {
 		Label string `json:"label"`
 	}
 	type providerOut struct {
-		ID      string     `json:"id"`
-		Name    string     `json:"name"`
-		KeyHint string     `json:"key_hint"`
-		HasKey  bool       `json:"has_key"`
-		Models  []modelOut `json:"models"`
+		ID       string     `json:"id"`
+		Name     string     `json:"name"`
+		KeyHint  string     `json:"key_hint"`
+		HasKey   bool       `json:"has_key"`
+		KeyCount int        `json:"key_count"`
+		MaxKeys  int        `json:"max_keys"`
+		Models   []modelOut `json:"models"`
 	}
 	out := make([]providerOut, 0, len(cloud.Providers))
 	for _, p := range cloud.Providers {
@@ -235,12 +237,15 @@ func handleCloudProviders(w http.ResponseWriter, r *http.Request) {
 		} else {
 			models = append(models, modelOut{ID: p.DefaultModel, Label: p.DefaultModel})
 		}
+		n := len(cloud.LoadKeys(p.ID))
 		out = append(out, providerOut{
-			ID:      p.ID,
-			Name:    p.Name,
-			KeyHint: p.KeyHint,
-			HasKey:  cloud.HasKey(p.ID),
-			Models:  models,
+			ID:       p.ID,
+			Name:     p.Name,
+			KeyHint:  p.KeyHint,
+			HasKey:   n > 0,
+			KeyCount: n,
+			MaxKeys:  cloud.MaxKeysPerProvider,
+			Models:   models,
 		})
 	}
 	respond(w, 200, map[string]interface{}{"providers": out})
@@ -250,10 +255,11 @@ func handleCloudProviders(w http.ResponseWriter, r *http.Request) {
 // DELETE /api/cloud/key   {"provider":"openai"}                 → remove
 func handleCloudKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Provider string `json:"provider"`
-		Key      string `json:"key"`
+		Provider string   `json:"provider"`
+		Key      string   `json:"key"`  // single key (backward compatible)
+		Keys     []string `json:"keys"` // up to 5 keys for failover
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil {
 		jsonError(w, 400, "invalid request")
 		return
 	}
@@ -271,17 +277,27 @@ func handleCloudKey(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, 500, err.Error())
 			return
 		}
-		respond(w, 200, map[string]interface{}{"ok": true, "has_key": false})
+		respond(w, 200, map[string]interface{}{"ok": true, "has_key": false, "key_count": 0})
 	case http.MethodPost:
-		if req.Key == "" {
+		keys := req.Keys
+		if len(keys) == 0 && req.Key != "" {
+			keys = []string{req.Key}
+		}
+		var clean []string
+		for _, k := range keys {
+			if strings.TrimSpace(k) != "" {
+				clean = append(clean, k)
+			}
+		}
+		if len(clean) == 0 {
 			jsonError(w, 400, "key required")
 			return
 		}
-		if err := cloud.SaveKey(req.Provider, req.Key); err != nil {
+		if err := cloud.SaveKeys(req.Provider, clean); err != nil {
 			jsonError(w, 500, err.Error())
 			return
 		}
-		respond(w, 200, map[string]interface{}{"ok": true, "has_key": true})
+		respond(w, 200, map[string]interface{}{"ok": true, "has_key": true, "key_count": len(cloud.LoadKeys(req.Provider))})
 	default:
 		jsonError(w, 405, "method not allowed")
 	}
@@ -314,7 +330,7 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p cloud.Provider
-	var key string
+	var keys []string
 	if req.Provider == "custom" || req.BaseURL != "" {
 		// Custom / self-hosted OpenAI- or Ollama-compatible endpoint.
 		bu := normalizeChatURL(req.BaseURL)
@@ -324,7 +340,7 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 		}
 		p = cloud.Provider{ID: "custom", Name: "Custom server", BaseURL: bu,
 			AuthHeader: "Authorization", AuthPrefix: "Bearer ", Format: cloud.FormatOpenAI, DefaultModel: req.Model}
-		key = req.Key // may be empty for no-auth home servers
+		keys = []string{req.Key} // may be empty for no-auth home servers
 	} else {
 		var ok bool
 		p, ok = cloud.FindProvider(req.Provider)
@@ -332,8 +348,8 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, 400, "unknown provider")
 			return
 		}
-		key = cloud.LoadKey(req.Provider)
-		if key == "" {
+		keys = cloud.LoadKeys(req.Provider)
+		if len(keys) == 0 {
 			jsonError(w, 400, fmt.Sprintf("no API key for %s — add your own key in Cloud Models", p.Name))
 			return
 		}
@@ -398,7 +414,7 @@ func handleCloudChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err := cloud.ChatWithTools(p, key, req.Messages, toolOpts, func(tok string) {
+	_, err := cloud.ChatWithToolsFailover(p, keys, req.Messages, toolOpts, func(tok string) {
 		emit(map[string]string{"delta": tok})
 	})
 	if err != nil {
