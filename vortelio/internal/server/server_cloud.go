@@ -254,6 +254,17 @@ func handleCloudProviders(w http.ResponseWriter, r *http.Request) {
 // POST   /api/cloud/key   {"provider":"openai","key":"sk-..."}  → save
 // DELETE /api/cloud/key   {"provider":"openai"}                 → remove
 func handleCloudKey(w http.ResponseWriter, r *http.Request) {
+	// GET returns the stored keys so the edit form can show/pre-fill them. Served
+	// only on the (local) server; the keys belong to the user on this machine.
+	if r.Method == http.MethodGet {
+		provider := r.URL.Query().Get("provider")
+		if _, ok := cloud.FindProvider(provider); !ok {
+			jsonError(w, 400, "unknown provider")
+			return
+		}
+		respond(w, 200, map[string]interface{}{"provider": provider, "keys": cloud.LoadKeys(provider)})
+		return
+	}
 	var req struct {
 		Provider string   `json:"provider"`
 		Key      string   `json:"key"`  // single key (backward compatible)

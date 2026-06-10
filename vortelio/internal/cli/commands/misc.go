@@ -374,7 +374,9 @@ func openDesktopWindow(url string) {
 		`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
 	}
 	home, _ := os.UserHomeDir()
-	profileDir := filepath.Join(home, ".vortelio", "app-profile")
+	// Bumped to a fresh profile so Edge/Chrome re-derives the window/taskbar icon
+	// from the now-served favicon (the old profile had cached "no favicon").
+	profileDir := filepath.Join(home, ".vortelio", "app-profile2")
 	os.MkdirAll(profileDir, 0755)
 	appArgs := func(exe string) *exec.Cmd {
 		return exec.Command(exe,

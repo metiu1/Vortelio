@@ -33,6 +33,13 @@ func handleFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Write(faviconICO)
 }
 
+// handleManifest serves a minimal PWA manifest so the Edge/Chrome --app window
+// is treated as an installed app and uses the Vortelio icon.
+func handleManifest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/manifest+json")
+	w.Write([]byte(`{"name":"Vortelio","short_name":"Vortelio","start_url":"/","display":"standalone","background_color":"#0b0b12","theme_color":"#6366f1","icons":[{"src":"/favicon.ico","sizes":"256x256 128x128 64x64 48x48 32x32 16x16","type":"image/x-icon"}]}`))
+}
+
 // InitLogger configures the global slog logger. Call once at startup.
 // level: "debug", "info", "warn", "error"
 func InitLogger(level string) {
@@ -160,6 +167,7 @@ func NewMux() *http.ServeMux {
 
 	mux.HandleFunc("/", handleUI)
 	mux.HandleFunc("/favicon.ico", handleFavicon)
+	mux.HandleFunc("/manifest.webmanifest", handleManifest)
 	mux.HandleFunc("/api/status", ca(handleStatus))
 	mux.HandleFunc("/api/update/check", ca(handleUpdateCheck))
 	mux.HandleFunc("/api/update/start", ca(handleUpdateStart))
