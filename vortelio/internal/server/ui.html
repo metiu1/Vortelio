@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Vortelio — Run AI Models Locally</title>
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+<link rel="apple-touch-icon" href="/favicon.ico">
 <meta name="description" content="Vortelio is an open-source local AI platform. Run LLMs, image, audio, video and 3D models on your hardware. Ollama-compatible API, built-in Web UI and TUI.">
 <meta name="keywords" content="local AI, LLM, GGUF, llama.cpp, Ollama, self-hosted AI, image generation, text to speech, whisper, stable diffusion, AI platform, open source AI">
 <meta name="author" content="Vortelio">
@@ -3791,6 +3794,21 @@ function openAddCloudModel() {
   });
 }
 function closeAddCloudModel() { document.getElementById('addcloud-overlay').classList.remove('show'); }
+// Open the add-cloud panel pre-selected on an already-configured provider, so the
+// user can edit it — e.g. replace/add API keys (up to 5, one per line).
+function editCloudProvider(pid) {
+  if (!_cloudProviders || !_cloudProviders.length) { loadCloudProviders().then(() => editCloudProvider(pid)); return; }
+  loadMediaProviders().then(() => {
+    document.getElementById('ac-type').value = 'llm';
+    acTypeChanged();
+    const sel = document.getElementById('ac-provider');
+    sel.value = pid;
+    acProviderChanged();
+    document.getElementById('ac-key').value = '';
+    document.getElementById('addcloud-overlay').classList.add('show');
+    setTimeout(() => document.getElementById('ac-key').focus(), 100);
+  });
+}
 // Type drives which providers are shown: LLM providers (+ custom server) or the
 // media services (image/audio/video/3d) for the chosen output type.
 function acTypeChanged() {
@@ -5941,11 +5959,13 @@ function buildCloudModelsHtml() {
   const rows = [];
   for (const p of (_cloudProviders || [])) {
     if (!p.has_key) continue;
+    const kc = p.key_count || 1;
     rows.push(`<div class="mtrow">
       <span class="type-pill tp-llm">☁️</span>
       <div style="flex:1;min-width:0"><div style="font-weight:500;font-size:14px">${esc(p.name)}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:1px">API key configurata · ${(p.models||[]).length} modelli + custom</div></div>
-      <button class="btn danger" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="removeCloudKey('${esc(p.id)}')">🗑 Rimuovi chiave</button>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px">${kc} chiav${kc>1?'i':'e'} configurat${kc>1?'e':'a'} · ${(p.models||[]).length} modelli + custom</div></div>
+      <button class="btn" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="editCloudProvider('${esc(p.id)}')">✏️ Modifica</button>
+      <button class="btn danger" style="padding:4px 9px;font-size:11px;flex-shrink:0" onclick="removeCloudKey('${esc(p.id)}')">🗑 Rimuovi</button>
     </div>`);
   }
   for (const ep of getCustomEndpoints()) {

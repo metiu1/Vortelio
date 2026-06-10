@@ -22,6 +22,17 @@ import (
 //go:embed ui.html
 var uiFS embed.FS
 
+//go:embed vortelio.ico
+var faviconICO []byte
+
+// handleFavicon serves the Vortelio icon so the browser/PWA (and the Edge --app
+// window in the taskbar) shows the Vortelio logo instead of the browser's.
+func handleFavicon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(faviconICO)
+}
+
 // InitLogger configures the global slog logger. Call once at startup.
 // level: "debug", "info", "warn", "error"
 func InitLogger(level string) {
@@ -148,6 +159,7 @@ func NewMux() *http.ServeMux {
 	ca := func(h http.HandlerFunc) http.HandlerFunc { return withObservability(withCORS(withAuth(h))) }
 
 	mux.HandleFunc("/", handleUI)
+	mux.HandleFunc("/favicon.ico", handleFavicon)
 	mux.HandleFunc("/api/status", ca(handleStatus))
 	mux.HandleFunc("/api/update/check", ca(handleUpdateCheck))
 	mux.HandleFunc("/api/update/start", ca(handleUpdateStart))
