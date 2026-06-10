@@ -90,8 +90,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .sidebar-section.collapsible:hover { color: var(--text2); }
 .sec-chevron { width: 9px; height: 9px; transition: transform .18s cubic-bezier(.4,0,.2,1); opacity: .7; }
 .sidebar-section.collapsible[aria-expanded="true"] .sec-chevron { transform: rotate(-180deg); }
-.nav-group { overflow: hidden; max-height: 0; transition: max-height .22s cubic-bezier(.4,0,.2,1); }
-.nav-group.open { max-height: 600px; }
+.nav-group { display: none; flex-direction: column; gap: 1px; }
+.nav-group.open { display: flex; }
 
 .history-list { flex: 1; overflow-y: auto; }
 .hist-item {
@@ -1003,7 +1003,7 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
 .incognito-banner.on { display: flex; }
 
 /* ── Sidebar navigation (studios + workspace) ── */
-.sidebar-nav { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px; max-height: 46vh; overflow-y: auto; }
+.sidebar-nav { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px; max-height: 72vh; overflow-y: auto; }
 .nav-item { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 7px 10px; border: none; background: transparent; border-radius: 7px; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--text2); }
 .nav-item:hover { background: var(--bg2); color: var(--text); }
 .nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
