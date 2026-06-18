@@ -1467,7 +1467,7 @@ func (r *LLMRunner) StreamWithOpts(sopts StreamOpts, emit func(string), toolEmit
 func (r *LLMRunner) runWithTransformers(opts *RunOptions) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 not found")
+		return fmt.Errorf("python3 not found")
 	}
 	prompt := opts.Prompt
 	if opts.InputFile != "" {
@@ -1551,7 +1551,7 @@ with torch.no_grad():
 func (r *LLMRunner) streamWithTransformers(opts *RunOptions, emit func(string)) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 not found.\nInstall Python 3.10+ from https://python.org/downloads")
+		return fmt.Errorf("python3 not found.\nInstall Python 3.10+ from https://python.org/downloads")
 	}
 
 	// Find the model directory (walk up to find config.json)

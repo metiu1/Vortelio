@@ -883,7 +883,7 @@ func chatAnthropicWithTools(p Provider, apiKey string, messages []Message, opts 
 
 	var finalContent strings.Builder
 	maxRounds := 5
-	if opts != nil && opts.MaxRounds > 0 {
+	if opts.MaxRounds > 0 {
 		maxRounds = opts.MaxRounds
 	}
 
@@ -1113,7 +1113,7 @@ func chatGeminiWithTools(p Provider, apiKey string, messages []Message, opts *To
 	geminiTools := openaiToolsToGemini(opts.Tools)
 	var finalContent strings.Builder
 	maxRounds := 5
-	if opts != nil && opts.MaxRounds > 0 {
+	if opts.MaxRounds > 0 {
 		maxRounds = opts.MaxRounds
 	}
 	url := p.BaseURL + "?key=" + apiKey

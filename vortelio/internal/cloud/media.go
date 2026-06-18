@@ -145,7 +145,7 @@ func genStabilityImage(key, model, prompt string) ([]byte, string, error) {
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
-		return nil, "", fmt.Errorf("Stability: %s", apiErr(raw))
+		return nil, "", fmt.Errorf("stability.ai: %s", apiErr(raw))
 	}
 	return raw, "png", nil
 }

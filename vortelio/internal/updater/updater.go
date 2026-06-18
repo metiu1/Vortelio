@@ -129,7 +129,3 @@ func versionParts(v string) []int {
 	}
 	return out
 }
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
-}

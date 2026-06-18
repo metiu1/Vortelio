@@ -97,13 +97,9 @@ func pythonCandidates() []string {
 			}
 		}
 	} else if runtime.GOOS == "darwin" {
-		for _, p := range []string{"/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3"} {
-			found = append(found, p)
-		}
+		found = append(found, "/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3")
 	} else {
-		for _, p := range []string{"/usr/bin/python3", "/usr/local/bin/python3"} {
-			found = append(found, p)
-		}
+		found = append(found, "/usr/bin/python3", "/usr/local/bin/python3")
 	}
 	return found
 }

@@ -137,7 +137,7 @@ func (w *whisperWorker) close() {
 func startWhisperWorker(tag string) (*whisperWorker, error) {
 	py := FindPython()
 	if py == "" {
-		return nil, fmt.Errorf("Python non trovato")
+		return nil, fmt.Errorf("python3 non trovato")
 	}
 	tmp, err := os.CreateTemp("", "vortelio-whisper-worker-*.py")
 	if err != nil {

@@ -254,14 +254,10 @@ func (r *VideoRunner) deviceString(forceCPU bool) string {
 	}
 }
 
-func (r *VideoRunner) runPythonScript(script string) error {
-	return r.runPythonScriptProg(script, nil)
-}
-
 func (r *VideoRunner) runPythonScriptProg(script string, onProgress func(ProgressEvent)) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 not found.\n\nInstall Python 3.10+ from https://python.org/downloads\n" +
+		return fmt.Errorf("python3 not found.\n\nInstall Python 3.10+ from https://python.org/downloads\n" +
 			"Make sure to check \"Add Python to PATH\" during installation")
 	}
 
@@ -311,7 +307,7 @@ func (r *VideoRunner) RunWithProgress(opts *RunOptions, progress chan<- Progress
 		if progress != nil {
 			close(progress)
 		}
-		return fmt.Errorf("Python 3 not found")
+		return fmt.Errorf("python3 not found")
 	}
 	tmp, err := os.CreateTemp("", "vortelio-video-*.py")
 	if err != nil {

@@ -84,7 +84,7 @@ func (r *AudioRunner) Run(opts *RunOptions) error {
 func (r *AudioRunner) RunCapture(opts *RunOptions) error {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python 3 not found — install Python 3.10+")
+		return fmt.Errorf("python3 not found — install Python 3.10+")
 	}
 	r.ensureDeps(pythonBin)
 	name := strings.ToLower(r.model.Name)
@@ -106,7 +106,7 @@ func (r *AudioRunner) RunWithProgress(opts *RunOptions, progress chan<- Progress
 		if progress != nil {
 			close(progress)
 		}
-		return fmt.Errorf("Python 3 not found")
+		return fmt.Errorf("python3 not found")
 	}
 	r.ensureDeps(pythonBin)
 	name := strings.ToLower(r.model.Name)
@@ -318,7 +318,7 @@ func (r *AudioRunner) buildWhisperScript(opts *RunOptions) string {
 func (r *AudioRunner) TranscribeText(inputFile string) (string, error) {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return "", fmt.Errorf("Python 3 not found")
+		return "", fmt.Errorf("python3 not found")
 	}
 	r.ensureDeps(pythonBin)
 	opts := &RunOptions{InputFile: inputFile}
@@ -365,7 +365,7 @@ func (r *AudioRunner) TranscribeText(inputFile string) (string, error) {
 func (r *AudioRunner) TranslateText(inputFile string) (string, error) {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return "", fmt.Errorf("Python 3 not found")
+		return "", fmt.Errorf("python3 not found")
 	}
 	r.ensureDeps(pythonBin)
 	inputPath := strings.ReplaceAll(inputFile, `\`, `/`)
@@ -412,7 +412,7 @@ else:
 func (r *AudioRunner) SynthesizeToBytes(text string) ([]byte, error) {
 	pythonBin := FindPython()
 	if pythonBin == "" {
-		return nil, fmt.Errorf("Python 3 not found")
+		return nil, fmt.Errorf("python3 not found")
 	}
 	r.ensureDeps(pythonBin)
 	tmp, err := os.CreateTemp("", "vortelio-tts-*.wav")

@@ -43,12 +43,12 @@ func RunCodeSnippet(language, code string) (string, error) {
 	case "python", "py", "python3":
 		py := FindPython()
 		if py == "" {
-			return "", fmt.Errorf("Python non trovato")
+			return "", fmt.Errorf("python3 non trovato")
 		}
 		cmd = exec.CommandContext(ctx, py, write("s.py"))
 	case "javascript", "js", "node", "nodejs":
 		if look("node", "node.exe") == "" {
-			return "", fmt.Errorf("Node.js non trovato")
+			return "", fmt.Errorf("node non trovato")
 		}
 		cmd = exec.CommandContext(ctx, "node", write("s.js"))
 	case "bash", "sh", "shell":
@@ -61,12 +61,12 @@ func RunCodeSnippet(language, code string) (string, error) {
 		cmd = exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", code)
 	case "go", "golang":
 		if look("go", "go.exe") == "" {
-			return "", fmt.Errorf("Go non trovato")
+			return "", fmt.Errorf("go non trovato")
 		}
 		cmd = exec.CommandContext(ctx, "go", "run", write("s.go"))
 	case "ruby", "rb":
 		if look("ruby", "ruby.exe") == "" {
-			return "", fmt.Errorf("Ruby non trovato")
+			return "", fmt.Errorf("ruby non trovato")
 		}
 		cmd = exec.CommandContext(ctx, "ruby", write("s.rb"))
 	case "php":
@@ -76,7 +76,7 @@ func RunCodeSnippet(language, code string) (string, error) {
 		cmd = exec.CommandContext(ctx, "php", write("s.php"))
 	case "java":
 		if look("java", "java.exe") == "" {
-			return "", fmt.Errorf("Java non trovato")
+			return "", fmt.Errorf("java non trovato")
 		}
 		cmd = exec.CommandContext(ctx, "java", write("s.java"))
 	case "c":

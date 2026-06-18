@@ -342,8 +342,6 @@ func (s *codeSession) suggestions(line string) (byte, string, []string) {
 	return 0, "", nil
 }
 
-func cDimInline(s string) string { return cDim + s + cReset }
-
 // selectList shows an arrow-navigable list and returns the chosen index (or -1).
 // start is the initially highlighted index.
 func selectList(title string, items []string, start int) int {

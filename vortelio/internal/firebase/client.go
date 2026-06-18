@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/firestore"
 	fb "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -26,12 +27,21 @@ var (
 func Init() error {
 	once.Do(func() {
 		credPath := credentialsPath()
-		if _, err := os.Stat(credPath); os.IsNotExist(err) {
+		credJSON, err := os.ReadFile(credPath)
+		if err != nil {
 			initErr = fmt.Errorf("firebase credentials not found at %s", credPath)
 			return
 		}
 		ctx := context.Background()
-		opt := option.WithCredentialsFile(credPath)
+		creds, err := credentials.DetectDefault(&credentials.DetectOptions{
+			CredentialsJSON: credJSON,
+			Scopes:          []string{"https://www.googleapis.com/auth/cloud-platform"},
+		})
+		if err != nil {
+			initErr = fmt.Errorf("firebase credentials invalid: %w", err)
+			return
+		}
+		opt := option.WithAuthCredentials(creds)
 		fbApp, initErr = fb.NewApp(ctx, nil, opt)
 		if initErr != nil {
 			return

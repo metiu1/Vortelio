@@ -8,7 +8,65 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vortelio/vortelio/internal/runtime"
 )
+
+// ramReserveBytes is held back from physical RAM for the OS and other apps when
+// judging whether a model "fits".
+const ramReserveBytes = int64(2) * 1024 * 1024 * 1024
+
+// estModelBytes estimates the on-disk / in-memory footprint of a model from its
+// approximate parameter count. GGUF builds are assumed ~Q4_K_M (~0.6 bytes per
+// weight); everything else is assumed fp16 (2 bytes per weight). Returns 0 when
+// the parameter count is unknown.
+func estModelBytes(paramsB float64, gguf bool) int64 {
+	if paramsB <= 0 {
+		return 0
+	}
+	bytesPerParam := 2.0 // fp16
+	if gguf {
+		bytesPerParam = 0.6 // ~Q4_K_M quant
+	}
+	return int64(paramsB * 1e9 * bytesPerParam)
+}
+
+// memCapacityBytes returns the usable memory budget for running a model:
+// available RAM (minus an OS reserve) plus any GPU VRAM, since llama.cpp can
+// offload layers to the GPU.
+func memCapacityBytes() int64 {
+	total, _ := runtime.SystemRAM()
+	usableRAM := total - ramReserveBytes
+	if usableRAM < 0 {
+		usableRAM = 0
+	}
+	var vram int64
+	if hw := getHardware(); hw != nil {
+		vram = hw.VRAM
+	}
+	return usableRAM + vram
+}
+
+// fitVerdict classifies an estimated model size against the machine's memory
+// budget: "ok" (comfortable), "tight" (runs but near the limit), "over" (too
+// large), or "unknown" (size could not be estimated).
+func fitVerdict(estBytes int64) string {
+	if estBytes <= 0 {
+		return "unknown"
+	}
+	cap := memCapacityBytes()
+	if cap <= 0 {
+		return "unknown"
+	}
+	switch {
+	case estBytes > cap:
+		return "over"
+	case float64(estBytes) > float64(cap)*0.75:
+		return "tight"
+	default:
+		return "ok"
+	}
+}
 
 // hfParamsRE pulls an approximate parameter count from a model id (e.g. "7B",
 // "1.5b", "8x7B") so the UI can filter/sort by model "weight".
@@ -82,6 +140,8 @@ func handleHFSearch(w http.ResponseWriter, r *http.Request) {
 		GGUF      bool    `json:"gguf"`
 		Type      string  `json:"type"`
 		Params    float64 `json:"params"` // approx. parameter count in billions (0 = unknown)
+		EstGB     float64 `json:"est_gb"` // estimated memory footprint in GB (0 = unknown)
+		Fit       string  `json:"fit"`    // ok | tight | over | unknown — fits this machine's RAM/VRAM
 	}
 	out := make([]modelOut, 0, len(raw))
 	for _, m := range raw {
@@ -91,6 +151,8 @@ func handleHFSearch(w http.ResponseWriter, r *http.Request) {
 				gguf = true
 			}
 		}
+		paramsB := hfParamsB(m.ID)
+		estBytes := estModelBytes(paramsB, gguf)
 		out = append(out, modelOut{
 			ID:        m.ID,
 			Downloads: m.Downloads,
@@ -98,10 +160,45 @@ func handleHFSearch(w http.ResponseWriter, r *http.Request) {
 			Task:      m.PipelineTag,
 			GGUF:      gguf,
 			Type:      hfTypeFor(m.PipelineTag, m.Tags),
-			Params:    hfParamsB(m.ID),
+			Params:    paramsB,
+			EstGB:     float64(estBytes) / 1e9,
+			Fit:       fitVerdict(estBytes),
 		})
 	}
-	respond(w, 200, map[string]interface{}{"models": out})
+	total, avail := runtime.SystemRAM()
+	var vram int64
+	if hw := getHardware(); hw != nil {
+		vram = hw.VRAM
+	}
+	respond(w, 200, map[string]interface{}{
+		"models": out,
+		"system": map[string]interface{}{
+			"ram_total_gb": float64(total) / 1e9,
+			"ram_avail_gb": float64(avail) / 1e9,
+			"vram_gb":      float64(vram) / 1e9,
+		},
+	})
+}
+
+// handleSystemResources reports the machine's memory budget so the UI can tell
+// the user, up front, which models will fit.
+// GET /api/system/resources
+func handleSystemResources(w http.ResponseWriter, r *http.Request) {
+	total, avail := runtime.SystemRAM()
+	hw := getHardware()
+	var vram int64
+	device := "CPU"
+	if hw != nil {
+		vram = hw.VRAM
+		device = hw.DeviceName
+	}
+	respond(w, 200, map[string]interface{}{
+		"ram_total_gb": float64(total) / 1e9,
+		"ram_avail_gb": float64(avail) / 1e9,
+		"vram_gb":      float64(vram) / 1e9,
+		"device":       device,
+		"budget_gb":    float64(memCapacityBytes()) / 1e9,
+	})
 }
 
 // hfTypeFor maps a HF pipeline tag to a Vortelio model type prefix.

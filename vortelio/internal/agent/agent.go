@@ -414,9 +414,9 @@ func Install(ctx context.Context, id string, progress func(line string)) error {
 func installNPM(ctx context.Context, entry CatalogEntry, progress func(line string)) error {
 	if !nodeAvailable() {
 		return fmt.Errorf(
-			"Node.js not found in PATH.\n" +
+			"node not found in PATH.\n" +
 				"Install Node.js from https://nodejs.org (LTS version recommended),\n" +
-				"then restart Vortelio and try again.",
+				"then restart Vortelio and try again",
 		)
 	}
 	if !npmAvailable() {
@@ -483,7 +483,7 @@ func installPipPackage(ctx context.Context, pkg string, progress func(line strin
 		return fmt.Errorf(
 			"pip not found in PATH.\n" +
 				"Install Python 3.10+ from https://python.org,\n" +
-				"then restart Vortelio and try again.",
+				"then restart Vortelio and try again",
 		)
 	}
 	args := []string{"install", "--upgrade", pkg}
@@ -532,7 +532,7 @@ func installPip(ctx context.Context, entry CatalogEntry, progress func(line stri
 		return fmt.Errorf(
 			"pip not found in PATH.\n" +
 				"Install Python 3.10+ from https://python.org,\n" +
-				"then restart Vortelio and try again.",
+				"then restart Vortelio and try again",
 		)
 	}
 
@@ -586,7 +586,7 @@ func installUV(ctx context.Context, entry CatalogEntry, progress func(string)) e
 		return fmt.Errorf(
 			"uv not found in PATH.\n" +
 				"Install it with: pip install uv  or  curl -LsSf https://astral.sh/uv/install.sh | sh\n" +
-				"then restart Vortelio and try again.",
+				"then restart Vortelio and try again",
 		)
 	}
 

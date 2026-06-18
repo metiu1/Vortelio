@@ -290,7 +290,7 @@ func (c *QuantizeCommand) requantizeGGUF(inputPath, format, outputPath string) e
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("quantization failed: %w\n\nHint: llama-quantize requires F16/F32 source. Download the F16 version of the model.", err)
+			return fmt.Errorf("quantization failed: %w\n\nHint: llama-quantize requires F16/F32 source. Download the F16 version of the model", err)
 		}
 	} else {
 		return c.requantizeGGUFPython(inputPath, format, outFile)
@@ -309,7 +309,7 @@ func (c *QuantizeCommand) requantizeGGUF(inputPath, format, outputPath string) e
 func (c *QuantizeCommand) quantizeLLMPython(model *hub.Model, format, outputPath string) error {
 	pythonBin := internalruntime.FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python not found")
+		return fmt.Errorf("python3 not found")
 	}
 
 	modelDir := strings.ReplaceAll(filepath.Dir(model.LocalPath), `\`, `/`)
@@ -347,7 +347,7 @@ sys.exit(1)
 func (c *QuantizeCommand) requantizeGGUFPython(inputPath, format, outputPath string) error {
 	pythonBin := internalruntime.FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python not found. Installa llama.cpp per requantizzare GGUF")
+		return fmt.Errorf("python3 not found. Installa llama.cpp per requantizzare GGUF")
 	}
 
 	inputPath = strings.ReplaceAll(inputPath, `\`, `/`)
@@ -418,7 +418,7 @@ func (c *QuantizeCommand) quantizeImage(model *hub.Model, format, outputPath str
 
 	pythonBin := internalruntime.FindPython()
 	if pythonBin == "" {
-		return fmt.Errorf("Python not found")
+		return fmt.Errorf("python3 not found")
 	}
 
 	// Map format name to stable-diffusion.cpp quantization type

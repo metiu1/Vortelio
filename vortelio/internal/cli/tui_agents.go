@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -253,16 +252,4 @@ func openBrowser(url string) {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	_ = cmd.Start()
-}
-
-// waitEnter: during install we are not in raw mode, so we wait for \n.
-func waitEnter() {
-	fmt.Print("\n  Press Enter to continue… ")
-	buf := make([]byte, 1)
-	for {
-		os.Stdin.Read(buf)
-		if buf[0] == '\n' || buf[0] == '\r' {
-			break
-		}
-	}
 }

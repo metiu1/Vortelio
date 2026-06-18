@@ -1394,7 +1394,7 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <input class="search-box" style="margin:0;flex:1" placeholder="Search catalog..." oninput="filterReg(this.value)">
-        <button class="btn" style="flex-shrink:0;white-space:nowrap" onclick="document.getElementById('hf-search').style.display='block';document.getElementById('hf-q').focus()">🔍 Cerca su HuggingFace</button>
+        <button class="btn" style="flex-shrink:0;white-space:nowrap" onclick="document.getElementById('hf-search').style.display='block';document.getElementById('hf-q').focus();hfLoadResources()">🔍 Cerca su HuggingFace</button>
         <button class="btn primary" style="flex-shrink:0;white-space:nowrap" onclick="showCustomInstall()">+ URL HuggingFace</button>
       </div>
       <div id="hf-search" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
@@ -1428,7 +1428,9 @@ body.embed-mode #split-btn, body.embed-mode .topbar-right, body.embed-mode #remo
             <option value="big">&gt; 34B · pesanti</option>
           </select>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text2)"><input type="checkbox" id="hf-gguf" onchange="hfSearch()" style="margin:0"> GGUF</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text2)"><input type="checkbox" id="hf-fit-only" onchange="hfRenderResults()" style="margin:0"> Solo compatibili</label>
         </div>
+        <div id="hf-sysinfo" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
         <div id="hf-results" style="max-height:340px;overflow-y:auto"></div>
       </div>
       <div id="custom-install" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
@@ -6297,6 +6299,74 @@ function hfSearchDebounced() {
   _hfTimer = setTimeout(hfSearch, 300);
 }
 
+// Stored results + machine memory budget from the last search, so client-side
+// filters (type/size/compatibility) can re-render without re-querying HuggingFace.
+let _hfModels = [], _hfSys = null;
+
+// fit badge metadata: label, color, and one-line guidance shown on hover.
+const HF_FIT = {
+  ok:      { lbl: '✅ Entra in RAM',  col: '#16a34a', tip: 'Entra comodamente nella memoria della tua macchina.' },
+  tight:   { lbl: '⚠️ Al limite',     col: '#d97706', tip: 'Ci sta ma vicino al limite: chiudi altre app, potrebbe andare lento.' },
+  over:    { lbl: '❌ Troppo grande', col: '#dc2626', tip: 'Stimato più grande della tua memoria: rischio crash o estrema lentezza. Scegli un modello più piccolo o una quant più aggressiva.' },
+  unknown: { lbl: '❓ Peso ignoto',   col: 'var(--text3)', tip: 'Impossibile stimare la dimensione dal nome del modello.' },
+};
+
+// Fetch the machine's memory budget once and show it, even before searching.
+async function hfLoadResources() {
+  if (_hfSys) { hfRenderSysInfo(); return; }
+  try {
+    const r = await fetch('/api/system/resources');
+    _hfSys = await r.json();
+    hfRenderSysInfo();
+  } catch {}
+}
+
+// Render the machine's memory budget so the user knows the basis for "fits".
+function hfRenderSysInfo() {
+  const el = document.getElementById('hf-sysinfo');
+  if (!el || !_hfSys) return;
+  const ram = (_hfSys.ram_total_gb || 0).toFixed(1);
+  const vram = (_hfSys.vram_gb || 0);
+  let s = `💾 La tua RAM: <b>${ram} GB</b>`;
+  if (vram > 0.1) s += ` · 🎮 VRAM GPU: <b>${vram.toFixed(1)} GB</b>`;
+  s += ' — i modelli sono valutati su questa capacità.';
+  el.innerHTML = s;
+}
+
+// Re-render the stored results applying the type / weight / compatibility filters.
+function hfRenderResults() {
+  const box = document.getElementById('hf-results');
+  if (!box) return;
+  let models = _hfModels.slice();
+  const typeF = document.getElementById('hf-type').value;
+  if (typeF) models = models.filter(m => m.type === typeF);
+  const sizeF = document.getElementById('hf-size').value;
+  if (sizeF === 'big') models = models.filter(m => m.params > 34);
+  else if (sizeF) { const max = parseFloat(sizeF); models = models.filter(m => m.params > 0 && m.params <= max); }
+  if (document.getElementById('hf-fit-only').checked) models = models.filter(m => m.fit === 'ok' || m.fit === 'tight');
+  if (!models.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Nessun risultato con questi filtri</div>'; return; }
+  // Compatible models first, then by downloads — most intuitive ordering.
+  const rank = { ok: 0, tight: 1, unknown: 2, over: 3 };
+  models.sort((a, b) => (rank[a.fit] - rank[b.fit]) || (b.downloads - a.downloads));
+  const ico = { llm: '💬', image: '🎨', audio: '🔊', video: '🎬', '3d': '🧊' };
+  box.innerHTML = models.map(m => {
+    const dl = m.downloads >= 1000 ? Math.round(m.downloads / 1000) + 'k' : m.downloads;
+    const pB = m.params ? ' · ' + (Number.isInteger(m.params) ? m.params : m.params.toFixed(1)) + 'B' : '';
+    const sz = m.est_gb ? ' · ~' + (m.est_gb >= 1 ? m.est_gb.toFixed(1) + ' GB' : Math.round(m.est_gb * 1000) + ' MB') : '';
+    const f = HF_FIT[m.fit] || HF_FIT.unknown;
+    const badge = `<span title="${esc(f.tip)}" style="font-size:10px;font-weight:600;color:${f.col};white-space:nowrap">${f.lbl}</span>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border)">
+      <span>${ico[m.type] || '📦'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.id)}${m.gguf ? ' <span style="font-size:10px;color:var(--accent);font-weight:600">GGUF</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--text3)">${badge} · ⬇ ${dl} · ♥ ${m.likes}${pB}${sz} · ${esc(m.task || m.type)}</div>
+      </div>
+      <a href="https://huggingface.co/${esc(m.id)}" target="_blank" class="btn" style="padding:4px 8px;font-size:11px;flex-shrink:0">↗</a>
+      <button class="btn primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="hfDownload('${esc(m.id)}','${m.type}')">⬇ Scarica</button>
+    </div>`;
+  }).join('');
+}
+
 // Search HuggingFace and offer one-click download of a found model.
 async function hfSearch() {
   clearTimeout(_hfTimer);
@@ -6319,28 +6389,9 @@ async function hfSearch() {
     if (seq !== _hfSeq) return; // a newer search started — ignore this stale result
     const d = await r.json();
     if (seq !== _hfSeq) return;
-    let models = d.models || [];
-    // Client-side filters: type + weight (estimated parameter count).
-    const typeF = document.getElementById('hf-type').value;
-    if (typeF) models = models.filter(m => m.type === typeF);
-    const sizeF = document.getElementById('hf-size').value;
-    if (sizeF === 'big') models = models.filter(m => m.params > 34);
-    else if (sizeF) { const max = parseFloat(sizeF); models = models.filter(m => m.params > 0 && m.params <= max); }
-    if (!models.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Nessun risultato con questi filtri</div>'; return; }
-    const ico = { llm: '💬', image: '🎨', audio: '🔊', video: '🎬', '3d': '🧊' };
-    box.innerHTML = models.map(m => {
-      const dl = m.downloads >= 1000 ? Math.round(m.downloads / 1000) + 'k' : m.downloads;
-      const pB = m.params ? ' · ' + (Number.isInteger(m.params) ? m.params : m.params.toFixed(1)) + 'B' : '';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border)">
-        <span>${ico[m.type] || '📦'}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.id)}${m.gguf ? ' <span style="font-size:10px;color:var(--accent);font-weight:600">GGUF</span>' : ''}</div>
-          <div style="font-size:11px;color:var(--text3)">⬇ ${dl} · ♥ ${m.likes}${pB} · ${esc(m.task || m.type)}</div>
-        </div>
-        <a href="https://huggingface.co/${esc(m.id)}" target="_blank" class="btn" style="padding:4px 8px;font-size:11px;flex-shrink:0">↗</a>
-        <button class="btn primary" style="padding:4px 10px;font-size:12px;flex-shrink:0" onclick="hfDownload('${esc(m.id)}','${m.type}')">⬇ Scarica</button>
-      </div>`;
-    }).join('');
+    _hfModels = d.models || [];
+    if (d.system) { _hfSys = d.system; hfRenderSysInfo(); }
+    hfRenderResults();
   } catch (e) {
     if (e.name === 'AbortError' || seq !== _hfSeq) return; // cancelled / superseded — ignore
     box.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px">Errore: ' + esc(e.message) + '</div>';

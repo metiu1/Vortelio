@@ -3,6 +3,7 @@ module github.com/vortelio/vortelio
 go 1.25.0
 
 require (
+	cloud.google.com/go/auth v0.20.0
 	cloud.google.com/go/firestore v1.22.0
 	firebase.google.com/go/v4 v4.20.0
 	github.com/stripe/stripe-go/v76 v76.25.0
@@ -15,7 +16,6 @@ require (
 require (
 	cel.dev/expr v0.25.2 // indirect
 	cloud.google.com/go v0.123.0 // indirect
-	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.11.0 // indirect

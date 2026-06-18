@@ -62,8 +62,7 @@ type transport interface {
 
 // Client is a connected MCP client.
 type Client struct {
-	tr     transport
-	nextID int64
+	tr transport
 }
 
 // ── stdio transport ───────────────────────────────────────────────────────────
