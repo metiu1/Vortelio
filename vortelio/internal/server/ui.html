@@ -5951,6 +5951,7 @@ function showPanel(name) { _showPanel(name); }
 async function loadModels() {
   const el = document.getElementById('mlist');
   el.innerHTML = '<div style="color:var(--text3);padding:12px 0">Loading…</div>';
+  if (!_sysRes) await loadSysRes(); // so each model can show whether it fits
   try {
     const r = await fetch('/api/models');
     const d = await r.json();
@@ -5973,6 +5974,7 @@ async function loadModels() {
           ${caps ? `<div style="font-size:11px;color:var(--text3);margin-top:1px">${caps}</div>` : ''}
         </div>
         <span style="font-family:var(--mono);font-size:12px;color:var(--text3);flex-shrink:0">${m.size_human || ''}</span>
+        <span style="flex-shrink:0">${fitBadgeGB(parseGB(m.size_human))}</span>
         <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap">
           <button class="btn" style="padding:4px 9px;font-size:11px" onclick="openInfo('${esc(ref)}')">ℹ️ Info</button>
           <button class="btn" style="padding:4px 9px;font-size:11px" onclick="openRename('${esc(ref)}','${esc(m.display_name||'')}')">✏️ Rename</button>
@@ -6220,9 +6222,40 @@ let regFilter = 'all';
 
 function safeId(s) { return String(s).replace(/[^a-z0-9]/gi,'_'); }
 
+// Detected memory budget (RAM−reserve + VRAM), loaded once and reused by the
+// catalog cards so each model can show whether it fits this machine.
+let _sysRes = null;
+async function loadSysRes() {
+  if (_sysRes) return _sysRes;
+  try { const r = await fetch('/api/system/resources'); _sysRes = await r.json(); } catch {}
+  return _sysRes;
+}
+// Parse a human size string ("2.0 GB", "400 MB") into GB.
+function parseGB(s) {
+  const m = String(s || '').match(/([\d.]+)\s*(TB|GB|MB)/i);
+  if (!m) return 0;
+  let v = parseFloat(m[1]); const u = m[2].toUpperCase();
+  if (u === 'MB') v /= 1000; else if (u === 'TB') v *= 1000;
+  return v;
+}
+// Build a fit badge comparing a model size (GB) to the machine's memory budget.
+function fitBadgeGB(gb) {
+  if (!gb || !_sysRes || !_sysRes.budget_gb) return '';
+  const b = _sysRes.budget_gb;
+  let k = 'ok';
+  if (gb > b) k = 'over'; else if (gb > b * 0.75) k = 'tight';
+  const F = {
+    ok:    { l: '✅ Entra in memoria', c: '#16a34a', t: 'Entra comodamente nella tua memoria — puoi usarlo.' },
+    tight: { l: '⚠️ Al limite',        c: '#d97706', t: 'Ci sta ma vicino al limite: chiudi altre app, potrebbe andare lento.' },
+    over:  { l: '❌ Troppo grande',     c: '#dc2626', t: 'Più grande della memoria disponibile: rischio crash o estrema lentezza.' },
+  }[k];
+  return `<span title="${F.t}" style="font-size:10px;font-weight:600;color:${F.c};white-space:nowrap">${F.l}</span>`;
+}
+
 function renderReg(items) {
   const grid = document.getElementById('reg-grid');
   if (!grid) return;
+  if (!_sysRes) loadSysRes().then(() => renderReg(items)); // fill badges once budget known
   const filtered = items.filter(m => regFilter === 'all' || m.t === regFilter);
   grid.innerHTML = filtered.map(m => {
     const sid = safeId(m.t+'/'+m.n);
@@ -6234,6 +6267,7 @@ function renderReg(items) {
       </div>
       <div class="rcard-name">${m.n}</div>
       <div class="rcard-desc">${m.d}</div>
+      <div style="margin:4px 0 2px">${fitBadgeGB(parseGB(m.s))}</div>
       <div id="dl-prog-${sid}" style="display:none;margin:8px 0 4px">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px">
           <span id="dl-lbl-${sid}">Connessione…</span>
@@ -6273,6 +6307,7 @@ function filterReg(q) {
       <span class="type-pill ${tClass[m.t]}">${tIcon[m.t]} ${m.t.toUpperCase()}</span>
       <div class="rcard-name">${m.n}</div>
       <div class="rcard-desc">${m.d}</div>
+      <div style="margin:4px 0 2px">${fitBadgeGB(parseGB(m.s))}</div>
       <div class="rcard-foot">
         <span class="rcard-sz">${m.s}</span>
         <button class="btn" style="font-size:12px;padding:5px 12px" onclick="pullModel('${m.t}/${m.n}',this)">↓ Download</button>
