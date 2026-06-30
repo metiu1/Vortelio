@@ -63,7 +63,9 @@ func (r *VideoRunner) Run(opts *RunOptions) error {
 		if fmt2 == "gguf" || strings.HasSuffix(local, ".gguf") {
 			script = r.wanGGUFScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
 		} else {
-			script = r.animateDiffScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
+			// Generic diffusers auto-pipeline — works for any installed
+			// text-to-video model with a model_index.json.
+			script = r.genericVideoScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
 		}
 	}
 
@@ -216,6 +218,90 @@ print("VORTELIO_PROGRESS:100:Done!")
 	)
 }
 
+// genericVideoScript is the fallback for any installed text-to-video model that
+// has a diffusers layout (model_index.json). DiffusionPipeline.from_pretrained
+// auto-resolves the concrete pipeline class (CogVideoX, LTX, Mochi, Wan,
+// Hunyuan, AnimateDiff, …) so a newly installed model runs itself instead of
+// being forced through a hardcoded AnimateDiff base model.
+func (r *VideoRunner) genericVideoScript(prompt, output string, steps int, forceCPU bool) string {
+	device := r.deviceString(forceCPU)
+	dtype := "torch.float16"
+	if device == "cpu" {
+		dtype = "torch.float32"
+	}
+	modelDir := r.modelDir()
+	outputFwd := strings.ReplaceAll(output, `\`, `/`)
+
+	return fmt.Sprintf(`import sys, os, subprocess, shutil
+os.environ["PYTHONIOENCODING"] = "utf-8"
+model_dir = r"""%s"""
+prompt = r"""%s"""
+output_path = r"""%s"""
+device = "%s"
+steps = %d
+
+print("VORTELIO_PROGRESS:5:Checking dependencies...")
+def pip_run(*args):
+    strategies = [
+        [sys.executable, "-m", "pip", "install", "-q"] + list(args),
+        [sys.executable, "-m", "pip", "install", "-q", "--break-system-packages"] + list(args),
+    ]
+    uv = shutil.which("uv")
+    if uv:
+        strategies.append([uv, "pip", "install", "-q"] + list(args))
+    for cmd in strategies:
+        if subprocess.run(cmd, capture_output=True).returncode == 0:
+            return True
+    return False
+
+try:
+    import torch
+    from diffusers import DiffusionPipeline
+    from diffusers.utils import export_to_video
+except ImportError:
+    print("VORTELIO_PROGRESS:8:Installing diffusers...")
+    pip_run("diffusers[torch]", "transformers", "accelerate", "imageio", "imageio-ffmpeg", "sentencepiece")
+    import torch
+    from diffusers import DiffusionPipeline
+    from diffusers.utils import export_to_video
+
+print("VORTELIO_PROGRESS:20:Loading model (auto-pipeline)...")
+try:
+    pipe = DiffusionPipeline.from_pretrained(model_dir, torch_dtype=%s)
+except Exception as e:
+    print("ERROR: this video model could not be loaded by diffusers: " + str(e))
+    print("       (a model_index.json describing the pipeline is required)")
+    sys.exit(1)
+pipe = pipe.to(device)
+try:
+    pipe.enable_attention_slicing()
+except Exception:
+    pass
+try:
+    pipe.enable_model_cpu_offload()
+except Exception:
+    pass
+
+print("VORTELIO_PROGRESS:50:Generating video...")
+out = pipe(prompt=prompt, num_inference_steps=steps)
+frames = getattr(out, "frames", None)
+if frames is None:
+    frames = getattr(out, "images", None)
+if frames is None:
+    print("ERROR: model produced no frames")
+    sys.exit(1)
+# Diffusers video pipelines usually return a batch: frames[0] is the clip.
+if isinstance(frames, (list, tuple)) and len(frames) and isinstance(frames[0], (list, tuple)):
+    frames = frames[0]
+print("VORTELIO_PROGRESS:90:Saving...")
+export_to_video(frames, output_path, fps=8)
+print("VORTELIO_DONE:" + output_path)
+print("VORTELIO_PROGRESS:100:Done!")
+`,
+		modelDir, escapePy(prompt), outputFwd, device, steps, dtype,
+	)
+}
+
 func (r *VideoRunner) modelDir() string {
 	localPath := r.model.LocalPath
 	// If LocalPath is a file (config.json, .safetensors, etc.), start from its directory
@@ -296,11 +382,26 @@ func (r *VideoRunner) RunWithProgress(opts *RunOptions, progress chan<- Progress
 		output = "output.mp4"
 	}
 	name := strings.ToLower(r.model.Name)
+	local := strings.ToLower(r.model.LocalPath)
+	fmt2 := strings.ToLower(r.model.Format)
 	var script string
-	if strings.Contains(name, "cogvideo") {
+	switch {
+	case strings.Contains(name, "cogvideo") || strings.Contains(name, "cog"):
 		script = r.cogVideoScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
-	} else {
+	case strings.Contains(name, "wan") || strings.Contains(local, "wan"):
+		if fmt2 == "gguf" || strings.HasSuffix(local, ".gguf") {
+			script = r.wanGGUFScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
+		} else {
+			script = r.wanScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
+		}
+	case strings.Contains(name, "hunyuan") || strings.Contains(name, "ltx") || strings.Contains(name, "mochi"):
+		script = r.hunyuanScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
+	case strings.Contains(name, "animatediff") || strings.Contains(name, "animate-diff"):
 		script = r.animateDiffScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
+	case fmt2 == "gguf" || strings.HasSuffix(local, ".gguf"):
+		script = r.wanGGUFScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
+	default:
+		script = r.genericVideoScript(opts.Prompt, output, opts.Steps, opts.ForceCPU)
 	}
 	pythonBin := FindPython()
 	if pythonBin == "" {

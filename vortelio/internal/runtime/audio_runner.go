@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/vortelio/vortelio/internal/hub"
@@ -18,11 +19,83 @@ func NewAudioRunner(model *hub.Model, hw *Hardware) *AudioRunner {
 	return &AudioRunner{model: model, hw: hw}
 }
 
+// hasCap reports whether the model declares the given capability.
+func (r *AudioRunner) hasCap(c string) bool {
+	for _, cap := range r.model.Capabilities {
+		if strings.EqualFold(cap, c) {
+			return true
+		}
+	}
+	return false
+}
+
+// engine picks the inference backend from the model's name, source and declared
+// capabilities — not a hardcoded model list. A known engine keyword wins; any
+// other model routes by capability. Unknown TTS models fall back to a generic
+// HuggingFace transformers pipeline ("generic-tts") instead of silently using
+// Kokoro, so newly installed models actually run themselves.
+func (r *AudioRunner) engine() string {
+	hay := strings.ToLower(r.model.Name + " " + r.model.Source + " " + r.model.Tag)
+	switch {
+	case strings.Contains(hay, "whisper"):
+		return "whisper"
+	case strings.Contains(hay, "pocket"):
+		return "pocket"
+	case strings.Contains(hay, "bark"):
+		return "bark"
+	case strings.Contains(hay, "kokoro"):
+		return "kokoro"
+	}
+	// No known keyword: a transcription-only model is treated as ASR (whisper),
+	// everything else as a generic text-to-speech model.
+	if r.hasCap("speech-to-text") && !r.hasCap("text-to-speech") {
+		return "whisper"
+	}
+	return "generic-tts"
+}
+
+// ttsScript returns the synthesis script for the model's engine. Unknown
+// engines use the generic transformers pipeline.
+func (r *AudioRunner) ttsScript(opts *RunOptions) string {
+	switch r.engine() {
+	case "pocket":
+		return r.buildPocketTTSScript(opts)
+	case "bark":
+		return r.buildBarkScript(opts)
+	case "kokoro":
+		return r.buildKokoroScript(opts)
+	default:
+		return r.buildGenericTTSScript(opts)
+	}
+}
+
+// hfRepoOrPath resolves a transformers-loadable reference for the model: the
+// HuggingFace "owner/name" repo when the source points at huggingface.co,
+// otherwise the local model directory.
+func (r *AudioRunner) hfRepoOrPath() string {
+	if src := r.model.Source; strings.Contains(src, "huggingface.co/") {
+		repo := src[strings.Index(src, "huggingface.co/")+len("huggingface.co/"):]
+		repo = strings.TrimSuffix(repo, "/")
+		parts := strings.Split(repo, "/")
+		if len(parts) >= 2 {
+			return parts[0] + "/" + parts[1]
+		}
+		return repo
+	}
+	if p := r.model.LocalPath; p != "" {
+		// A file (e.g. *.gguf) → use its directory; transformers loads a dir.
+		if filepath.Ext(p) != "" {
+			return filepath.Dir(p)
+		}
+		return p
+	}
+	return r.model.Name
+}
+
 // ensureDeps installs required Python packages for the given model if missing.
 func (r *AudioRunner) ensureDeps(pythonBin string) {
-	name := strings.ToLower(r.model.Name)
-	switch {
-	case strings.Contains(name, "whisper"):
+	switch r.engine() {
+	case "whisper":
 		if !CheckPythonPackage(pythonBin, "faster_whisper") {
 			fmt.Println("📦  Installing faster-whisper...")
 			_ = InstallPythonPackage(pythonBin, "faster-whisper")
@@ -32,7 +105,7 @@ func (r *AudioRunner) ensureDeps(pythonBin string) {
 				_ = InstallPythonPackage(pythonBin, "openai-whisper")
 			}
 		}
-	case strings.Contains(name, "kokoro"):
+	case "kokoro":
 		if !CheckPythonPackage(pythonBin, "kokoro_onnx") && !CheckPythonPackage(pythonBin, "kokoro") {
 			fmt.Println("📦  Installing kokoro-onnx soundfile...")
 			_ = InstallPythonPackage(pythonBin, "kokoro-onnx", "soundfile")
@@ -40,7 +113,7 @@ func (r *AudioRunner) ensureDeps(pythonBin string) {
 		if !CheckPythonPackage(pythonBin, "soundfile") {
 			_ = InstallPythonPackage(pythonBin, "soundfile")
 		}
-	case strings.Contains(name, "bark"):
+	case "bark":
 		if !CheckPythonPackage(pythonBin, "bark") {
 			fmt.Println("📦  Installing bark (this may take a few minutes)...")
 			_ = InstallPythonPackage(pythonBin, "git+https://github.com/suno-ai/bark.git", "scipy")
@@ -48,6 +121,27 @@ func (r *AudioRunner) ensureDeps(pythonBin string) {
 		if !CheckPythonPackage(pythonBin, "torch") {
 			fmt.Println("📦  Installing torch...")
 			_ = InstallPythonPackage(pythonBin, "torch")
+		}
+	case "pocket":
+		if !CheckPythonPackage(pythonBin, "pocket_tts") {
+			fmt.Println("📦  Installing pocket-tts scipy...")
+			_ = InstallPythonPackage(pythonBin, "pocket-tts", "scipy")
+		}
+		if !CheckPythonPackage(pythonBin, "scipy") {
+			_ = InstallPythonPackage(pythonBin, "scipy")
+		}
+	case "generic-tts":
+		// Best-effort runtime for any HuggingFace text-to-speech model.
+		if !CheckPythonPackage(pythonBin, "transformers") {
+			fmt.Println("📦  Installing transformers (generic TTS)...")
+			_ = InstallPythonPackage(pythonBin, "transformers", "sentencepiece")
+		}
+		if !CheckPythonPackage(pythonBin, "torch") {
+			fmt.Println("📦  Installing torch...")
+			_ = InstallPythonPackage(pythonBin, "torch")
+		}
+		if !CheckPythonPackage(pythonBin, "soundfile") {
+			_ = InstallPythonPackage(pythonBin, "soundfile")
 		}
 	}
 }
@@ -60,25 +154,16 @@ func (r *AudioRunner) Run(opts *RunOptions) error {
 		return nil
 	}
 	r.ensureDeps(pythonBin)
-	name := strings.ToLower(r.model.Name)
-	switch {
-	case strings.Contains(name, "whisper"):
-		if opts.InputFile != "" {
-			return r.runPython(pythonBin, r.buildWhisperScript(opts))
-		}
+	// An attached audio file always means speech-to-text.
+	if opts.InputFile != "" {
+		return r.runPython(pythonBin, r.buildWhisperScript(opts))
+	}
+	if r.engine() == "whisper" {
 		fmt.Println("ℹ️   Whisper: Speech → Text")
 		fmt.Println("    vortelio run audio/whisper:large --input ./audio.mp3")
 		return nil
-	case strings.Contains(name, "kokoro"):
-		return r.runPython(pythonBin, r.buildKokoroScript(opts))
-	case strings.Contains(name, "bark"):
-		return r.runPython(pythonBin, r.buildBarkScript(opts))
-	default:
-		if opts.InputFile != "" {
-			return r.runPython(pythonBin, r.buildWhisperScript(opts))
-		}
-		return r.runPython(pythonBin, r.buildKokoroScript(opts))
 	}
+	return r.runPython(pythonBin, r.ttsScript(opts))
 }
 
 func (r *AudioRunner) RunCapture(opts *RunOptions) error {
@@ -87,15 +172,11 @@ func (r *AudioRunner) RunCapture(opts *RunOptions) error {
 		return fmt.Errorf("python3 not found — install Python 3.10+")
 	}
 	r.ensureDeps(pythonBin)
-	name := strings.ToLower(r.model.Name)
 	var script string
-	switch {
-	case strings.Contains(name, "whisper"):
+	if r.engine() == "whisper" {
 		script = r.buildWhisperScript(opts)
-	case strings.Contains(name, "kokoro"):
-		script = r.buildKokoroScript(opts)
-	default:
-		script = r.buildBarkScript(opts)
+	} else {
+		script = r.ttsScript(opts)
 	}
 	return r.runPythonWith(pythonBin, script, true)
 }
@@ -109,15 +190,11 @@ func (r *AudioRunner) RunWithProgress(opts *RunOptions, progress chan<- Progress
 		return fmt.Errorf("python3 not found")
 	}
 	r.ensureDeps(pythonBin)
-	name := strings.ToLower(r.model.Name)
 	var script string
-	switch {
-	case strings.Contains(name, "whisper"):
+	if r.engine() == "whisper" {
 		script = r.buildWhisperScript(opts)
-	case strings.Contains(name, "bark"):
-		script = r.buildBarkScript(opts)
-	default:
-		script = r.buildKokoroScript(opts)
+	} else {
+		script = r.ttsScript(opts)
 	}
 	tmp, err := os.CreateTemp("", "vortelio-audio-*.py")
 	if err != nil {
@@ -423,14 +500,7 @@ func (r *AudioRunner) SynthesizeToBytes(text string) ([]byte, error) {
 	tmp.Close()
 	defer os.Remove(tmpPath)
 	opts := &RunOptions{Prompt: text, OutputFile: tmpPath}
-	var script string
-	name := strings.ToLower(r.model.Name)
-	switch {
-	case strings.Contains(name, "bark"):
-		script = r.buildBarkScript(opts)
-	default:
-		script = r.buildKokoroScript(opts)
-	}
+	script := r.ttsScript(opts)
 	if err := r.runPython(pythonBin, script); err != nil {
 		return nil, fmt.Errorf("synthesis failed: %w", err)
 	}
@@ -470,4 +540,104 @@ audio = generate_audio('''%s''')
 wav.write(r'''%s''', SAMPLE_RATE, audio.astype(np.float32))
 print('Audio saved to: ' + r'''%s''')
 `, device, escapePy(text), outputPath, outputPath)
+}
+
+// buildPocketTTSScript renders the Python that drives kyutai's pocket-tts.
+// The GGUF/CoreML weights pulled into ~/.vortelio are WASM/CoreML-only; the
+// pip `pocket-tts` package downloads its own PyTorch weights on first run.
+func (r *AudioRunner) buildPocketTTSScript(opts *RunOptions) string {
+	text := opts.Prompt
+	if text == "" {
+		text = "Hi, I'm Vortelio."
+	}
+	outputPath := opts.OutputFile
+	if outputPath == "" {
+		outputPath = ResolveOutputPath("", "output.wav")
+	}
+	outputPath = strings.ReplaceAll(outputPath, `\`, `/`)
+
+	// pocket-tts voices: en=alba, it=...; default to alba (English).
+	voice := "alba"
+
+	lines := []string{
+		`import sys, os`,
+		`os.environ["PYTHONIOENCODING"] = "utf-8"`,
+		``,
+		`output_path = """` + outputPath + `"""`,
+		`text = """` + escapePy(text) + `"""`,
+		`voice = "` + voice + `"`,
+		``,
+		`try:`,
+		`    from pocket_tts import TTSModel`,
+		`    import scipy.io.wavfile as wav`,
+		`except ImportError:`,
+		`    print("ERROR: pocket-tts not installed. pip install pocket-tts scipy")`,
+		`    sys.exit(1)`,
+		``,
+		`print("Loading pocket-tts...")`,
+		`model = TTSModel.load_model()`,
+		`state = model.get_state_for_audio_prompt(voice)`,
+		`print("Generating audio...")`,
+		`audio = model.generate_audio(state, text)`,
+		`try:`,
+		`    audio = audio.detach().cpu().numpy()`,
+		`except AttributeError:`,
+		`    pass`,
+		`wav.write(output_path, int(model.sample_rate), audio)`,
+		`print("Audio saved to: " + output_path)`,
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// buildGenericTTSScript is the fallback for any installed text-to-speech model
+// without a dedicated engine: it drives a HuggingFace transformers
+// `pipeline("text-to-speech", ...)`, which auto-resolves the right architecture
+// (VITS/MMS, SpeechT5, Bark, Parler, etc.) for most HF TTS models.
+func (r *AudioRunner) buildGenericTTSScript(opts *RunOptions) string {
+	text := opts.Prompt
+	if text == "" {
+		text = "Hi, I'm Vortelio."
+	}
+	outputPath := opts.OutputFile
+	if outputPath == "" {
+		outputPath = ResolveOutputPath("", "output.wav")
+	}
+	outputPath = strings.ReplaceAll(outputPath, `\`, `/`)
+	modelRef := strings.ReplaceAll(r.hfRepoOrPath(), `\`, `/`)
+	device := r.deviceString(opts.ForceCPU)
+
+	lines := []string{
+		`import sys, os`,
+		`os.environ["PYTHONIOENCODING"] = "utf-8"`,
+		``,
+		`output_path = """` + outputPath + `"""`,
+		`text = """` + escapePy(text) + `"""`,
+		`model_ref = r"""` + modelRef + `"""`,
+		`device = "` + device + `"`,
+		``,
+		`try:`,
+		`    import torch`,
+		`    from transformers import pipeline`,
+		`    import soundfile as sf`,
+		`    import numpy as np`,
+		`except ImportError:`,
+		`    print("ERROR: generic TTS needs: pip install transformers torch soundfile sentencepiece")`,
+		`    sys.exit(1)`,
+		``,
+		`dev = 0 if (device == "cuda" and torch.cuda.is_available()) else -1`,
+		`print("Loading TTS model: " + model_ref)`,
+		`try:`,
+		`    synth = pipeline("text-to-speech", model=model_ref, device=dev)`,
+		`except Exception as e:`,
+		`    print("ERROR: this model is not supported by the transformers TTS pipeline: " + str(e))`,
+		`    print("       (formats like GGUF/CoreML need a dedicated engine)")`,
+		`    sys.exit(1)`,
+		`print("Generating audio...")`,
+		`out = synth(text)`,
+		`audio = np.asarray(out["audio"]).squeeze()`,
+		`sr = int(out.get("sampling_rate", 16000))`,
+		`sf.write(output_path, audio, sr)`,
+		`print("Audio saved to: " + output_path)`,
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
